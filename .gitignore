@@ -45,3 +45,6 @@ test_*.py
 # Ignore entire iiko_webhooks folder
 iiko_webhooks/
 **/iiko_webhooks/
+
+# Agent folder
+.agent/
