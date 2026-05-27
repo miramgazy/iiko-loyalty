@@ -1,0 +1,636 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;900&display=swap');
+
+  :root {
+    --brand: #6C5CE7;
+    --brand-dark: #4a3dbf;
+    --brand-glow: rgba(108,92,231,0.35);
+    --brand-10: rgba(108,92,231,0.10);
+    --brand-15: rgba(108,92,231,0.15);
+  }
+
+  .tma-wrap {
+    font-family: 'Golos Text', 'Segoe UI', sans-serif;
+    background: #0d0d14;
+    border-radius: 20px;
+    overflow: hidden;
+    width: 100%;
+    max-width: 360px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  .tab-bar {
+    display: flex;
+    gap: 0;
+    background: rgba(255,255,255,0.04);
+    border-bottom: 0.5px solid rgba(255,255,255,0.08);
+    padding: 4px;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 7px 4px;
+    font-size: 11px;
+    font-family: 'Golos Text', sans-serif;
+    font-weight: 500;
+    color: rgba(255,255,255,0.45);
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    letter-spacing: 0.02em;
+  }
+  .tab-btn.active {
+    background: rgba(108,92,231,0.2);
+    color: #a89cf8;
+    border: 0.5px solid rgba(108,92,231,0.3);
+  }
+
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ─── SCREEN 1: Language ─── */
+  .lang-screen {
+    background: #0d0d14;
+    min-height: 560px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 20px 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .lang-screen::before {
+    content: '';
+    position: absolute;
+    width: 280px; height: 280px;
+    background: radial-gradient(circle, rgba(108,92,231,0.22) 0%, transparent 70%);
+    top: -60px; left: 50%; transform: translateX(-50%);
+    pointer-events: none;
+  }
+  .lang-screen::after {
+    content: '';
+    position: absolute;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(108,92,231,0.10) 0%, transparent 70%);
+    bottom: 40px; right: -40px;
+    pointer-events: none;
+  }
+
+  .logo-wrap {
+    width: 84px; height: 84px;
+    border-radius: 22px;
+    background: linear-gradient(135deg, rgba(108,92,231,0.25), rgba(108,92,231,0.08));
+    border: 1px solid rgba(108,92,231,0.3);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 20px;
+    position: relative;
+    animation: logoPulse 3s ease-in-out infinite;
+    z-index: 1;
+  }
+  .logo-wrap::before {
+    content: '';
+    position: absolute; inset: -8px;
+    border-radius: 30px;
+    background: radial-gradient(circle, rgba(108,92,231,0.18) 0%, transparent 70%);
+    animation: glowPulse 3s ease-in-out infinite;
+  }
+  @keyframes logoPulse { 0%,100%{box-shadow:0 0 20px rgba(108,92,231,0.25)} 50%{box-shadow:0 0 35px rgba(108,92,231,0.45)} }
+  @keyframes glowPulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
+
+  .logo-inner {
+    font-size: 26px; font-weight: 900; color: #fff;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #fff, #a89cf8);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  .lang-title {
+    font-size: 22px; font-weight: 700; color: #fff;
+    text-align: center; margin-bottom: 6px;
+    background: linear-gradient(135deg, #fff 60%, #a89cf8);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    line-height: 1.3;
+    z-index: 1; position: relative;
+  }
+  .lang-sub {
+    font-size: 13px; color: rgba(255,255,255,0.5);
+    text-align: center; margin-bottom: 28px;
+    z-index: 1; position: relative;
+  }
+
+  .lang-cards {
+    display: flex; flex-direction: column; gap: 10px;
+    width: 100%; z-index: 1; position: relative;
+  }
+  .lang-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 14px 16px;
+    display: flex; align-items: center; gap: 14px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative; overflow: hidden;
+  }
+  .lang-card:hover { border-color: rgba(108,92,231,0.3); background: rgba(108,92,231,0.06); }
+  .lang-card.selected {
+    border-color: var(--brand);
+    background: var(--brand-10);
+    box-shadow: 0 0 18px rgba(108,92,231,0.18);
+  }
+  .lang-card.selected::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(120deg, rgba(108,92,231,0.08) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .flag { font-size: 28px; line-height: 1; }
+  .lang-info { flex: 1; }
+  .lang-name { font-size: 15px; font-weight: 600; color: #fff; }
+  .lang-native { font-size: 12px; color: rgba(255,255,255,0.45); }
+  .radio-dot {
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s ease; flex-shrink: 0;
+  }
+  .lang-card.selected .radio-dot {
+    border-color: var(--brand);
+    background: var(--brand);
+  }
+  .radio-check {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #fff; transform: scale(0);
+    transition: transform 0.2s ease;
+  }
+  .lang-card.selected .radio-check { transform: scale(1); }
+
+  .continue-btn {
+    width: 100%; margin-top: 24px;
+    padding: 15px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+    border: none; border-radius: 16px;
+    color: #fff; font-size: 15px; font-weight: 600;
+    font-family: 'Golos Text', sans-serif;
+    cursor: pointer; position: relative; overflow: hidden;
+    box-shadow: 0 10px 28px rgba(108,92,231,0.4);
+    transition: all 0.2s ease;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    z-index: 1;
+  }
+  .continue-btn:hover { transform: translateY(-1px); box-shadow: 0 14px 32px rgba(108,92,231,0.5); }
+  .continue-btn:active { transform: scale(0.97); }
+  .btn-arrow { transition: transform 0.2s ease; }
+  .continue-btn:hover .btn-arrow { transform: translateX(3px); }
+
+  /* ─── SCREEN 2: Phone ─── */
+  .phone-screen {
+    background: #0d0d14;
+    min-height: 560px;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 40px 20px 28px;
+    position: relative; overflow: hidden;
+  }
+  .phone-screen::before {
+    content: '';
+    position: absolute;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(108,92,231,0.15) 0%, transparent 70%);
+    top: -80px; left: 50%; transform: translateX(-50%);
+    pointer-events: none;
+  }
+  .phone-icon-wrap {
+    width: 96px; height: 96px; border-radius: 26px;
+    background: linear-gradient(135deg, rgba(108,92,231,0.2), rgba(108,92,231,0.05));
+    border: 1px solid rgba(108,92,231,0.25);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 24px; position: relative; z-index: 1;
+    font-size: 42px; line-height: 1;
+  }
+  .wave-ring {
+    position: absolute; border-radius: 50%;
+    border: 1px solid rgba(108,92,231,0.3);
+    animation: waveExpand 2.4s ease-out infinite;
+    pointer-events: none;
+  }
+  .wave-ring:nth-child(1) { width: 110px; height: 110px; animation-delay: 0s; }
+  .wave-ring:nth-child(2) { width: 140px; height: 140px; animation-delay: 0.6s; }
+  .wave-ring:nth-child(3) { width: 170px; height: 170px; animation-delay: 1.2s; }
+  @keyframes waveExpand { 0%{opacity:0.6;transform:scale(0.8)} 100%{opacity:0;transform:scale(1.2)} }
+
+  .phone-title { font-size: 20px; font-weight: 700; color: #fff; text-align: center; margin-bottom: 8px; z-index:1; position:relative; }
+  .phone-sub { font-size: 13px; color: rgba(255,255,255,0.45); text-align: center; line-height: 1.5; margin-bottom: 36px; z-index:1; position:relative; }
+
+  .share-btn {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+    border: none; border-radius: 16px;
+    color: #fff; font-size: 15px; font-weight: 600;
+    font-family: 'Golos Text', sans-serif;
+    cursor: pointer;
+    box-shadow: 0 10px 28px rgba(108,92,231,0.4);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: all 0.2s ease; z-index:1; position:relative;
+    animation: sharePulse 2.5s ease-in-out infinite;
+  }
+  @keyframes sharePulse {
+    0%,100%{box-shadow:0 10px 28px rgba(108,92,231,0.4)}
+    50%{box-shadow:0 10px 38px rgba(108,92,231,0.65)}
+  }
+  .share-btn:active { transform: scale(0.97); }
+
+  .waiting-state {
+    margin-top: 20px; padding: 14px;
+    background: rgba(255,255,255,0.04);
+    border: 0.5px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    display: flex; align-items: center; gap: 12px;
+    z-index:1; position:relative;
+  }
+  .dots-loader { display: flex; gap: 5px; }
+  .dots-loader span {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--brand);
+    animation: dotBounce 1.2s ease-in-out infinite;
+  }
+  .dots-loader span:nth-child(2) { animation-delay: 0.2s; }
+  .dots-loader span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dotBounce { 0%,80%,100%{transform:scale(0.7);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+  .waiting-text { font-size: 13px; color: rgba(255,255,255,0.55); }
+
+  /* ─── SCREEN 3: Home ─── */
+  .home-screen {
+    background: #0d0d14;
+    min-height: 560px;
+    padding: 16px 16px 24px;
+    position: relative; overflow: hidden;
+  }
+
+  .home-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .greeting { font-size: 13px; color: rgba(255,255,255,0.5); }
+  .greeting strong { color: #fff; font-weight: 600; display: block; font-size: 15px; margin-top: 1px; }
+
+  .lang-switcher {
+    background: rgba(255,255,255,0.06);
+    border: 0.5px solid rgba(255,255,255,0.1);
+    border-radius: 20px; padding: 3px;
+    display: flex; gap: 0; position: relative;
+  }
+  .lang-pill {
+    padding: 4px 12px; border-radius: 16px;
+    font-size: 11px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s ease;
+    color: rgba(255,255,255,0.5); letter-spacing: 0.05em;
+    z-index: 1; position: relative;
+  }
+  .lang-pill.active { color: #fff; }
+  .lang-slider {
+    position: absolute; top: 3px; left: 3px;
+    height: calc(100% - 6px);
+    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+    border-radius: 16px;
+    transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+    width: 34px;
+  }
+
+  .loyalty-card {
+    border-radius: 20px;
+    background: linear-gradient(135deg, #1a1033 0%, #0f0c22 50%, #0d0d14 100%);
+    border: 1px solid rgba(255,255,255,0.12);
+    padding: 18px;
+    margin-bottom: 14px;
+    position: relative; overflow: hidden;
+    box-shadow: 0 4px 32px rgba(108,92,231,0.2);
+  }
+  .loyalty-card::before {
+    content: '';
+    position: absolute;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(108,92,231,0.25) 0%, transparent 70%);
+    top: -60px; right: -40px;
+    pointer-events: none;
+  }
+  .loyalty-card::after {
+    content: '';
+    position: absolute;
+    width: 120px; height: 120px;
+    background: radial-gradient(circle, rgba(168,156,248,0.12) 0%, transparent 70%);
+    bottom: -30px; left: -20px;
+    pointer-events: none;
+  }
+  .card-top { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; position: relative; z-index:1; }
+  .card-logo {
+    width: 34px; height: 34px; border-radius: 9px;
+    background: linear-gradient(135deg, rgba(108,92,231,0.4), rgba(168,156,248,0.2));
+    border: 1px solid rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; color: #fff;
+  }
+  .card-label { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.4); }
+  .card-refresh {
+    margin-left: auto; width: 26px; height: 26px; border-radius: 8px;
+    background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.1);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    font-size: 13px; transition: all 0.3s ease;
+  }
+  .card-refresh:hover { background: rgba(108,92,231,0.15); }
+  .card-refresh.spinning { animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .card-name { font-size: 18px; font-weight: 700; color: #fff; margin-bottom: 4px; position:relative; z-index:1; }
+  .balance-row { display: flex; align-items: flex-end; gap: 6px; margin-bottom: 4px; position:relative; z-index:1; }
+  .balance-num { font-size: 36px; font-weight: 900; color: #fff; line-height: 1; letter-spacing: -1px; }
+  .balance-label { font-size: 13px; color: rgba(255,255,255,0.45); margin-bottom: 4px; }
+
+  .card-shine {
+    position: absolute; top: 0; left: -60%;
+    width: 50%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+    transform: skewX(-20deg);
+    animation: cardShine 4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes cardShine { 0%,100%{left:-60%} 50%{left:120%} }
+
+  .qr-card {
+    border-radius: 18px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 16px;
+    margin-bottom: 14px;
+    display: flex; flex-direction: column; align-items: center;
+    backdrop-filter: blur(10px);
+  }
+  .qr-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255,255,255,0.35); margin-bottom: 12px; }
+  .qr-box {
+    width: 100px; height: 100px;
+    background: #fff; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    margin-bottom: 12px;
+  }
+  .qr-frame {
+    position: absolute; inset: -4px; border-radius: 14px;
+    border: 1.5px solid transparent;
+    background: linear-gradient(135deg, var(--brand), transparent, var(--brand)) border-box;
+    -webkit-mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: destination-out; mask-composite: exclude;
+    animation: qrPulse 2s ease-in-out infinite;
+  }
+  @keyframes qrPulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+  .qr-inner { width: 80px; height: 80px; }
+  .qr-row { display: flex; }
+  .qr-cell { width: 8px; height: 8px; }
+  .qr-cell.on { background: #1a1033; }
+
+  .client-id-row { display: flex; align-items: center; gap: 8px; }
+  .client-id { font-size: 12px; font-family: monospace; color: rgba(255,255,255,0.5); letter-spacing: 0.08em; }
+  .copy-btn {
+    padding: 3px 8px; border-radius: 6px;
+    background: rgba(108,92,231,0.15); border: 0.5px solid rgba(108,92,231,0.25);
+    color: #a89cf8; font-size: 10px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s ease;
+    font-family: 'Golos Text', sans-serif;
+  }
+  .copy-btn:active { transform: scale(0.93); background: rgba(108,92,231,0.25); }
+
+  .profile-block {
+    border-radius: 16px;
+    background: rgba(255,255,255,0.04);
+    border: 0.5px solid rgba(255,255,255,0.07);
+    padding: 14px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .avatar {
+    width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700; color: #fff;
+    border: 2px solid rgba(108,92,231,0.3);
+  }
+  .profile-info { flex: 1; }
+  .profile-name { font-size: 14px; font-weight: 600; color: #fff; }
+  .profile-phone { font-size: 12px; color: rgba(255,255,255,0.4); }
+  .social-btns { display: flex; gap: 8px; }
+  .social-btn {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+    border: 0.5px solid rgba(255,255,255,0.1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .social-btn:active { transform: scale(0.88); background: rgba(108,92,231,0.15); }
+</style>
+
+<h2 class="sr-only">Предпросмотр дизайна Telegram Mini App — программа лояльности</h2>
+
+<div class="tma-wrap">
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="showScreen('lang',this)">Язык</button>
+    <button class="tab-btn" onclick="showScreen('phone',this)">Телефон</button>
+    <button class="tab-btn" onclick="showScreen('home',this)">Главная</button>
+  </div>
+
+  <!-- SCREEN 1: Language -->
+  <div class="screen active" id="screen-lang">
+    <div class="lang-screen">
+      <div class="logo-wrap">
+        <div class="logo-inner">L</div>
+      </div>
+      <div class="lang-title">Добро пожаловать!</div>
+      <div class="lang-sub">Выберите язык / Тілді таңдаңыз</div>
+      <div class="lang-cards" style="width:100%">
+        <div class="lang-card selected" id="card-ru" onclick="selectLang('ru')">
+          <div class="flag">🇷🇺</div>
+          <div class="lang-info">
+            <div class="lang-name">Русский</div>
+            <div class="lang-native">Russian</div>
+          </div>
+          <div class="radio-dot"><div class="radio-check"></div></div>
+        </div>
+        <div class="lang-card" id="card-kz" onclick="selectLang('kz')">
+          <div class="flag">🇰🇿</div>
+          <div class="lang-info">
+            <div class="lang-name">Қазақша</div>
+            <div class="lang-native">Kazakh</div>
+          </div>
+          <div class="radio-dot"><div class="radio-check"></div></div>
+        </div>
+      </div>
+      <button class="continue-btn" onclick="showScreen('phone', document.querySelectorAll('.tab-btn')[1])">
+        Продолжить <span class="btn-arrow">→</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- SCREEN 2: Phone -->
+  <div class="screen" id="screen-phone">
+    <div class="phone-screen">
+      <div style="position:relative;display:flex;align-items:center;justify-content:center;width:96px;height:96px;margin-bottom:28px;z-index:1">
+        <div class="wave-ring"></div>
+        <div class="wave-ring"></div>
+        <div class="wave-ring"></div>
+        <div class="phone-icon-wrap" style="position:absolute;width:72px;height:72px;margin:0">📱</div>
+      </div>
+      <div class="phone-title">Подтвердите номер</div>
+      <div class="phone-sub">Поделитесь контактом для<br>входа в программу лояльности</div>
+      <button class="share-btn" style="width:100%">
+        📲 Поделиться контактом
+      </button>
+      <div class="waiting-state">
+        <div class="dots-loader">
+          <span></span><span></span><span></span>
+        </div>
+        <div class="waiting-text">Проверяем данные...</div>
+      </div>
+      <div style="margin-top:16px;padding:10px 14px;background:rgba(239,68,68,0.06);border:0.5px solid rgba(239,68,68,0.18);border-radius:12px;font-size:12px;color:rgba(239,100,100,0.85);z-index:1;position:relative;display:none" id="err-block">
+        Ошибка подключения. Попробуйте снова.
+      </div>
+    </div>
+  </div>
+
+  <!-- SCREEN 3: Home -->
+  <div class="screen" id="screen-home">
+    <div class="home-screen">
+      <div class="home-header">
+        <div class="greeting">
+          Привет,
+          <strong>Алиса К.</strong>
+        </div>
+        <div class="lang-switcher">
+          <div class="lang-slider" id="lslider"></div>
+          <div class="lang-pill active" id="pill-ru" onclick="switchLang('ru')">RU</div>
+          <div class="lang-pill" id="pill-kz" onclick="switchLang('kz')">KZ</div>
+        </div>
+      </div>
+
+      <div class="loyalty-card">
+        <div class="card-shine"></div>
+        <div class="card-top">
+          <div class="card-logo">L</div>
+          <div class="card-label">Карта лояльности</div>
+          <div class="card-refresh" id="refreshBtn" onclick="spinRefresh()">↻</div>
+        </div>
+        <div class="card-name">Алиса Карпова</div>
+        <div class="balance-row">
+          <div class="balance-num" id="balanceNum">0</div>
+          <div class="balance-label">баллов</div>
+        </div>
+      </div>
+
+      <div class="qr-card">
+        <div class="qr-label">QR-код для сканирования</div>
+        <div class="qr-box">
+          <div class="qr-frame"></div>
+          <div class="qr-inner" id="qrGrid"></div>
+        </div>
+        <div class="client-id-row">
+          <div class="client-id">LC-4872-9301</div>
+          <button class="copy-btn" onclick="copyId(this)">Копировать</button>
+        </div>
+      </div>
+
+      <div class="profile-block">
+        <div class="avatar">АК</div>
+        <div class="profile-info">
+          <div class="profile-name">Алиса Карпова</div>
+          <div class="profile-phone">+7 (777) 123-45-67</div>
+        </div>
+        <div class="social-btns">
+          <div class="social-btn">📷</div>
+          <div class="social-btn">💬</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showScreen(name, btn) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+function selectLang(lang) {
+  document.getElementById('card-ru').classList.toggle('selected', lang === 'ru');
+  document.getElementById('card-kz').classList.toggle('selected', lang === 'kz');
+}
+
+function switchLang(lang) {
+  var slider = document.getElementById('lslider');
+  var ru = document.getElementById('pill-ru');
+  var kz = document.getElementById('pill-kz');
+  if (lang === 'ru') {
+    slider.style.left = '3px'; slider.style.width = '34px';
+    ru.classList.add('active'); kz.classList.remove('active');
+  } else {
+    slider.style.left = 'calc(50% - 1px)'; slider.style.width = '34px';
+    kz.classList.add('active'); ru.classList.remove('active');
+  }
+}
+
+function spinRefresh() {
+  var btn = document.getElementById('refreshBtn');
+  btn.classList.add('spinning');
+  setTimeout(function() { btn.classList.remove('spinning'); }, 800);
+}
+
+function copyId(btn) {
+  var orig = btn.textContent;
+  btn.textContent = '✓ Готово';
+  btn.style.color = '#6ee7b7';
+  setTimeout(function() { btn.textContent = orig; btn.style.color = ''; }, 1500);
+}
+
+function animateBalance(target) {
+  var el = document.getElementById('balanceNum');
+  var start = 0; var duration = 1200;
+  var step = function(timestamp) {
+    if (!step.startTime) step.startTime = timestamp;
+    var progress = Math.min((timestamp - step.startTime) / duration, 1);
+    var ease = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(ease * target).toLocaleString('ru');
+    if (progress < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function buildQR() {
+  var grid = document.getElementById('qrGrid');
+  var pattern = [
+    [1,1,1,1,1,1,1,0,1,0],
+    [1,0,0,0,0,0,1,0,0,1],
+    [1,0,1,1,1,0,1,0,1,0],
+    [1,0,1,1,1,0,1,0,0,1],
+    [1,0,1,1,1,0,1,0,1,1],
+    [1,0,0,0,0,0,1,0,0,0],
+    [1,1,1,1,1,1,1,0,1,0],
+    [0,0,0,0,0,0,0,0,1,1],
+    [1,0,1,0,1,1,1,1,0,1],
+    [0,1,0,0,0,1,0,1,1,0]
+  ];
+  grid.style.display = 'grid';
+  grid.style.gridTemplateColumns = 'repeat(10,8px)';
+  grid.style.gap = '0px';
+  pattern.forEach(function(row) {
+    row.forEach(function(cell) {
+      var d = document.createElement('div');
+      d.className = 'qr-cell' + (cell ? ' on' : '');
+      grid.appendChild(d);
+    });
+  });
+}
+
+buildQR();
+setTimeout(function() { animateBalance(1247); }, 300);
+</script>

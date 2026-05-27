@@ -1,0 +1,8 @@
+admin/node_modules/
+admin/dist/
+tma/node_modules/
+tma/dist/
+iiko_webhooks/node_modules/
+iiko_webhooks/dist/
+.git
+.github
