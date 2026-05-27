@@ -140,7 +140,7 @@
       <!-- Status Tier Section -->
       <div class="card-luxury flex flex-col text-left shadow-sm" style="margin-bottom: 0;">
         <!-- Title and Cashback badge -->
-        <div class="flex justify-between items-center mb-4">
+        <div class="flex justify-between items-center">
           <div class="flex flex-col">
             <span class="text-[10px] tracking-[0.12em] uppercase text-[color:var(--muted)] font-extrabold mb-1">
               {{ t('participantLabel') }}
@@ -159,25 +159,6 @@
             <span class="text-[9px] uppercase tracking-wider leading-none opacity-80 mb-0.5">{{ t('cashbackLabel') }}</span>
             <span class="text-[14px] font-extrabold leading-none">{{ categoryInfo.cashback }}%</span>
           </div>
-        </div>
-
-        <!-- Progress bar towards next tier -->
-        <div class="w-full flex flex-col">
-          <!-- Progress track -->
-          <div class="w-full h-2.5 bg-[color:var(--bg)] border border-[color:var(--border)] rounded-full overflow-hidden relative mb-2.5">
-            <!-- Gold progress filler -->
-            <div class="h-full rounded-full transition-all duration-500 ease-out"
-                 :style="{
-                   width: `${tierProgress.percent}%`,
-                   background: 'var(--gold-gradient)',
-                   boxShadow: '0 0 8px var(--gold-glow)'
-                 }"></div>
-          </div>
-          
-          <!-- Progress label -->
-          <span class="text-[12px] text-[color:var(--muted)] font-semibold leading-normal">
-            {{ tierProgress.label }}
-          </span>
         </div>
       </div>
     </div>
@@ -339,32 +320,6 @@ const categoryInfo = computed(() => {
   }
 })
 
-// Compute progress towards next tier
-const tierProgress = computed(() => {
-  const info = categoryInfo.value
-  const points = pointsBalance.value
-  
-  if (!info.nextTierThreshold) {
-    return {
-      percent: 100,
-      pointsNeeded: 0,
-      label: t('maxTierLabel')
-    }
-  }
-  
-  const total = info.nextTierThreshold - info.prevTierThreshold
-  const current = Math.max(0, points - info.prevTierThreshold)
-  const percent = Math.min(100, (current / total) * 100)
-  const pointsNeeded = Math.max(0, info.nextTierThreshold - points)
-  
-  const label = `${pointsNeeded} ${t('nextTierProgress')} (${info.nextTierName})`
-    
-  return {
-    percent,
-    pointsNeeded,
-    label
-  }
-})
 
 // Point counting micro-animation
 const displayedPoints = ref(0)
