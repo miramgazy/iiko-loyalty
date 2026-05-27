@@ -118,7 +118,11 @@ function connectWebSocket() {
           is_onboarded: true,
         })
         cleanup()
-        router.replace('/')
+        if (auth.needsConsent) {
+          router.replace('/onboarding/consent')
+        } else {
+          router.replace('/')
+        }
       }
     }
 
@@ -141,7 +145,11 @@ function startPolling() {
           loyalty_balance: res.data.loyalty_balance,
         })
         cleanup()
-        router.replace('/')
+        if (auth.needsConsent) {
+          router.replace('/onboarding/consent')
+        } else {
+          router.replace('/')
+        }
       }
     } catch {
       // Silently retry

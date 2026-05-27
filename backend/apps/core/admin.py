@@ -14,7 +14,7 @@ class OrganizationAdmin(admin.ModelAdmin):
             'fields': ('name', 'slug', 'address', 'is_active', 'created_at')
         }),
         ('Интеграция Telegram & TMA', {
-            'fields': ('tg_bot_token', 'tg_bot_username', 'tma_name')
+            'fields': ('tg_bot_token', 'tg_bot_username', 'tma_name', 'tma_direct_link')
         }),
         ('Интеграция iiko', {
             'fields': (

@@ -59,6 +59,10 @@
             <input id="input-tma-name" v-model="form.tma_name" type="text" class="form-input" placeholder="loyalty" />
           </div>
         </div>
+        <div>
+          <label class="form-label">Прямая ссылка на TMA</label>
+          <input id="input-tma-direct-link" v-model="form.tma_direct_link" type="url" class="form-input" placeholder="https://t.me/my_loyalty_bot/loyalty" />
+        </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="form-label">Ссылка на Instagram</label>
@@ -598,7 +602,7 @@ const walletForm = ref({
 
 const form = ref({
   name: '', slug: '', address: '',
-  tg_bot_token: '', tg_bot_username: '', tma_name: '',
+  tg_bot_token: '', tg_bot_username: '', tma_name: '', tma_direct_link: '',
   iiko_integration_type: 'iiko_transport',
   iiko_api_base_url: 'https://api-ru.iiko.services/api/1',
   iiko_api_login: '', iiko_organization_id: '', iiko_loyalty_program_id: '',
@@ -637,6 +641,7 @@ async function saveSettings() {
       tg_bot_token: form.value.tg_bot_token || undefined,
       tg_bot_username: form.value.tg_bot_username,
       tma_name: form.value.tma_name,
+      tma_direct_link: form.value.tma_direct_link || null,
       iiko_integration_type: form.value.iiko_integration_type,
       iiko_api_base_url: form.value.iiko_api_base_url,
       iiko_api_login: form.value.iiko_api_login || undefined,

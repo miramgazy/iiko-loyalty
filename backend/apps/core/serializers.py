@@ -60,7 +60,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
         model = Organization
         fields = [
             'id', 'name', 'slug', 'address',
-            'tg_bot_token', 'tg_bot_username', 'tma_name',
+            'tg_bot_token', 'tg_bot_username', 'tma_name', 'tma_direct_link',
             'iiko_integration_type', 'iiko_api_base_url', 'iiko_api_login', 'iiko_organization_id', 'iiko_loyalty_program_id',
             'is_iiko_webhook_password_enabled', 'iiko_webhook_password',
             'google_issuer_id', 'google_loyalty_class_id',

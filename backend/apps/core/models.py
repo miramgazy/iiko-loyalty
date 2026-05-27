@@ -56,11 +56,14 @@ class Organization(models.Model):
     # Социальные сети
     instagram_link = models.URLField("Ссылка на Instagram", blank=True, null=True)
     whatsapp_link = models.URLField("Ссылка на WhatsApp", blank=True, null=True)
+    tma_direct_link = models.URLField("Прямая ссылка на TMA", blank=True, null=True)
 
     is_active = models.BooleanField("Активен", default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def get_tma_link(self):
+        if self.tma_direct_link:
+            return self.tma_direct_link
         if self.tg_bot_username and self.tma_name:
             return f"https://t.me/{self.tg_bot_username}/{self.tma_name}"
         return ""

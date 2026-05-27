@@ -67,8 +67,8 @@ router.beforeEach((to, from, next) => {
   // Consent page: only redirect there if user is onboarded but needs consent
   // AND they're trying to reach the home page (not info/profile, which should always work)
   if (auth.isAuthenticated && auth.isOnboarded && auth.needsConsent) {
-    if (to.name === 'home' && from.name == null) {
-      // Only redirect on initial navigation to home, not blocking /info or /profile
+    if (to.name === 'home') {
+      // Only redirect on navigation to home, not blocking /info or /profile
       return next('/onboarding/consent')
     }
     // Allow navigation to consent page itself
