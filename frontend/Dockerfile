@@ -18,6 +18,8 @@ RUN npm run build
 
 # Этап 3: Финальный образ Nginx
 FROM nginx:alpine AS final
+# Копируем конфигурацию Nginx
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Размещаем Admin Panel в корне
 COPY --from=build-admin /app/admin/dist /usr/share/nginx/html
 # Размещаем TMA по вложенному пути /tma
