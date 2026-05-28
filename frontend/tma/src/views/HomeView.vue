@@ -266,6 +266,16 @@ const pointsBalance = computed(() => auth.customer?.loyalty_balance || 0)
 // Wallets from multi-wallet support
 const wallets = computed(() => auth.customer?.wallets || [])
 
+// Find the active/primary wallet name (preferring type 1 bonus wallet)
+const activeWalletName = computed(() => {
+  const customerWallets = auth.customer?.wallets
+  if (Array.isArray(customerWallets) && customerWallets.length > 0) {
+    const bonusWallet = customerWallets.find(w => w.wallet_type === 1)
+    return bonusWallet ? bonusWallet.name : customerWallets[0].name
+  }
+  return ''
+})
+
 // Extract the active category name from iiko customer categories list
 const activeCategoryName = computed(() => {
   const categories = auth.customer?.iiko_categories
@@ -276,47 +286,45 @@ const activeCategoryName = computed(() => {
   return 'new_user'
 })
 
-// Match active category to Display Names, Cashback %, and Next Tier Thresholds
+// Match active category/wallet to Display Names, Cashback %, and Next Tier Thresholds
 const categoryInfo = computed(() => {
   const name = (activeCategoryName.value || '').toLowerCase()
+  const walletName = activeWalletName.value
   
-  if (name.includes('silver') || name.includes('серебр')) {
-    return {
-      displayName: t('silverStatus'),
-      cashback: 10,
-      nextTierName: 'Gold',
-      nextTierThreshold: 1500,
-      prevTierThreshold: 500,
-    }
-  } else if (name.includes('gold') || name.includes('золот')) {
-    return {
-      displayName: t('goldStatus'),
-      cashback: 15,
-      nextTierName: 'Platinum',
-      nextTierThreshold: 5000,
-      prevTierThreshold: 1500,
-    }
-  } else if (name.includes('platinum') || name.includes('платин')) {
-    return {
-      displayName: t('platinumStatus'),
-      cashback: 20,
-      nextTierName: null,
-      nextTierThreshold: null,
-      prevTierThreshold: 5000,
-    }
-  } else {
-    // Default fallback (new_user / Новичок)
-    let display = t('newUser')
+  // Set display name to active wallet name, falling back to category display name
+  let display = walletName
+  if (!display) {
+    display = t('newUser')
     if (activeCategoryName.value && activeCategoryName.value !== 'new_user') {
       display = activeCategoryName.value.charAt(0).toUpperCase() + activeCategoryName.value.slice(1)
     }
-    return {
-      displayName: display,
-      cashback: 5,
-      nextTierName: 'Silver',
-      nextTierThreshold: 500,
-      prevTierThreshold: 0,
+  }
+
+  // Determine cashback %
+  let cashback = 5
+  if (walletName) {
+    // Try to extract percentage from wallet name (e.g. "Кэшбэк 3%" -> 3)
+    const percentMatch = walletName.match(/(\d+(?:\.\d+)?)\s*%/)
+    if (percentMatch) {
+      cashback = parseFloat(percentMatch[1])
     }
+  } else {
+    // Fallback to category-based cashback
+    if (name.includes('silver') || name.includes('серебр')) {
+      cashback = 10
+    } else if (name.includes('gold') || name.includes('золот')) {
+      cashback = 15
+    } else if (name.includes('platinum') || name.includes('платин')) {
+      cashback = 20
+    }
+  }
+
+  return {
+    displayName: display,
+    cashback,
+    nextTierName: name.includes('silver') || name.includes('серебр') ? 'Gold' : (name.includes('gold') || name.includes('золот') ? 'Platinum' : null),
+    nextTierThreshold: name.includes('silver') || name.includes('серебр') ? 1500 : (name.includes('gold') || name.includes('золот') ? 5000 : null),
+    prevTierThreshold: name.includes('silver') || name.includes('серебр') ? 500 : (name.includes('gold') || name.includes('золот') ? 1500 : (name.includes('platinum') || name.includes('платин') ? 5000 : 0)),
   }
 })
 
