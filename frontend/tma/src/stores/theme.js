@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { applyThemeColors } from '@/services/telegram'
+import { locale } from '@/i18n'
 
 function getContrastColor(hexColor) {
   if (!hexColor) return '#ffffff'
@@ -77,8 +78,16 @@ function updateThemeVariables(hexColor) {
 
 export const useThemeStore = defineStore('tma-theme', () => {
   const primaryColor = ref('#6c5ce7')
-  const greetingText = ref(null)
+  const greetingTextRu = ref('')
+  const greetingTextKz = ref('')
   const logoUrl = ref(null)
+
+  const greetingText = computed(() => {
+    if (locale.value === 'kz') {
+      return greetingTextKz.value || greetingTextRu.value || ''
+    }
+    return greetingTextRu.value || ''
+  })
 
   // Apply default preview brand variables on init
   updateThemeVariables(primaryColor.value)
@@ -103,7 +112,15 @@ export const useThemeStore = defineStore('tma-theme', () => {
     }
 
     if (branding.greeting_text) {
-      greetingText.value = branding.greeting_text
+      greetingTextRu.value = branding.greeting_text
+    } else {
+      greetingTextRu.value = ''
+    }
+
+    if (branding.greeting_text_kz) {
+      greetingTextKz.value = branding.greeting_text_kz
+    } else {
+      greetingTextKz.value = ''
     }
 
     if (branding.logo_url) {

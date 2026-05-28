@@ -236,9 +236,15 @@
         </div>
 
         <!-- Greeting text -->
-        <div>
-          <label class="form-label">Приветственный текст</label>
-          <input id="input-greeting" v-model="greetingText" type="text" class="form-input" placeholder="Добро пожаловать!" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label class="form-label">Приветственный текст (RU)</label>
+            <input id="input-greeting" v-model="greetingText" type="text" class="form-input" placeholder="Добро пожаловать!" />
+          </div>
+          <div>
+            <label class="form-label">Приветственный текст (KZ)</label>
+            <input id="input-greeting-kz" v-model="greetingTextKz" type="text" class="form-input" placeholder="Қош келдіңіз!" />
+          </div>
         </div>
 
         <!-- Logo upload -->
@@ -618,6 +624,10 @@ const brandColor = computed({
 const greetingText = computed({
   get: () => form.value.branding?.greeting_text || '',
   set: (v) => { form.value.branding = { ...form.value.branding, greeting_text: v } },
+})
+const greetingTextKz = computed({
+  get: () => form.value.branding?.greeting_text_kz || '',
+  set: (v) => { form.value.branding = { ...form.value.branding, greeting_text_kz: v } },
 })
 
 async function load() {
