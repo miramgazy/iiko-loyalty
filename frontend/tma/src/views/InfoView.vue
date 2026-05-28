@@ -43,7 +43,7 @@
 import { ref, computed, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
-import { t } from '@/i18n'
+import { t, locale } from '@/i18n'
 
 const auth = useAuthStore()
 const programs = ref([])
