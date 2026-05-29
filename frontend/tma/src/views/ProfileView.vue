@@ -5,7 +5,7 @@
          style="background: radial-gradient(circle, var(--gold) 0%, transparent 70%);"></div>
 
     <!-- Content Container -->
-    <div class="flex-1 page-p space-y-3 z-10 relative flex flex-col justify-start overflow-y-auto">
+    <div class="flex-1 page-p space-y-4 z-10 relative flex flex-col justify-start overflow-y-auto">
       
       <!-- Top Card: Header Title -->
       <div class="card-luxury text-left shadow-sm" style="margin-bottom: 0;">
@@ -15,7 +15,7 @@
       </div>
       
       <!-- Profile Card Form -->
-      <div class="card-luxury text-left flex flex-col shadow-sm gap-4" style="margin-bottom: 0;">
+      <div class="card-luxury text-left flex flex-col shadow-sm gap-4" :style="{ marginBottom: 0, marginTop: '24px' }">
         
         <!-- First Name -->
         <div class="flex flex-col">
@@ -65,7 +65,7 @@
       </div>
 
       <!-- Action Button -->
-      <div class="pt-1">
+      <div style="margin-top: 24px;">
         <button
           @click="saveProfile"
           :disabled="saving"

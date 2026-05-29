@@ -12,7 +12,7 @@
     </div>
 
     <!-- Main Content Container with proportional padding and spacing -->
-    <div v-else class="flex-grow page-p space-y-3 z-10 relative flex flex-col justify-start overflow-y-auto">
+    <div v-else class="flex-grow page-p space-y-4 z-10 relative flex flex-col justify-start overflow-y-auto">
       
       <!-- Top Card: Header Title -->
       <div class="card-luxury text-left shadow-sm" style="margin-bottom: 0;">
@@ -22,12 +22,14 @@
       </div>
 
       <!-- Empty State -->
-      <div v-if="programs.length === 0" class="text-center py-16 text-[color:var(--muted)] text-sm">
+      <div v-if="programs.length === 0" class="text-center py-16 text-[color:var(--muted)] text-sm" style="margin-top: 24px;">
         {{ t('noInfo') }}
       </div>
 
       <!-- Programs List -->
-      <div v-else v-for="prog in programs" :key="prog.id" class="card-luxury text-left flex flex-col shadow-sm" style="margin-bottom: 0;">
+      <div v-else v-for="(prog, index) in programs" :key="prog.id" 
+           class="card-luxury text-left flex flex-col shadow-sm" 
+           :style="{ marginBottom: 0, marginTop: index === 0 ? '24px' : '' }">
         <h3 class="text-base font-extrabold text-[color:var(--gold)] mb-2 uppercase tracking-wide">
           {{ locale === 'kz' && prog.title_kz ? prog.title_kz : prog.title }}
         </h3>
