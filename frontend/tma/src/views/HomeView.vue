@@ -107,11 +107,14 @@
           <div
             v-for="wallet in wallets"
             :key="wallet.wallet_id || wallet.id"
-            class="card-luxury flex flex-col p-4 text-left relative overflow-hidden"
+            @click="selectWallet(wallet)"
+            class="card-luxury flex flex-col p-4 text-left relative overflow-hidden cursor-pointer transition-all duration-300 active:scale-[0.98] hover:scale-[1.02]"
+            :class="{ 'active-wallet-tile': (wallet.wallet_id || wallet.id) === selectedWalletId }"
             style="margin: 0;"
           >
             <!-- Subtle glow accent -->
-            <div class="absolute top-0 right-0 w-[80px] h-[80px] rounded-full pointer-events-none opacity-10"
+            <div class="absolute top-0 right-0 w-[80px] h-[80px] rounded-full pointer-events-none transition-opacity duration-300"
+                 :class="(wallet.wallet_id || wallet.id) === selectedWalletId ? 'opacity-30' : 'opacity-10'"
                  style="background: radial-gradient(circle, var(--gold) 0%, transparent 70%); transform: translate(30px, -30px);"></div>
             <span class="text-[9px] uppercase tracking-wider text-[color:var(--muted)] font-bold mb-2 truncate z-10">
               {{ wallet.name || t('wallet') }}
@@ -138,7 +141,8 @@
       </div>
 
       <!-- Status Tier Section -->
-      <div class="card-luxury flex flex-col text-left shadow-sm" style="margin-bottom: 0;">
+      <div class="card-luxury flex flex-col text-left shadow-sm" 
+           :style="{ marginBottom: 0, marginTop: wallets.length > 1 ? '24px' : '' }">
         <!-- Title and Cashback badge -->
         <div class="flex justify-between items-center">
           <div class="flex flex-col">
@@ -261,10 +265,45 @@ const customerInitials = computed(() => {
 
 const orgName = computed(() => auth.organization?.name || auth.customer?.organization?.name || '')
 
-const pointsBalance = computed(() => auth.customer?.loyalty_balance || 0)
-
 // Wallets from multi-wallet support
 const wallets = computed(() => auth.customer?.wallets || [])
+
+const defaultWalletId = computed(() => {
+  const customerWallets = wallets.value
+  if (customerWallets.length > 0) {
+    const bonusWallet = customerWallets.find(w => w.wallet_type === 1)
+    const wallet = bonusWallet || customerWallets[0]
+    return wallet.wallet_id || wallet.id
+  }
+  return null
+})
+
+const selectedWalletId = ref(null)
+
+// Initialize and watch defaultWalletId to keep selection valid
+watch(defaultWalletId, (newVal) => {
+  const customerWallets = wallets.value
+  const exists = customerWallets.some(w => (w.wallet_id || w.id) === selectedWalletId.value)
+  if (!exists) {
+    selectedWalletId.value = newVal
+  }
+}, { immediate: true })
+
+const pointsBalance = computed(() => {
+  const customerWallets = wallets.value
+  if (customerWallets.length > 1 && selectedWalletId.value) {
+    const sw = customerWallets.find(w => (w.wallet_id || w.id) === selectedWalletId.value)
+    if (sw) return Number(sw.balance) || 0
+  }
+  return auth.customer?.loyalty_balance || 0
+})
+
+function selectWallet(wallet) {
+  const id = wallet.wallet_id || wallet.id
+  if (selectedWalletId.value === id) return
+  selectedWalletId.value = id
+  triggerHaptic('impact', 'light')
+}
 
 // Find the active/primary wallet name (preferring type 1 bonus wallet)
 const activeWalletName = computed(() => {
@@ -446,6 +485,12 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.active-wallet-tile {
+  border-color: var(--gold) !important;
+  background: var(--brand-15) !important;
+  box-shadow: 0 0 15px var(--gold-glow) !important;
+}
+
 .fade-enter-active,
 .fade-leave-active {
   transition: opacity 0.25s ease;
