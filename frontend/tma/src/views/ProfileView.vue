@@ -5,7 +5,7 @@
          style="background: radial-gradient(circle, var(--gold) 0%, transparent 70%);"></div>
 
     <!-- Content Container -->
-    <div class="flex-1 page-p space-y-4 z-10 relative flex flex-col justify-start overflow-y-auto">
+    <div class="flex-1 page-p space-y-3 z-10 relative flex flex-col justify-start overflow-y-auto">
       
       <!-- Top Card: Header Title -->
       <div class="card-luxury text-left shadow-sm" style="margin-bottom: 0;">
@@ -65,7 +65,7 @@
       </div>
 
       <!-- Action Button -->
-      <div class="pt-2">
+      <div class="pt-1">
         <button
           @click="saveProfile"
           :disabled="saving"
