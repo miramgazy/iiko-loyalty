@@ -5,6 +5,8 @@ from django.db.models import Q
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions, viewsets
+from rest_framework import pagination as rest_framework_pagination
+from rest_framework.decorators import action
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.core.models import Organization
@@ -249,12 +251,18 @@ def send_telegram_message(bot_token, chat_id, text, inline_keyboard=None):
     except Exception:
         pass
 
+class CustomerPagination(rest_framework_pagination.PageNumberPagination):
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 50
+
 class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
     """
     ViewSet for OrgManager/OrgAdmin to view and search customers of their organization.
     """
     serializer_class = CustomerSerializer
     permission_classes = [permissions.IsAuthenticated, IsOrgEmployee]
+    pagination_class = CustomerPagination
 
     def get_queryset(self):
         org_id = self.kwargs.get('organization_id')
@@ -268,6 +276,24 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
                 Q(phone__icontains=search)
             )
         return queryset
+
+    @action(detail=True, methods=['post'], url_path='sync')
+    def sync(self, request, organization_id=None, pk=None):
+        """Manually sync a single customer with iiko by their phone number."""
+        customer = get_object_or_404(Customer, pk=pk, organization_id=organization_id)
+        if not customer.phone:
+            return Response(
+                {"error": "У клиента нет номера телефона для синхронизации с iiko"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            from apps.loyalty.tasks import sync_customer_to_iiko
+            sync_customer_to_iiko(customer.id, push=False)
+            customer.refresh_from_db()
+            serializer = CustomerSerializer(customer)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 from apps.loyalty.google_wallet_service import GoogleWalletService
 

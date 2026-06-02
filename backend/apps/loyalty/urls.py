@@ -19,6 +19,7 @@ urlpatterns = [
     
     # Organization customer database
     path('organizations/<int:organization_id>/customers/', OrgCustomerViewSet.as_view({'get': 'list'}), name='org_customers'),
+    path('organizations/<int:organization_id>/customers/<int:pk>/sync/', OrgCustomerViewSet.as_view({'post': 'sync'}), name='org_customer_sync'),
 
     # Organization loyalty programs list/detail
     path('organizations/<int:organization_id>/loyalty-programs/', LoyaltyProgramViewSet.as_view({'get': 'list', 'post': 'create'}), name='org_loyalty_programs'),

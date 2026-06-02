@@ -50,6 +50,7 @@
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">iiko</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Рассылка</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Дата</th>
+              <th class="text-center px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Действие</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800">
@@ -113,14 +114,97 @@
                 </span>
               </td>
               <td class="px-6 py-4 text-xs text-slate-400">{{ formatDate(c.created_at) }}</td>
+              <td class="px-6 py-4 text-center">
+                <button
+                  :id="'btn-sync-' + c.id"
+                  @click="syncCustomer(c)"
+                  :disabled="syncingId === c.id || !c.phone"
+                  :title="c.phone ? 'Обновить данные из iiko' : 'Нет номера телефона'"
+                  class="inline-flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200"
+                  :class="syncingId === c.id
+                    ? 'bg-indigo-900/40 text-indigo-400 cursor-wait'
+                    : c.phone
+                      ? 'bg-slate-800 text-slate-400 hover:bg-indigo-900/40 hover:text-indigo-300 border border-slate-700 hover:border-indigo-700'
+                      : 'bg-slate-800/50 text-slate-600 cursor-not-allowed border border-slate-700/50'"
+                >
+                  <svg
+                    class="w-4 h-4 transition-transform duration-300"
+                    :class="{ 'animate-spin': syncingId === c.id }"
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </td>
             </tr>
             <tr v-if="!customers.length">
-              <td colspan="6" class="px-6 py-12 text-center text-slate-500">
+              <td colspan="7" class="px-6 py-12 text-center text-slate-500">
                 {{ search ? 'Клиенты не найдены' : 'Нет клиентов' }}
               </td>
             </tr>
           </tbody>
         </table>
+
+        <!-- Pagination -->
+        <div v-if="totalCount > 0" class="flex items-center justify-between px-6 py-4 border-t border-slate-800">
+          <!-- Page size selector -->
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-500">Показывать по:</span>
+            <div class="flex gap-1">
+              <button
+                v-for="size in [20, 50]" :key="size"
+                @click="changePageSize(size)"
+                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200"
+                :class="pageSize === size
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'"
+              >
+                {{ size }}
+              </button>
+            </div>
+            <span class="text-xs text-slate-500 ml-2">
+              Всего: <span class="text-slate-300 font-medium">{{ totalCount }}</span>
+            </span>
+          </div>
+
+          <!-- Page navigation -->
+          <div class="flex items-center gap-1">
+            <button
+              @click="goToPage(currentPage - 1)"
+              :disabled="currentPage <= 1"
+              class="px-2.5 py-1.5 text-xs rounded-lg transition-all duration-200"
+              :class="currentPage <= 1
+                ? 'text-slate-600 cursor-not-allowed'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-700'"
+            >
+              ←
+            </button>
+            <template v-for="p in visiblePages" :key="p">
+              <span v-if="p === '...'" class="px-2 text-xs text-slate-600">...</span>
+              <button
+                v-else
+                @click="goToPage(p)"
+                class="px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200"
+                :class="p === currentPage
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-700'"
+              >
+                {{ p }}
+              </button>
+            </template>
+            <button
+              @click="goToPage(currentPage + 1)"
+              :disabled="currentPage >= totalPages"
+              class="px-2.5 py-1.5 text-xs rounded-lg transition-all duration-200"
+              :class="currentPage >= totalPages
+                ? 'text-slate-600 cursor-not-allowed'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-700'"
+            >
+              →
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -140,8 +224,34 @@ const loading = ref(true)
 const search = ref('')
 let searchTimer = null
 
+// Pagination state
+const currentPage = ref(1)
+const pageSize = ref(20)
+const totalCount = ref(0)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(totalCount.value / pageSize.value)))
+
+const visiblePages = computed(() => {
+  const total = totalPages.value
+  const current = currentPage.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+
+  const pages = []
+  pages.push(1)
+  if (current > 3) pages.push('...')
+  for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
+    pages.push(i)
+  }
+  if (current < total - 2) pages.push('...')
+  pages.push(total)
+  return pages
+})
+
+// Sync state
+const syncingId = ref(null)
+
 const stats = computed(() => [
-  { label: 'Всего клиентов', value: customers.value.length },
+  { label: 'Всего клиентов', value: totalCount.value },
   { label: 'С номером телефона', value: customers.value.filter(c => c.phone).length },
   { label: 'Синхр. с iiko', value: customers.value.filter(c => c.iiko_customer_id).length },
   { label: 'Подписаны на бота', value: customers.value.filter(c => c.is_bot_subscribed === true).length },
@@ -149,20 +259,58 @@ const stats = computed(() => [
 
 function debouncedSearch() {
   clearTimeout(searchTimer)
-  searchTimer = setTimeout(loadCustomers, 350)
+  searchTimer = setTimeout(() => {
+    currentPage.value = 1
+    loadCustomers()
+  }, 350)
 }
 
 async function loadCustomers() {
   loading.value = true
   try {
-    const params = {}
+    const params = {
+      page: currentPage.value,
+      page_size: pageSize.value,
+    }
     if (search.value.trim()) params.search = search.value.trim()
     const res = await api.get(`/loyalty/organizations/${auth.currentOrgId}/customers/`, { params })
-    customers.value = res.data
+    customers.value = res.data.results
+    totalCount.value = res.data.count
   } catch {
     toast.error('Не удалось загрузить клиентов')
   } finally {
     loading.value = false
+  }
+}
+
+function changePageSize(size) {
+  pageSize.value = size
+  currentPage.value = 1
+  loadCustomers()
+}
+
+function goToPage(page) {
+  if (page < 1 || page > totalPages.value) return
+  currentPage.value = page
+  loadCustomers()
+}
+
+async function syncCustomer(customer) {
+  if (syncingId.value || !customer.phone) return
+  syncingId.value = customer.id
+  try {
+    const res = await api.post(`/loyalty/organizations/${auth.currentOrgId}/customers/${customer.id}/sync/`)
+    // Update customer in-place in the list
+    const idx = customers.value.findIndex(c => c.id === customer.id)
+    if (idx !== -1) {
+      customers.value[idx] = res.data
+    }
+    toast.success(`Данные ${customer.first_name || 'клиента'} обновлены из iiko`)
+  } catch (err) {
+    const msg = err.response?.data?.error || 'Ошибка синхронизации с iiko'
+    toast.error(msg)
+  } finally {
+    syncingId.value = null
   }
 }
 
