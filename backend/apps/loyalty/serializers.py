@@ -30,9 +30,10 @@ class CustomerSerializer(serializers.ModelSerializer):
             'language',
             'is_onboarded', 
             'organization',
-            'wallets'
+            'wallets',
+            'created_at',
         ]
-        read_only_fields = ['id', 'telegram_id', 'phone', 'iiko_customer_id', 'iiko_card_number', 'iiko_categories', 'loyalty_balance', 'is_onboarded', 'organization', 'wallets']
+        read_only_fields = ['id', 'telegram_id', 'phone', 'iiko_customer_id', 'iiko_card_number', 'iiko_categories', 'loyalty_balance', 'is_onboarded', 'organization', 'wallets', 'created_at']
 
 class LoyaltyProgramSerializer(serializers.ModelSerializer):
     class Meta:
