@@ -358,6 +358,15 @@ async function pushCustomer(customer) {
   } catch (err) {
     const msg = err.response?.data?.error || 'Ошибка отправки в iiko'
     toast.error(msg)
+    
+    // Даже если произошла ошибка при отправке в iiko, бэкенд мог присвоить номер карты локально
+    if (err.response?.data?.customer) {
+      const updatedCustomer = err.response.data.customer
+      const idx = customers.value.findIndex(c => c.id === updatedCustomer.id)
+      if (idx !== -1) {
+        customers.value[idx] = updatedCustomer
+      }
+    }
   } finally {
     pushingId.value = null
   }

@@ -324,7 +324,12 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
             serializer = CustomerSerializer(customer)
             return Response(serializer.data)
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            customer.refresh_from_db()
+            serializer = CustomerSerializer(customer)
+            return Response({
+                "error": f"Ошибка связи с iiko: {str(e)}",
+                "customer": serializer.data
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 from apps.loyalty.google_wallet_service import GoogleWalletService
 
