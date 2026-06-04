@@ -8,13 +8,6 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-def generate_unique_card_number(organization):
-    while True:
-        card_number = ''.join(random.choices(string.digits, k=8))
-        if card_number.startswith('0'):
-            continue
-        if not Customer.objects.filter(organization=organization, iiko_card_number=card_number).exists():
-            return card_number
 
 @app.task(bind=True, max_retries=5, default_retry_delay=60)
 def sync_customer_to_iiko(self, customer_id, push=False):
@@ -49,8 +42,11 @@ def sync_customer_to_iiko(self, customer_id, push=False):
             if not cards:
                 try:
                     logger.info(f"Customer {customer.id} has no cards in iiko. Creating virtual card...")
-                    card_number = generate_unique_card_number(customer.organization)
-                    service.add_virtual_card(customer.iiko_customer_id, card_number)
+                    if not customer.iiko_card_number:
+                        from apps.loyalty.utils import generate_unique_card_number
+                        customer.iiko_card_number = generate_unique_card_number(customer.organization)
+                        customer.save(update_fields=['iiko_card_number'])
+                    service.add_virtual_card(customer.iiko_customer_id, customer.iiko_card_number)
                     # Re-fetch guest info to get the newly created card details
                     new_guest_info = service.get_customer_info_by_id(customer.iiko_customer_id)
                     if new_guest_info:

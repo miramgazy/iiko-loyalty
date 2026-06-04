@@ -115,27 +115,56 @@
               </td>
               <td class="px-6 py-4 text-xs text-slate-400">{{ formatDate(c.created_at) }}</td>
               <td class="px-6 py-4 text-center">
-                <button
-                  :id="'btn-sync-' + c.id"
-                  @click="syncCustomer(c)"
-                  :disabled="syncingId === c.id || !c.phone"
-                  :title="c.phone ? 'Обновить данные из iiko' : 'Нет номера телефона'"
-                  class="inline-flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200"
-                  :class="syncingId === c.id
-                    ? 'bg-indigo-900/40 text-indigo-400 cursor-wait'
-                    : c.phone
-                      ? 'bg-slate-800 text-slate-400 hover:bg-indigo-900/40 hover:text-indigo-300 border border-slate-700 hover:border-indigo-700'
-                      : 'bg-slate-800/50 text-slate-600 cursor-not-allowed border border-slate-700/50'"
-                >
-                  <svg
-                    class="w-4 h-4 transition-transform duration-300"
-                    :class="{ 'animate-spin': syncingId === c.id }"
-                    fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                <div class="flex items-center justify-center gap-2">
+                  <button
+                    :id="'btn-sync-' + c.id"
+                    @click="syncCustomer(c)"
+                    :disabled="syncingId === c.id || pushingId === c.id || !c.phone"
+                    :title="c.phone ? 'Обновить данные из iiko' : 'Нет номера телефона'"
+                    class="inline-flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200"
+                    :class="syncingId === c.id
+                      ? 'bg-indigo-900/40 text-indigo-400 cursor-wait'
+                      : c.phone
+                        ? 'bg-slate-800 text-slate-400 hover:bg-indigo-900/40 hover:text-indigo-300 border border-slate-700 hover:border-indigo-700'
+                        : 'bg-slate-800/50 text-slate-600 cursor-not-allowed border border-slate-700/50'"
                   >
-                    <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
+                    <svg
+                      class="w-4 h-4 transition-transform duration-300"
+                      :class="{ 'animate-spin': syncingId === c.id }"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </button>
+                  <button
+                    :id="'btn-push-' + c.id"
+                    @click="pushCustomer(c)"
+                    :disabled="syncingId === c.id || pushingId === c.id || !c.phone"
+                    :title="c.phone ? 'Завершить регистрацию (отправить в iiko)' : 'Нет номера телефона'"
+                    class="inline-flex items-center justify-center w-9 h-9 rounded-lg transition-all duration-200"
+                    :class="pushingId === c.id
+                      ? 'bg-emerald-900/40 text-emerald-400 cursor-wait'
+                      : c.phone
+                        ? 'bg-slate-800 text-slate-400 hover:bg-emerald-900/40 hover:text-emerald-300 border border-slate-700 hover:border-emerald-700'
+                        : 'bg-slate-800/50 text-slate-600 cursor-not-allowed border border-slate-700/50'"
+                  >
+                    <svg
+                      v-if="pushingId === c.id"
+                      class="w-4 h-4 animate-spin"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <svg
+                      v-else
+                      class="w-4 h-4"
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"
+                    >
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                    </svg>
+                  </button>
+                </div>
               </td>
             </tr>
             <tr v-if="!customers.length">
@@ -249,6 +278,7 @@ const visiblePages = computed(() => {
 
 // Sync state
 const syncingId = ref(null)
+const pushingId = ref(null)
 
 const stats = computed(() => [
   { label: 'Всего клиентов', value: totalCount.value },
@@ -311,6 +341,25 @@ async function syncCustomer(customer) {
     toast.error(msg)
   } finally {
     syncingId.value = null
+  }
+}
+
+async function pushCustomer(customer) {
+  if (pushingId.value || syncingId.value || !customer.phone) return
+  pushingId.value = customer.id
+  try {
+    const res = await api.post(`/loyalty/organizations/${auth.currentOrgId}/customers/${customer.id}/push-iiko/`)
+    // Update customer in-place in the list
+    const idx = customers.value.findIndex(c => c.id === customer.id)
+    if (idx !== -1) {
+      customers.value[idx] = res.data
+    }
+    toast.success(`Регистрация ${customer.first_name || 'клиента'} в iiko успешно завершена`)
+  } catch (err) {
+    const msg = err.response?.data?.error || 'Ошибка отправки в iiko'
+    toast.error(msg)
+  } finally {
+    pushingId.value = null
   }
 }
 

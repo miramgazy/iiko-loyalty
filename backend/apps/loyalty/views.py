@@ -118,6 +118,11 @@ class CustomerMeView(APIView):
         serializer = CustomerSerializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
             customer = serializer.save()
+            if customer.phone and not customer.iiko_card_number:
+                from apps.loyalty.utils import generate_unique_card_number
+                customer.iiko_card_number = generate_unique_card_number(customer.organization)
+                customer.save(update_fields=['iiko_card_number'])
+
             from apps.loyalty.tasks import sync_customer_to_iiko
             sync_customer_to_iiko.delay(customer.id, push=True)
             return Response(serializer.data)
@@ -279,7 +284,7 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='sync')
     def sync(self, request, organization_id=None, pk=None):
-        """Manually sync a single customer with iiko by their phone number."""
+        """Manually sync a single customer with iiko by their phone number (pull changes from iiko)."""
         customer = get_object_or_404(Customer, pk=pk, organization_id=organization_id)
         if not customer.phone:
             return Response(
@@ -289,6 +294,32 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
         try:
             from apps.loyalty.tasks import sync_customer_to_iiko
             sync_customer_to_iiko(customer.id, push=False)
+            customer.refresh_from_db()
+            serializer = CustomerSerializer(customer)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'], url_path='push-iiko')
+    def push_iiko(self, request, organization_id=None, pk=None):
+        """Force push a customer's data to iiko, assigning a card number if they don't have one."""
+        customer = get_object_or_404(Customer, pk=pk, organization_id=organization_id)
+        if not customer.phone:
+            return Response(
+                {"error": "У клиента нет номера телефона для регистрации в iiko"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if not customer.iiko_card_number:
+            from apps.loyalty.utils import generate_unique_card_number
+            customer.iiko_card_number = generate_unique_card_number(customer.organization)
+            customer.save(update_fields=['iiko_card_number'])
+
+        try:
+            from apps.loyalty.tasks import sync_customer_to_iiko
+            # push=True ensures create_or_update_customer is called even if they have iiko_customer_id,
+            # but usually it's used when iiko_customer_id is missing or we want to force push data.
+            sync_customer_to_iiko(customer.id, push=True)
             customer.refresh_from_db()
             serializer = CustomerSerializer(customer)
             return Response(serializer.data)
