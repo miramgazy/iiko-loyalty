@@ -67,3 +67,13 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
             'branding', 'instagram_link', 'whatsapp_link'
         ]
         read_only_fields = ['id', 'slug']
+
+from apps.core.models import Employee
+
+class TmaEmployeeSerializer(serializers.ModelSerializer):
+    is_active = serializers.BooleanField(default=True, required=False)
+
+    class Meta:
+        model = Employee
+        fields = ['id', 'first_name', 'last_name', 'telegram_id', 'role', 'is_active']
+        read_only_fields = ['id']

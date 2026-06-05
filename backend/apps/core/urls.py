@@ -2,7 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from apps.core.views import (
     SuperAdminOrganizationViewSet, OrganizationSettingsView, OrganizationLogoUploadView,
-    OrganizationGoogleWalletSettingsView, OrganizationWebhookStatusView, OrganizationSendTestMessageView
+    OrganizationGoogleWalletSettingsView, OrganizationWebhookStatusView, OrganizationSendTestMessageView,
+    TmaEmployeeViewSet
 )
 
 router = DefaultRouter()
@@ -18,4 +19,8 @@ urlpatterns = [
     path('organizations/<int:organization_id>/google-wallet-class/', OrganizationGoogleWalletSettingsView.as_view(), name='org_google_wallet_class'),
     path('organizations/<int:organization_id>/webhook-status/', OrganizationWebhookStatusView.as_view(), name='org_webhook_status'),
     path('organizations/<int:organization_id>/send-test-message/', OrganizationSendTestMessageView.as_view(), name='org_send_test_message'),
+    
+    # TMA Employees
+    path('organizations/<int:organization_id>/tma-employees/', TmaEmployeeViewSet.as_view({'get': 'list', 'post': 'create'}), name='org_tma_employees'),
+    path('organizations/<int:organization_id>/tma-employees/<int:pk>/', TmaEmployeeViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='org_tma_employee_detail'),
 ]

@@ -30,6 +30,9 @@
           <RouterLink v-if="auth.isOrgManager" to="/admin/employees" class="nav-link" active-class="nav-link-active">
             <span>👥</span> Сотрудники
           </RouterLink>
+          <RouterLink v-if="auth.isOrgManager" to="/admin/tma-employees" class="nav-link" active-class="nav-link-active">
+            <span>👥</span> Персонал TMA
+          </RouterLink>
           <RouterLink v-if="auth.isOrgAdmin" to="/admin/customers" class="nav-link" active-class="nav-link-active">
             <span>🎯</span> Клиенты
           </RouterLink>

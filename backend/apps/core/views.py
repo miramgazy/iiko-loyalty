@@ -208,7 +208,7 @@ class OrganizationSendTestMessageView(APIView):
             if not data.get('ok'):
                 return Response({"error": data.get('description', 'Unknown error')}, status=status.HTTP_400_BAD_REQUEST)
                 
-            # Auto-save admin's telegram_id to their profile if it changed/was blank
+                # Auto-save admin's telegram_id to their profile if it changed/was blank
             if request.user.telegram_id != telegram_id:
                 request.user.telegram_id = telegram_id
                 request.user.save(update_fields=['telegram_id'])
@@ -216,3 +216,22 @@ class OrganizationSendTestMessageView(APIView):
             return Response({"status": "success", "detail": "Test message sent successfully"})
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+from apps.core.models import Employee
+from apps.core.serializers import TmaEmployeeSerializer
+
+class TmaEmployeeViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for OrgManager to manage TMA Employees (Owners, Managers, Cashiers).
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+    serializer_class = TmaEmployeeSerializer
+
+    def get_queryset(self):
+        org_id = self.kwargs.get('organization_id')
+        return Employee.objects.filter(organization_id=org_id).order_by('-id')
+
+    def perform_create(self, serializer):
+        org_id = self.kwargs.get('organization_id')
+        org = get_object_or_404(Organization, id=org_id)
+        serializer.save(organization=org)

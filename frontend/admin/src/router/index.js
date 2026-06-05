@@ -40,6 +40,12 @@ const routes = [
     meta: { requiresAuth: true, requiresOrgManager: true },
   },
   {
+    path: '/admin/tma-employees',
+    name: 'tma-employees',
+    component: () => import('@/views/TmaEmployeeListView.vue'),
+    meta: { requiresAuth: true, requiresOrgManager: true },
+  },
+  {
     path: '/admin/customers',
     name: 'customers',
     component: () => import('@/views/CustomerListView.vue'),

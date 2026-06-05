@@ -181,7 +181,8 @@ class CoreViewsTests(TestCase):
             'email': 'newemp@example.com',
             'first_name': 'John',
             'last_name': 'Doe',
-            'role': 'org_admin'
+            'role': 'org_admin',
+            'password': 'password123'
         })
         self.assertEqual(res.status_code, 201)
         self.assertIn('temp_password', res.data)
@@ -205,13 +206,15 @@ class CoreViewsTests(TestCase):
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.org_admin)}')
         res = self.client.get(f'/api/loyalty/organizations/{self.organization.id}/customers/')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data), 2)
+        self.assertEqual(res.data['count'], 2)
+        self.assertEqual(len(res.data['results']), 2)
         
         # Search by name
         res = self.client.get(f'/api/loyalty/organizations/{self.organization.id}/customers/', {'search': 'Alice'})
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data), 1)
-        self.assertEqual(res.data[0]['first_name'], 'Alice')
+        self.assertEqual(res.data['count'], 1)
+        self.assertEqual(len(res.data['results']), 1)
+        self.assertEqual(res.data['results'][0]['first_name'], 'Alice')
 
     @patch('requests.post')
     def test_send_test_message_api(self, mock_requests_post, mock_tasks_post):
@@ -232,4 +235,51 @@ class CoreViewsTests(TestCase):
         # Verify telegram_id is updated in profile
         self.org_manager.refresh_from_db()
         self.assertEqual(self.org_manager.telegram_id, 12345)
+
+    def test_tma_employee_management(self, mock_post):
+        # Authenticate as OrgManager
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.org_manager)}')
+        
+        # Create TMA employee
+        res = self.client.post(f'/api/core/organizations/{self.organization.id}/tma-employees/', {
+            'first_name': 'Alice',
+            'last_name': 'Owner',
+            'telegram_id': 99999,
+            'role': 'owner'
+        })
+        self.assertEqual(res.status_code, 201)
+        self.assertEqual(res.data['first_name'], 'Alice')
+        self.assertEqual(res.data['role'], 'owner')
+        self.assertEqual(res.data['telegram_id'], 99999)
+        self.assertTrue(res.data['is_active'])
+        emp_id = res.data['id']
+        
+        # List TMA employees
+        res = self.client.get(f'/api/core/organizations/{self.organization.id}/tma-employees/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(res.data[0]['id'], emp_id)
+        
+        # Toggle/patch status
+        res = self.client.patch(f'/api/core/organizations/{self.organization.id}/tma-employees/{emp_id}/', {
+            'is_active': False
+        })
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(res.data['is_active'])
+        
+        # Access control: OrgAdmin should not have access (requires OrgManager)
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.org_admin)}')
+        res = self.client.get(f'/api/core/organizations/{self.organization.id}/tma-employees/')
+        self.assertEqual(res.status_code, 403)
+        
+        # Delete TMA employee
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.org_manager)}')
+        res = self.client.delete(f'/api/core/organizations/{self.organization.id}/tma-employees/{emp_id}/')
+        self.assertEqual(res.status_code, 204)
+        
+        # Verify deleted
+        res = self.client.get(f'/api/core/organizations/{self.organization.id}/tma-employees/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data), 0)
+
 
