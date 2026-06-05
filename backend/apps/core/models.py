@@ -71,6 +71,26 @@ class Organization(models.Model):
     def __str__(self):
         return self.name
 
+class Employee(models.Model):
+    ROLE_CHOICES = (
+        ('owner', 'Владелец'),
+        ('manager', 'Менеджер'),
+        ('cashier', 'Кассир'),
+    )
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='employees')
+    first_name = models.CharField("Имя", max_length=150)
+    last_name = models.CharField("Фамилия", max_length=150, blank=True)
+    telegram_id = models.BigIntegerField("Telegram ID", null=True, blank=True, db_index=True)
+    role = models.CharField("Роль", max_length=20, choices=ROLE_CHOICES, default='owner')
+    is_active = models.BooleanField("Активен", default=True)
+
+    class Meta:
+        verbose_name = "Сотрудник"
+        verbose_name_plural = "Сотрудники"
+
+    def __str__(self):
+        return f"{self.first_name} {self.last_name} ({self.get_role_display()}) - {self.organization.name}"
+
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 

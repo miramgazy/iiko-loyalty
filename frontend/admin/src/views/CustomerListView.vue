@@ -45,7 +45,6 @@
           <thead>
             <tr class="border-b border-slate-800">
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Клиент</th>
-              <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">TG chat_id</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Телефон</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Баллы / Кошельки</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">iiko</th>
@@ -63,11 +62,9 @@
                   </div>
                   <div>
                     <p class="font-medium text-white text-sm">{{ c.first_name }} {{ c.last_name }}</p>
+                    <p class="text-slate-600 text-xs">TG: {{ c.telegram_id }}</p>
                   </div>
                 </div>
-              </td>
-              <td class="px-6 py-4">
-                <span class="text-sm text-slate-400 font-mono">{{ c.telegram_id }}</span>
               </td>
               <td class="px-6 py-4">
                 <span v-if="c.phone" class="text-sm text-slate-300 font-mono">{{ c.phone }}</span>
@@ -361,15 +358,6 @@ async function pushCustomer(customer) {
   } catch (err) {
     const msg = err.response?.data?.error || 'Ошибка отправки в iiko'
     toast.error(msg)
-    
-    // Даже если произошла ошибка при отправке в iiko, бэкенд мог присвоить номер карты локально
-    if (err.response?.data?.customer) {
-      const updatedCustomer = err.response.data.customer
-      const idx = customers.value.findIndex(c => c.id === updatedCustomer.id)
-      if (idx !== -1) {
-        customers.value[idx] = updatedCustomer
-      }
-    }
   } finally {
     pushingId.value = null
   }

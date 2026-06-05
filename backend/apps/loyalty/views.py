@@ -87,9 +87,14 @@ class TmaAuthView(APIView):
         # 4. Generate JWT tokens
         tokens = get_tokens_for_customer(customer)
 
+        from apps.core.models import Employee
+        employee = Employee.objects.filter(telegram_id=telegram_id, organization=org, is_active=True).first()
+        role = employee.role if employee else 'customer'
+
         return Response({
             "access": tokens["access"],
             "refresh": tokens["refresh"],
+            "role": role,
             "organization": {
                 "id": org.id,
                 "slug": org.slug,
@@ -324,12 +329,7 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
             serializer = CustomerSerializer(customer)
             return Response(serializer.data)
         except Exception as e:
-            customer.refresh_from_db()
-            serializer = CustomerSerializer(customer)
-            return Response({
-                "error": f"Ошибка связи с iiko: {str(e)}",
-                "customer": serializer.data
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 from apps.loyalty.google_wallet_service import GoogleWalletService
 
@@ -461,3 +461,48 @@ class LoyaltyProgramViewSet(viewsets.ModelViewSet):
         org_id = self.kwargs.get('organization_id')
         org = get_object_or_404(Organization, id=org_id)
         serializer.save(organization=org)
+
+from apps.accounts.permissions import IsOwner
+from django.utils import timezone
+from django.db.models import Sum
+
+class OwnerDashboardView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsOwner]
+
+    def get(self, request, *args, **kwargs):
+        from apps.core.models import Employee
+        from apps.loyalty.models import Visit, CustomerWallet
+        employee = Employee.objects.get(telegram_id=request.user.telegram_id, role='owner', is_active=True)
+        org = employee.organization
+        
+        today = timezone.localdate()
+        
+        # Unique customers visited today
+        used_today = Visit.objects.filter(
+            customer__organization=org,
+            status__in=['completed', 'confirmed'],
+            created_at__date=today
+        ).values('customer').distinct().count()
+        
+        # Accumulated points
+        accumulated_points = Customer.objects.filter(organization=org).aggregate(
+            total=Sum('loyalty_balance')
+        )['total'] or 0.00
+        
+        # Total users
+        total_users = Customer.objects.filter(organization=org).count()
+        
+        # Telegram users
+        telegram_users = Customer.objects.filter(organization=org, telegram_id__isnull=False).count()
+        
+        # New registrations today
+        new_registrations_today = Customer.objects.filter(organization=org, created_at__date=today).count()
+        
+        return Response({
+            "used_today": used_today,
+            "accumulated_points": accumulated_points,
+            "total_users": total_users,
+            "telegram_users": telegram_users,
+            "new_registrations_today": new_registrations_today
+        })
+

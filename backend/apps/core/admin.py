@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Organization
+from .models import Organization, Employee
 
 @admin.register(Organization)
 class OrganizationAdmin(admin.ModelAdmin):
@@ -34,3 +34,10 @@ class OrganizationAdmin(admin.ModelAdmin):
             'fields': ('google_issuer_id', 'google_loyalty_class_id')
         }),
     )
+
+@admin.register(Employee)
+class EmployeeAdmin(admin.ModelAdmin):
+    list_display = ('first_name', 'last_name', 'role', 'organization', 'is_active')
+    list_filter = ('role', 'is_active', 'organization')
+    search_fields = ('first_name', 'last_name', 'telegram_id')
+    raw_id_fields = ('organization',)

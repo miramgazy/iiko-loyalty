@@ -8,6 +8,7 @@ import { safeStorage } from '@/services/storage'
 export const useAuthStore = defineStore('tma-auth', () => {
   const accessToken = ref(safeStorage.getItem('tma_access_token') || null)
   const refreshToken = ref(safeStorage.getItem('tma_refresh_token') || null)
+  const role = ref(safeStorage.getItem('tma_role') || null)
   const customer = ref(JSON.parse(safeStorage.getItem('tma_customer') || 'null'))
   const organization = ref(JSON.parse(safeStorage.getItem('tma_organization') || 'null'))
   const botUsername = ref(null)
@@ -44,11 +45,13 @@ export const useAuthStore = defineStore('tma-auth', () => {
 
       accessToken.value = res.data.access
       refreshToken.value = res.data.refresh
+      role.value = res.data.role
       customer.value = res.data.customer
       organization.value = res.data.organization
 
       safeStorage.setItem('tma_access_token', res.data.access)
       safeStorage.setItem('tma_refresh_token', res.data.refresh)
+      safeStorage.setItem('tma_role', res.data.role)
       safeStorage.setItem('tma_customer', JSON.stringify(res.data.customer))
       safeStorage.setItem('tma_organization', JSON.stringify(res.data.organization))
 
@@ -69,16 +72,18 @@ export const useAuthStore = defineStore('tma-auth', () => {
   function logout() {
     accessToken.value = null
     refreshToken.value = null
+    role.value = null
     customer.value = null
     organization.value = null
     safeStorage.removeItem('tma_access_token')
     safeStorage.removeItem('tma_refresh_token')
+    safeStorage.removeItem('tma_role')
     safeStorage.removeItem('tma_customer')
     safeStorage.removeItem('tma_organization')
   }
 
   return {
-    accessToken, refreshToken, customer, organization,
+    accessToken, refreshToken, role, customer, organization,
     botUsername, authError, isLoading,
     isAuthenticated, isOnboarded, needsConsent,
     authenticate, updateCustomer, logout,

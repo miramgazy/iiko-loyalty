@@ -165,6 +165,34 @@
           </div>
         </div>
       </div>
+      <!-- Owner Cabinet Section -->
+      <div v-if="auth.role === 'owner'" class="mt-2 flex flex-col gap-3">
+        <div @click="$router.push('/owner/dashboard')" 
+             class="card-luxury flex justify-between items-center p-4 cursor-pointer transition-all duration-300 active:scale-[0.98] hover:scale-[1.02]"
+             style="background: linear-gradient(135deg, rgba(201, 168, 76, 0.25) 0%, rgba(201, 168, 76, 0.05) 100%); border-color: rgba(201, 168, 76, 0.4); margin-bottom: 0;">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center bg-white/10" style="color: var(--gold)">
+              <svg class="w-5 h-5 stroke-current" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 3v18h18"/>
+                <path d="M18 17V9"/>
+                <path d="M13 17V5"/>
+                <path d="M8 17v-3"/>
+              </svg>
+            </div>
+            <div class="flex flex-col text-left">
+              <span class="text-[14px] font-extrabold text-[color:var(--text)] leading-tight">
+                Кабинет владельца
+              </span>
+              <span class="text-[10px] text-[color:var(--muted)] font-bold">
+                Аналитика и статистика
+              </span>
+            </div>
+          </div>
+          <svg class="w-5 h-5" style="color: var(--gold); opacity: 0.7;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </div>
+      </div>
     </div>
 
     <!-- QR Code Full-Screen Overlay Modal -->

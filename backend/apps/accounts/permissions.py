@@ -69,3 +69,15 @@ class IsOrgEmployee(permissions.BasePermission):
             organization_id=org_id,
             role__in=[UserOrganization.ROLE_ORG_MANAGER, UserOrganization.ROLE_ORG_ADMIN]
         ).exists()
+
+class IsOwner(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+            
+        from apps.core.models import Employee
+        return Employee.objects.filter(
+            telegram_id=request.user.telegram_id,
+            role='owner',
+            is_active=True
+        ).exists()

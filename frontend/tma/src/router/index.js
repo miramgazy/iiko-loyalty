@@ -33,6 +33,11 @@ const routes = [
     name: 'profile',
     component: () => import('@/views/ProfileView.vue'),
   },
+  {
+    path: '/owner/dashboard',
+    name: 'owner-dashboard',
+    component: () => import('@/views/OwnerDashboardView.vue'),
+  },
 ]
 
 const router = createRouter({
@@ -81,6 +86,11 @@ router.beforeEach((to, from, next) => {
   // If already onboarded and consent status decided, don't allow accessing onboarding pages
   if (auth.isAuthenticated && auth.isOnboarded && !auth.needsConsent && 
       (to.name === 'onboarding-phone' || to.name === 'onboarding-lang' || to.name === 'onboarding-consent')) {
+    return next('/')
+  }
+
+  // Protect owner dashboard
+  if (to.name === 'owner-dashboard' && auth.role !== 'owner') {
     return next('/')
   }
 

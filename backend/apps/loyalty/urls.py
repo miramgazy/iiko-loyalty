@@ -6,7 +6,8 @@ from apps.loyalty.views import (
     TmaWebhookView, 
     OrgCustomerViewSet, 
     CustomerGoogleWalletLinkView,
-    LoyaltyProgramViewSet
+    LoyaltyProgramViewSet,
+    OwnerDashboardView
 )
 
 urlpatterns = [
@@ -14,6 +15,8 @@ urlpatterns = [
     path('customer/me/', CustomerMeView.as_view(), name='customer_me'),
     path('customer/sync/', CustomerSyncView.as_view(), name='customer_sync'),
     path('webhook/<int:org_id>/<str:bot_token>/', TmaWebhookView.as_view(), name='tma_webhook'),
+    
+    path('owner/dashboard/', OwnerDashboardView.as_view(), name='owner_dashboard'),
     
     path('customer/wallet/google/', CustomerGoogleWalletLinkView.as_view(), name='customer_wallet_google'),
     
