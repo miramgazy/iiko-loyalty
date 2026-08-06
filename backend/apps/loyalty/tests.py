@@ -328,3 +328,41 @@ class LoyaltyTests(TestCase):
         # Verify Telegram message was sent
         mock_post.assert_called_once()
         self.assertIn("Вам начислено 80.0", mock_post.call_args[1]['json']['text'])
+
+from django.test import override_settings
+from apps.loyalty.services import IikoAuthService
+from unittest.mock import MagicMock
+
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
+class IikoAuthServiceTests(TestCase):
+    @patch('apps.loyalty.services.httpx.Client')
+    def test_get_access_token_payload(self, mock_httpx_client):
+        org = Organization.objects.create(
+            name="Auth Test Org",
+            slug="auth-test-org",
+            iiko_api_login="test_api_key_123",
+            iiko_app_id="test_app_id_456",
+            iiko_client_secret="test_secret_789"
+        )
+        
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"token": "fake_access_token_abc"}
+        mock_response.raise_for_status = MagicMock()
+        
+        mock_client_instance = MagicMock()
+        mock_client_instance.post.return_value = mock_response
+        mock_httpx_client.return_value.__enter__.return_value = mock_client_instance
+
+        auth_service = IikoAuthService(org)
+        token = auth_service.get_access_token()
+        
+        self.assertEqual(token, "fake_access_token_abc")
+        mock_client_instance.post.assert_called_once()
+        call_args = mock_client_instance.post.call_args
+        payload = call_args[1]['json']
+        
+        self.assertEqual(payload.get('apiLogin'), "test_api_key_123")
+        self.assertEqual(payload.get('apiKey'), "test_api_key_123")
+        self.assertEqual(payload.get('appId'), "test_app_id_456")
+        self.assertEqual(payload.get('clientSecret'), "test_secret_789")
+

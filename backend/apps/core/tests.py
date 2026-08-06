@@ -22,25 +22,35 @@ class CoreEncryptionTests(TestCase):
             slug="test-cafe",
             tg_bot_token="plain_bot_token_123",
             tg_bot_username="test_cafe_bot",
-            iiko_api_login="plain_iiko_login_456"
+            iiko_api_login="plain_iiko_login_456",
+            iiko_app_id="plain_app_id_789",
+            iiko_client_secret="plain_client_secret_abc"
         )
         
         reloaded = Organization.objects.get(id=org.id)
         
         self.assertEqual(reloaded.tg_bot_token, "plain_bot_token_123")
         self.assertEqual(reloaded.iiko_api_login, "plain_iiko_login_456")
+        self.assertEqual(reloaded.iiko_app_id, "plain_app_id_789")
+        self.assertEqual(reloaded.iiko_client_secret, "plain_client_secret_abc")
         
         from django.db import connection
         with connection.cursor() as cursor:
-            cursor.execute("SELECT tg_bot_token, iiko_api_login FROM core_organization WHERE id = %s", [org.id])
+            cursor.execute("SELECT tg_bot_token, iiko_api_login, iiko_app_id, iiko_client_secret FROM core_organization WHERE id = %s", [org.id])
             row = cursor.fetchone()
             db_tg_bot_token = row[0]
             db_iiko_api_login = row[1]
+            db_iiko_app_id = row[2]
+            db_iiko_client_secret = row[3]
             
             self.assertNotEqual(db_tg_bot_token, "plain_bot_token_123")
             self.assertNotEqual(db_iiko_api_login, "plain_iiko_login_456")
+            self.assertNotEqual(db_iiko_app_id, "plain_app_id_789")
+            self.assertNotEqual(db_iiko_client_secret, "plain_client_secret_abc")
             self.assertTrue(db_tg_bot_token.startswith("gAAAAA"))
             self.assertTrue(db_iiko_api_login.startswith("gAAAAA"))
+            self.assertTrue(db_iiko_app_id.startswith("gAAAAA"))
+            self.assertTrue(db_iiko_client_secret.startswith("gAAAAA"))
 
 
 from rest_framework.test import APIClient

@@ -21,6 +21,8 @@ class OrganizationAdmin(admin.ModelAdmin):
                 'iiko_integration_type', 
                 'iiko_api_base_url', 
                 'iiko_api_login', 
+                'iiko_app_id',
+                'iiko_client_secret',
                 'iiko_organization_id', 
                 'iiko_loyalty_program_id',
                 'is_iiko_webhook_password_enabled',

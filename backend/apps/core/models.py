@@ -34,6 +34,8 @@ class Organization(models.Model):
         default="https://api-ru.iiko.services/api/1"
     )
     iiko_api_login = EncryptedCharField("iiko API Login (API-ключ)", max_length=255, blank=True)
+    iiko_app_id = EncryptedCharField("iiko App ID", max_length=255, blank=True)
+    iiko_client_secret = EncryptedCharField("iiko Client Secret", max_length=255, blank=True)
     iiko_organization_id = models.UUIDField("iiko Organization ID", null=True, blank=True)
     iiko_loyalty_program_id = models.UUIDField("iiko Loyalty Program ID", null=True, blank=True)
     

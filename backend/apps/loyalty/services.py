@@ -15,7 +15,14 @@ class IikoAuthService:
             return token
 
         url = f"{self.org.iiko_api_base_url.rstrip('/')}/access_token"
-        payload = {"apiLogin": self.org.iiko_api_login}
+        payload = {}
+        if self.org.iiko_api_login:
+            payload["apiLogin"] = self.org.iiko_api_login
+            payload["apiKey"] = self.org.iiko_api_login
+        if self.org.iiko_app_id:
+            payload["appId"] = self.org.iiko_app_id
+        if self.org.iiko_client_secret:
+            payload["clientSecret"] = self.org.iiko_client_secret
         
         with httpx.Client(timeout=10) as client:
             response = client.post(url, json=payload)

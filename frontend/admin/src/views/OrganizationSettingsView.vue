@@ -169,8 +169,16 @@
           <input id="input-iiko-url" v-model="form.iiko_api_base_url" type="url" class="form-input" placeholder="https://api-ru.iiko.services/api/1" />
         </div>
         <div>
-          <label class="form-label">iiko API Login (токен)</label>
+          <label class="form-label">iiko API Login (apiKey)</label>
           <input id="input-iiko-login" v-model="form.iiko_api_login" type="password" class="form-input" placeholder="••••••••••" />
+        </div>
+        <div>
+          <label class="form-label">iiko App ID (appId)</label>
+          <input id="input-iiko-app-id" v-model="form.iiko_app_id" type="password" class="form-input" placeholder="••••••••••" />
+        </div>
+        <div>
+          <label class="form-label">iiko Client Secret (clientSecret)</label>
+          <input id="input-iiko-client-secret" v-model="form.iiko_client_secret" type="password" class="form-input" placeholder="••••••••••" />
         </div>
         <div>
           <label class="form-label">iiko Organization ID</label>
@@ -611,7 +619,7 @@ const form = ref({
   tg_bot_token: '', tg_bot_username: '', tma_name: '', tma_direct_link: '',
   iiko_integration_type: 'iiko_transport',
   iiko_api_base_url: 'https://api-ru.iiko.services/api/1',
-  iiko_api_login: '', iiko_organization_id: '', iiko_loyalty_program_id: '',
+  iiko_api_login: '', iiko_app_id: '', iiko_client_secret: '', iiko_organization_id: '', iiko_loyalty_program_id: '',
   is_iiko_webhook_password_enabled: false, iiko_webhook_password: '',
   branding: {},
   instagram_link: '', whatsapp_link: '',
@@ -655,6 +663,8 @@ async function saveSettings() {
       iiko_integration_type: form.value.iiko_integration_type,
       iiko_api_base_url: form.value.iiko_api_base_url,
       iiko_api_login: form.value.iiko_api_login || undefined,
+      iiko_app_id: form.value.iiko_app_id || undefined,
+      iiko_client_secret: form.value.iiko_client_secret || undefined,
       iiko_organization_id: form.value.iiko_organization_id || null,
       iiko_loyalty_program_id: form.value.iiko_loyalty_program_id || null,
       is_iiko_webhook_password_enabled: form.value.is_iiko_webhook_password_enabled,
