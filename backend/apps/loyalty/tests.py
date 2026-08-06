@@ -15,7 +15,10 @@ class LoyaltyTests(TestCase):
     def setUp(self):
         self.client = APIClient()
         from django.core.cache import cache
-        cache.clear()
+        try:
+            cache.clear()
+        except Exception:
+            pass
         self.organization = Organization.objects.create(
             name="Pizza Place",
             slug="pizza-place",
