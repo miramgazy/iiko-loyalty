@@ -9,10 +9,13 @@ class IikoAuthService:
         self.org = organization
         self.cache_key = f"iiko_token_{self.org.id}"
 
-    def get_access_token(self) -> str:
-        token = cache.get(self.cache_key)
-        if token:
-            return token
+    def get_access_token(self, force_refresh: bool = False) -> str:
+        if force_refresh:
+            cache.delete(self.cache_key)
+        else:
+            token = cache.get(self.cache_key)
+            if token:
+                return token
 
         url = f"{self.org.iiko_api_base_url.rstrip('/')}/access_token"
         payload = {}
@@ -41,8 +44,8 @@ class BaseIikoIntegrationService(ABC):
         self.org = organization
         self.auth_service = IikoAuthService(organization)
 
-    def _get_headers(self) -> dict:
-        token = self.auth_service.get_access_token()
+    def _get_headers(self, force_refresh: bool = False) -> dict:
+        token = self.auth_service.get_access_token(force_refresh=force_refresh)
         return {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json"
@@ -70,6 +73,14 @@ class BaseIikoIntegrationService(ABC):
 
 
 class IikoCloudIntegrationService(BaseIikoIntegrationService):
+    def _post(self, url: str, payload: dict) -> httpx.Response:
+        with httpx.Client(timeout=10) as client:
+            response = client.post(url, json=payload, headers=self._get_headers())
+            if response.status_code == 401:
+                # Token might be expired or invalidated. Force refresh token and retry once.
+                response = client.post(url, json=payload, headers=self._get_headers(force_refresh=True))
+            return response
+
     def get_customer_info_by_phone(self, phone: str) -> Optional[Dict[str, Any]]:
         url = f"{self.org.iiko_api_base_url.rstrip('/')}/loyalty/iiko/customer/info"
         payload = {
@@ -78,19 +89,18 @@ class IikoCloudIntegrationService(BaseIikoIntegrationService):
             "phone": phone
         }
         
-        with httpx.Client(timeout=10) as client:
-            response = client.post(url, json=payload, headers=self._get_headers())
-            if response.status_code == 404:
-                return None
-            if response.status_code == 400:
-                try:
-                    data = response.json()
-                    if data.get("code") == "Transport_WrongCustomerNumber" or data.get("errorCode") == "Validation_IncorrectPhone":
-                        return None
-                except Exception:
-                    pass
-            response.raise_for_status()
-            return response.json()
+        response = self._post(url, payload)
+        if response.status_code == 404:
+            return None
+        if response.status_code == 400:
+            try:
+                data = response.json()
+                if data.get("code") == "Transport_WrongCustomerNumber" or data.get("errorCode") == "Validation_IncorrectPhone":
+                    return None
+            except Exception:
+                pass
+        response.raise_for_status()
+        return response.json()
             
     def get_customer_info_by_id(self, iiko_customer_id: str) -> Optional[Dict[str, Any]]:
         url = f"{self.org.iiko_api_base_url.rstrip('/')}/loyalty/iiko/customer/info"
@@ -100,19 +110,18 @@ class IikoCloudIntegrationService(BaseIikoIntegrationService):
             "id": str(iiko_customer_id)
         }
         
-        with httpx.Client(timeout=10) as client:
-            response = client.post(url, json=payload, headers=self._get_headers())
-            if response.status_code == 404:
-                return None
-            if response.status_code == 400:
-                try:
-                    data = response.json()
-                    if data.get("code") == "Transport_WrongCustomerId" or data.get("errorCode") == "Customer_CustomerNotFound":
-                        return None
-                except Exception:
-                    pass
-            response.raise_for_status()
-            return response.json()
+        response = self._post(url, payload)
+        if response.status_code == 404:
+            return None
+        if response.status_code == 400:
+            try:
+                data = response.json()
+                if data.get("code") == "Transport_WrongCustomerId" or data.get("errorCode") == "Customer_CustomerNotFound":
+                    return None
+            except Exception:
+                pass
+        response.raise_for_status()
+        return response.json()
 
     def create_or_update_customer(self, phone: str, first_name: str = "", last_name: str = "", email: str = "", birthday: str = None) -> str:
         url = f"{self.org.iiko_api_base_url.rstrip('/')}/loyalty/iiko/customer/create_or_update"
@@ -136,12 +145,11 @@ class IikoCloudIntegrationService(BaseIikoIntegrationService):
         if self.org.iiko_loyalty_program_id:
             payload["loyaltyProgramId"] = str(self.org.iiko_loyalty_program_id)
 
-        with httpx.Client(timeout=10) as client:
-            response = client.post(url, json=payload, headers=self._get_headers())
-            response.raise_for_status()
-            
-            customer_data = response.json()
-            return customer_data.get("id")
+        response = self._post(url, payload)
+        response.raise_for_status()
+        
+        customer_data = response.json()
+        return customer_data.get("id")
 
     def add_virtual_card(self, customer_id: str, card_number: str) -> None:
         url = f"{self.org.iiko_api_base_url.rstrip('/')}/loyalty/iiko/customer/card/add"
@@ -153,9 +161,8 @@ class IikoCloudIntegrationService(BaseIikoIntegrationService):
             "cardTrack": str(card_number)
         }
 
-        with httpx.Client(timeout=10) as client:
-            response = client.post(url, json=payload, headers=self._get_headers())
-            response.raise_for_status()
+        response = self._post(url, payload)
+        response.raise_for_status()
 
     def get_customer_balance(self, iiko_customer_id: str) -> float:
         customer_data = self.get_customer_info_by_id(iiko_customer_id)
