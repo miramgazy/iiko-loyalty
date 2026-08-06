@@ -75,8 +75,16 @@ class BaseIikoIntegrationService(ABC):
 
 
 class IikoCloudIntegrationService(BaseIikoIntegrationService):
+    def _get_api_v1_url(self, endpoint: str) -> str:
+        base = self.org.iiko_api_base_url.rstrip('/')
+        if '/api/v2' in base:
+            base = base.replace('/api/v2', '/api/1')
+        elif '/api/2' in base:
+            base = base.replace('/api/2', '/api/1')
+        return f"{base}{endpoint}"
+
     def get_customer_info_by_phone(self, phone: str) -> Optional[Dict[str, Any]]:
-        url = f"{self.org.iiko_api_base_url.rstrip('/')}/loyalty/iiko/customer/info"
+        url = self._get_api_v1_url("/loyalty/iiko/customer/info")
         payload = {
             "organizationId": str(self.org.iiko_organization_id),
             "type": "phone",
@@ -98,7 +106,7 @@ class IikoCloudIntegrationService(BaseIikoIntegrationService):
             return response.json()
             
     def get_customer_info_by_id(self, iiko_customer_id: str) -> Optional[Dict[str, Any]]:
-        url = f"{self.org.iiko_api_base_url.rstrip('/')}/loyalty/iiko/customer/info"
+        url = self._get_api_v1_url("/loyalty/iiko/customer/info")
         payload = {
             "organizationId": str(self.org.iiko_organization_id),
             "type": "id",
@@ -120,7 +128,7 @@ class IikoCloudIntegrationService(BaseIikoIntegrationService):
             return response.json()
 
     def create_or_update_customer(self, phone: str, first_name: str = "", last_name: str = "", email: str = "", birthday: str = None) -> str:
-        url = f"{self.org.iiko_api_base_url.rstrip('/')}/loyalty/iiko/customer/create_or_update"
+        url = self._get_api_v1_url("/loyalty/iiko/customer/create_or_update")
         
         payload = {
             "organizationId": str(self.org.iiko_organization_id),
@@ -149,7 +157,7 @@ class IikoCloudIntegrationService(BaseIikoIntegrationService):
             return customer_data.get("id")
 
     def add_virtual_card(self, customer_id: str, card_number: str) -> None:
-        url = f"{self.org.iiko_api_base_url.rstrip('/')}/loyalty/iiko/customer/card/add"
+        url = self._get_api_v1_url("/loyalty/iiko/customer/card/add")
         
         payload = {
             "organizationId": str(self.org.iiko_organization_id),
