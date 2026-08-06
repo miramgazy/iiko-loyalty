@@ -219,7 +219,19 @@
             <input v-model="form.iiko_webhook_password" type="text" class="form-input" placeholder="Введите пароль..." />
           </div>
         </div>
-        <div class="flex justify-end pt-2">
+        <div class="flex justify-between items-center pt-2">
+          <button 
+            type="button"
+            @click="testIikoConnection" 
+            :disabled="testingIiko" 
+            class="px-4 py-2.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+          >
+            <svg v-if="testingIiko" class="animate-spin -ml-1 mr-2 h-4 w-4 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>{{ testingIiko ? 'Проверка...' : 'Проверить подключение iiko' }}</span>
+          </button>
           <SaveButton :saving="saving" @save="saveSettings" />
         </div>
       </div>
@@ -678,6 +690,26 @@ async function saveSettings() {
     toast.error(msg)
   } finally {
     saving.value = false
+  }
+}
+
+const testingIiko = ref(false)
+
+async function testIikoConnection() {
+  testingIiko.value = true
+  try {
+    const res = await api.post(`/core/organizations/${auth.currentOrgId}/test-iiko-connection/`, {
+      iiko_api_base_url: form.value.iiko_api_base_url,
+      iiko_api_login: form.value.iiko_api_login,
+      iiko_app_id: form.value.iiko_app_id,
+      iiko_client_secret: form.value.iiko_client_secret,
+    })
+    toast.success(res.data.message || 'Подключение к iiko успешно установлено!')
+  } catch (e) {
+    const msg = e.response?.data?.error || 'Ошибка проверки подключения к iiko'
+    toast.error(msg)
+  } finally {
+    testingIiko.value = false
   }
 }
 

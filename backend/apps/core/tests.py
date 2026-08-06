@@ -3,7 +3,7 @@ from django.conf import settings
 from apps.core.utils import normalize_phone
 from apps.core.models import Organization
 
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 class CoreUtilsTests(TestCase):
     def test_normalize_phone(self):
@@ -291,5 +291,25 @@ class CoreViewsTests(TestCase):
         res = self.client.get(f'/api/core/organizations/{self.organization.id}/tma-employees/')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data), 0)
+
+    @patch('apps.loyalty.services.httpx.Client')
+    def test_iiko_connection_endpoint(self, mock_httpx_client, mock_post):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"token": "test_token_999"}
+        mock_response.raise_for_status = MagicMock()
+        mock_client_instance = MagicMock()
+        mock_client_instance.post.return_value = mock_response
+        mock_httpx_client.return_value.__enter__.return_value = mock_client_instance
+
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.org_manager)}')
+        res = self.client.post(f'/api/core/organizations/{self.organization.id}/test-iiko-connection/', {
+            'iiko_api_login': 'key123',
+            'iiko_app_id': 'app456',
+            'iiko_client_secret': 'sec789'
+        })
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['status'], 'success')
+        self.assertIn('token_prefix', res.data)
+
 
 

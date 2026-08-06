@@ -235,3 +235,49 @@ class TmaEmployeeViewSet(viewsets.ModelViewSet):
         org_id = self.kwargs.get('organization_id')
         org = get_object_or_404(Organization, id=org_id)
         serializer.save(organization=org)
+
+class OrganizationTestIikoConnectionView(APIView):
+    """
+    View for OrgManager to test iiko credentials and verify token acquisition.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+
+    def post(self, request, organization_id, *args, **kwargs):
+        from apps.loyalty.services import IikoAuthService
+        from django.core.cache import cache
+        
+        org = get_object_or_404(Organization, id=organization_id)
+        
+        # Override with request data if transient values provided
+        iiko_api_login = request.data.get('iiko_api_login', org.iiko_api_login)
+        iiko_app_id = request.data.get('iiko_app_id', org.iiko_app_id)
+        iiko_client_secret = request.data.get('iiko_client_secret', org.iiko_client_secret)
+        iiko_api_base_url = request.data.get('iiko_api_base_url', org.iiko_api_base_url)
+        
+        if not iiko_api_login and not iiko_app_id:
+            return Response({"error": "Укажите iiko API Login (apiKey) или App ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+        test_org = Organization(
+            id=org.id,
+            iiko_api_base_url=iiko_api_base_url or "https://api-ru.iiko.services/api/1",
+            iiko_api_login=iiko_api_login or "",
+            iiko_app_id=iiko_app_id or "",
+            iiko_client_secret=iiko_client_secret or ""
+        )
+        
+        try:
+            cache.delete(f"iiko_token_{org.id}")
+        except Exception:
+            pass
+        
+        try:
+            auth_service = IikoAuthService(test_org)
+            token = auth_service.get_access_token()
+            return Response({
+                "status": "success",
+                "message": "Подключение к iiko успешно установлено! Токен авторизации получен.",
+                "token_prefix": f"{token[:8]}..." if len(token) > 8 else token
+            })
+        except Exception as e:
+            return Response({"error": f"Ошибка авторизации iiko: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+

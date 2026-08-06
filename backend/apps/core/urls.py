@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from apps.core.views import (
     SuperAdminOrganizationViewSet, OrganizationSettingsView, OrganizationLogoUploadView,
     OrganizationGoogleWalletSettingsView, OrganizationWebhookStatusView, OrganizationSendTestMessageView,
-    TmaEmployeeViewSet
+    OrganizationTestIikoConnectionView, TmaEmployeeViewSet
 )
 
 router = DefaultRouter()
@@ -19,6 +19,7 @@ urlpatterns = [
     path('organizations/<int:organization_id>/google-wallet-class/', OrganizationGoogleWalletSettingsView.as_view(), name='org_google_wallet_class'),
     path('organizations/<int:organization_id>/webhook-status/', OrganizationWebhookStatusView.as_view(), name='org_webhook_status'),
     path('organizations/<int:organization_id>/send-test-message/', OrganizationSendTestMessageView.as_view(), name='org_send_test_message'),
+    path('organizations/<int:organization_id>/test-iiko-connection/', OrganizationTestIikoConnectionView.as_view(), name='org_test_iiko_connection'),
     
     # TMA Employees
     path('organizations/<int:organization_id>/tma-employees/', TmaEmployeeViewSet.as_view({'get': 'list', 'post': 'create'}), name='org_tma_employees'),
