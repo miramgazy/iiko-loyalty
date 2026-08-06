@@ -195,7 +195,7 @@ class CoreViewsTests(TestCase):
             'password': 'password123'
         })
         self.assertEqual(res.status_code, 201)
-        self.assertIn('temp_password', res.data)
+        self.assertIn('id', res.data)
         self.assertEqual(res.data['role'], 'org_admin')
         
         new_emp = User.objects.get(email='newemp@example.com')
