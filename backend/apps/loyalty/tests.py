@@ -10,6 +10,9 @@ import hashlib
 import json
 import time
 
+from django.test import override_settings
+
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
 @patch('apps.loyalty.tasks.requests.post')
 class LoyaltyTests(TestCase):
     def setUp(self):
