@@ -372,3 +372,73 @@ class IikoAuthServiceTests(TestCase):
         self.assertEqual(payload.get('appId'), "test_app_id_456")
         self.assertEqual(payload.get('clientSecret'), "test_secret_789")
 
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
+class OwnerDashboardTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.organization = Organization.objects.create(
+            name="Owner Org",
+            slug="owner-org",
+            tg_bot_token="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+            tg_bot_username="owner_bot"
+        )
+
+    def test_owner_dashboard_employee_owner(self):
+        from apps.core.models import Employee
+        from apps.loyalty.views_utils import get_tokens_for_customer
+        
+        customer = Customer.objects.create(
+            organization=self.organization,
+            telegram_id=88888,
+            first_name="Owner",
+            loyalty_balance=150.00
+        )
+        Employee.objects.create(
+            organization=self.organization,
+            first_name="Owner",
+            telegram_id=88888,
+            role='owner',
+            is_active=True
+        )
+        tokens = get_tokens_for_customer(customer)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
+        
+        res = self.client.get('/api/loyalty/owner/dashboard/')
+        self.assertEqual(res.status_code, 200)
+        self.assertIn('used_today', res.data)
+        self.assertIn('accumulated_points', res.data)
+        self.assertEqual(res.data['total_users'], 1)
+
+    def test_owner_dashboard_user_org_manager(self):
+        from apps.accounts.models import User, UserOrganization
+        from apps.loyalty.views_utils import get_tokens_for_customer
+        
+        user = User.objects.create_user(username='orgmanager', email='org@example.com', telegram_id=77777)
+        UserOrganization.objects.create(user=user, organization=self.organization, role=UserOrganization.ROLE_ORG_MANAGER)
+        
+        customer = Customer.objects.create(
+            organization=self.organization,
+            telegram_id=77777,
+            first_name="ManagerCustomer"
+        )
+        tokens = get_tokens_for_customer(customer)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
+        
+        res = self.client.get('/api/loyalty/owner/dashboard/')
+        self.assertEqual(res.status_code, 200)
+
+    def test_owner_dashboard_regular_customer_denied(self):
+        from apps.loyalty.views_utils import get_tokens_for_customer
+        
+        customer = Customer.objects.create(
+            organization=self.organization,
+            telegram_id=66666,
+            first_name="Regular"
+        )
+        tokens = get_tokens_for_customer(customer)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {tokens['access']}")
+        
+        res = self.client.get('/api/loyalty/owner/dashboard/')
+        self.assertEqual(res.status_code, 403)
+
+

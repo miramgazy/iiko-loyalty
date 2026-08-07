@@ -88,8 +88,18 @@ class TmaAuthView(APIView):
         tokens = get_tokens_for_customer(customer)
 
         from apps.core.models import Employee
+        from apps.accounts.models import UserOrganization, User
         employee = Employee.objects.filter(telegram_id=telegram_id, organization=org, is_active=True).first()
-        role = employee.role if employee else 'customer'
+        if employee:
+            role = employee.role
+        else:
+            is_org_manager = UserOrganization.objects.filter(
+                user__telegram_id=telegram_id,
+                organization=org,
+                role__in=[UserOrganization.ROLE_ORG_MANAGER, UserOrganization.ROLE_SUPERUSER, UserOrganization.ROLE_SUPERADMIN]
+            ).exists()
+            is_super = User.objects.filter(telegram_id=telegram_id, is_superuser=True).exists()
+            role = 'owner' if (is_org_manager or is_super) else 'customer'
 
         return Response({
             "access": tokens["access"],
@@ -471,9 +481,28 @@ class OwnerDashboardView(APIView):
 
     def get(self, request, *args, **kwargs):
         from apps.core.models import Employee
-        from apps.loyalty.models import Visit, CustomerWallet
-        employee = Employee.objects.get(telegram_id=request.user.telegram_id, role='owner', is_active=True)
-        org = employee.organization
+        from apps.loyalty.models import Visit, CustomerWallet, Customer
+        from apps.accounts.models import UserOrganization
+
+        org = getattr(request.user, 'organization', None)
+
+        if not org and getattr(request.user, 'telegram_id', None):
+            emp = Employee.objects.filter(telegram_id=request.user.telegram_id, role='owner', is_active=True).first()
+            if emp:
+                org = emp.organization
+
+        if not org:
+            if hasattr(request.user, 'memberships'):
+                user_org = request.user.memberships.first()
+                if user_org:
+                    org = user_org.organization
+            elif getattr(request.user, 'telegram_id', None):
+                user_org = UserOrganization.objects.filter(user__telegram_id=request.user.telegram_id).first()
+                if user_org:
+                    org = user_org.organization
+
+        if not org:
+            return Response({"error": "Organization not found for owner"}, status=status.HTTP_404_NOT_FOUND)
         
         today = timezone.localdate()
         

@@ -75,9 +75,31 @@ class IsOwner(permissions.BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
             
+        if getattr(request.user, 'is_superuser', False):
+            return True
+
         from apps.core.models import Employee
-        return Employee.objects.filter(
-            telegram_id=request.user.telegram_id,
+        from apps.accounts.models import UserOrganization
+
+        telegram_id = getattr(request.user, 'telegram_id', None)
+
+        if telegram_id and Employee.objects.filter(
+            telegram_id=telegram_id,
             role='owner',
             is_active=True
-        ).exists()
+        ).exists():
+            return True
+
+        if hasattr(request.user, 'memberships'):
+            if request.user.memberships.filter(
+                role__in=[UserOrganization.ROLE_ORG_MANAGER, UserOrganization.ROLE_SUPERUSER, UserOrganization.ROLE_SUPERADMIN]
+            ).exists():
+                return True
+
+        if telegram_id and UserOrganization.objects.filter(
+            user__telegram_id=telegram_id,
+            role__in=[UserOrganization.ROLE_ORG_MANAGER, UserOrganization.ROLE_SUPERUSER, UserOrganization.ROLE_SUPERADMIN]
+        ).exists():
+            return True
+
+        return False
