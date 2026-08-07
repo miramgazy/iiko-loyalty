@@ -28,7 +28,7 @@
     </div>
 
     <!-- Stats -->
-    <div class="grid grid-cols-4 gap-4 mb-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
       <div v-for="stat in stats" :key="stat.label" class="bg-slate-900 rounded-xl border border-slate-800 px-5 py-4">
         <p class="text-xs text-slate-500 mb-1">{{ stat.label }}</p>
         <p class="text-2xl font-bold text-white">{{ stat.value }}</p>
@@ -282,6 +282,7 @@ const pushingId = ref(null)
 
 const stats = computed(() => [
   { label: 'Всего клиентов', value: totalCount.value },
+  { label: 'С Telegram ID', value: customers.value.filter(c => c.telegram_id != null && c.telegram_id !== '').length },
   { label: 'С номером телефона', value: customers.value.filter(c => c.phone).length },
   { label: 'Синхр. с iiko', value: customers.value.filter(c => c.iiko_customer_id).length },
   { label: 'Подписаны на бота', value: customers.value.filter(c => c.is_bot_subscribed === true).length },
