@@ -226,6 +226,37 @@ class CoreViewsTests(TestCase):
         self.assertEqual(len(res.data['results']), 1)
         self.assertEqual(res.data['results'][0]['first_name'], 'Alice')
 
+    @patch('apps.loyalty.tasks.sync_customer_to_iiko.delay')
+    def test_customer_stats_and_sync_all(self, mock_sync_delay, mock_post):
+        c1 = Customer.objects.create(
+            organization=self.organization, telegram_id=111, first_name="Alice", last_name="Smith",
+            phone="+77011110001", iiko_customer_id="11111111-1111-1111-1111-111111111111", is_bot_subscribed=True
+        )
+        c2 = Customer.objects.create(
+            organization=self.organization, telegram_id=222, first_name="Bob", last_name="Jones",
+            phone="+77011110002", is_bot_subscribed=False
+        )
+        c3 = Customer.objects.create(
+            organization=self.organization, first_name="Charlie", phone=""
+        )
+
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.org_admin)}')
+
+        # Test stats
+        res = self.client.get(f'/api/loyalty/organizations/{self.organization.id}/customers/stats/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['total_count'], 3)
+        self.assertEqual(res.data['with_telegram'], 2)
+        self.assertEqual(res.data['with_phone'], 2)
+        self.assertEqual(res.data['synced_iiko'], 1)
+        self.assertEqual(res.data['bot_subscribed'], 1)
+
+        # Test sync_all
+        res = self.client.post(f'/api/loyalty/organizations/{self.organization.id}/customers/sync-all/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['count'], 2)
+        self.assertEqual(mock_sync_delay.call_count, 2)
+
     @patch('requests.post')
     def test_send_test_message_api(self, mock_requests_post, mock_tasks_post):
         mock_requests_post.return_value.status_code = 200

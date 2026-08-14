@@ -1,7 +1,7 @@
 import json
 import requests
 from django.shortcuts import get_object_or_404
-from django.db.models import Q
+from django.db.models import Q, Count
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, permissions, viewsets
@@ -296,6 +296,40 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
                 Q(phone__icontains=search)
             )
         return queryset
+
+    @action(detail=False, methods=['get'], url_path='stats')
+    def stats(self, request, organization_id=None):
+        """Return aggregated statistics for all customers of the organization."""
+        qs = Customer.objects.filter(organization_id=organization_id)
+        metrics = qs.aggregate(
+            total_count=Count('id'),
+            with_telegram=Count('id', filter=Q(telegram_id__isnull=False)),
+            with_phone=Count('id', filter=Q(phone__isnull=False) & ~Q(phone='')),
+            synced_iiko=Count('id', filter=Q(iiko_customer_id__isnull=False)),
+            bot_subscribed=Count('id', filter=Q(is_bot_subscribed=True)),
+        )
+        return Response(metrics)
+
+    @action(detail=False, methods=['post'], url_path='sync-all')
+    def sync_all(self, request, organization_id=None):
+        """Bulk sync all active customers with phone numbers for the organization with iiko."""
+        customers = Customer.objects.filter(
+            organization_id=organization_id,
+            is_active=True
+        ).exclude(phone__isnull=True).exclude(phone='')
+        
+        count = customers.count()
+        if count == 0:
+            return Response({"message": "Нет клиентов с номером телефона для синхронизации", "count": 0})
+
+        from apps.loyalty.tasks import sync_customer_to_iiko
+        for c in customers:
+            sync_customer_to_iiko.delay(c.id, push=False)
+
+        return Response({
+            "message": f"Запущена синхронизация {count} клиентов с iiko",
+            "count": count
+        })
 
     @action(detail=True, methods=['post'], url_path='sync')
     def sync(self, request, organization_id=None, pk=None):

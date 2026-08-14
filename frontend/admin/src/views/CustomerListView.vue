@@ -6,10 +6,19 @@
         <h1 class="text-2xl font-bold text-white">База клиентов</h1>
         <p class="text-slate-400 text-sm mt-1">Участники программы лояльности</p>
       </div>
-      <button id="btn-export-csv" @click="exportCSV"
-        class="border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2">
-        📥 Экспорт CSV
-      </button>
+      <div class="flex items-center gap-3">
+        <button id="btn-sync-all" @click="syncAllCustomers" :disabled="syncingAll"
+          class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          <svg class="w-4 h-4" :class="{ 'animate-spin': syncingAll }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          {{ syncingAll ? 'Синхронизация...' : '🔄 Обновить всех из iiko' }}
+        </button>
+        <button id="btn-export-csv" @click="exportCSV"
+          class="border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2">
+          📥 Экспорт CSV
+        </button>
+      </div>
     </div>
 
     <!-- Search -->
@@ -279,13 +288,23 @@ const visiblePages = computed(() => {
 // Sync state
 const syncingId = ref(null)
 const pushingId = ref(null)
+const syncingAll = ref(false)
+
+// Aggregated database stats from backend
+const statsData = ref({
+  total_count: 0,
+  with_telegram: 0,
+  with_phone: 0,
+  synced_iiko: 0,
+  bot_subscribed: 0
+})
 
 const stats = computed(() => [
-  { label: 'Всего клиентов', value: totalCount.value },
-  { label: 'С Telegram ID', value: customers.value.filter(c => c.telegram_id != null && c.telegram_id !== '').length },
-  { label: 'С номером телефона', value: customers.value.filter(c => c.phone).length },
-  { label: 'Синхр. с iiko', value: customers.value.filter(c => c.iiko_customer_id).length },
-  { label: 'Подписаны на бота', value: customers.value.filter(c => c.is_bot_subscribed === true).length },
+  { label: 'Всего клиентов', value: statsData.value.total_count },
+  { label: 'С Telegram ID', value: statsData.value.with_telegram },
+  { label: 'С номером телефона', value: statsData.value.with_phone },
+  { label: 'Синхр. с iiko', value: statsData.value.synced_iiko },
+  { label: 'Подписаны на бота', value: statsData.value.bot_subscribed },
 ])
 
 function debouncedSearch() {
@@ -294,6 +313,15 @@ function debouncedSearch() {
     currentPage.value = 1
     loadCustomers()
   }, 350)
+}
+
+async function loadStats() {
+  try {
+    const res = await api.get(`/loyalty/organizations/${auth.currentOrgId}/customers/stats/`)
+    statsData.value = res.data
+  } catch (err) {
+    console.error('Failed to load customer stats:', err)
+  }
 }
 
 async function loadCustomers() {
@@ -326,6 +354,21 @@ function goToPage(page) {
   loadCustomers()
 }
 
+async function syncAllCustomers() {
+  if (syncingAll.value) return
+  syncingAll.value = true
+  try {
+    const res = await api.post(`/loyalty/organizations/${auth.currentOrgId}/customers/sync-all/`)
+    toast.success(res.data.message || 'Синхронизация клиентов с iiko запущена')
+    await Promise.all([loadCustomers(), loadStats()])
+  } catch (err) {
+    const msg = err.response?.data?.error || 'Ошибка при запуске массовой синхронизации'
+    toast.error(msg)
+  } finally {
+    syncingAll.value = false
+  }
+}
+
 async function syncCustomer(customer) {
   if (syncingId.value || !customer.phone) return
   syncingId.value = customer.id
@@ -337,6 +380,7 @@ async function syncCustomer(customer) {
       customers.value[idx] = res.data
     }
     toast.success(`Данные ${customer.first_name || 'клиента'} обновлены из iiko`)
+    loadStats()
   } catch (err) {
     const msg = err.response?.data?.error || 'Ошибка синхронизации с iiko'
     toast.error(msg)
@@ -356,6 +400,7 @@ async function pushCustomer(customer) {
       customers.value[idx] = res.data
     }
     toast.success(`Регистрация ${customer.first_name || 'клиента'} в iiko успешно завершена`)
+    loadStats()
   } catch (err) {
     const msg = err.response?.data?.error || 'Ошибка отправки в iiko'
     toast.error(msg)
@@ -393,5 +438,8 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-onMounted(loadCustomers)
+onMounted(() => {
+  loadCustomers()
+  loadStats()
+})
 </script>
