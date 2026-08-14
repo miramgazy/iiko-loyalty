@@ -6,13 +6,23 @@
         <h1 class="text-2xl font-bold text-white">База клиентов</h1>
         <p class="text-slate-400 text-sm mt-1">Участники программы лояльности</p>
       </div>
-      <div class="flex items-center gap-3">
-        <button id="btn-sync-all" @click="syncAllCustomers" :disabled="syncingAll"
+      <div class="flex flex-wrap items-center gap-3">
+        <button id="btn-sync-all" @click="syncAllCustomers" :disabled="syncingAll || pushingAll"
           class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
           <svg class="w-4 h-4" :class="{ 'animate-spin': syncingAll }" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           {{ syncingAll ? 'Синхронизация...' : '🔄 Обновить всех из iiko' }}
+        </button>
+        <button id="btn-push-all" @click="pushAllCustomers" :disabled="syncingAll || pushingAll"
+          class="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+          <svg v-if="pushingAll" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+          </svg>
+          {{ pushingAll ? 'Выгрузка...' : '📤 Выгрузить всех в iiko' }}
         </button>
         <button id="btn-export-csv" @click="exportCSV"
           class="border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 px-4 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2">
@@ -289,6 +299,7 @@ const visiblePages = computed(() => {
 const syncingId = ref(null)
 const pushingId = ref(null)
 const syncingAll = ref(false)
+const pushingAll = ref(false)
 
 // Aggregated database stats from backend
 const statsData = ref({
@@ -355,7 +366,7 @@ function goToPage(page) {
 }
 
 async function syncAllCustomers() {
-  if (syncingAll.value) return
+  if (syncingAll.value || pushingAll.value) return
   syncingAll.value = true
   try {
     const res = await api.post(`/loyalty/organizations/${auth.currentOrgId}/customers/sync-all/`)
@@ -366,6 +377,21 @@ async function syncAllCustomers() {
     toast.error(msg)
   } finally {
     syncingAll.value = false
+  }
+}
+
+async function pushAllCustomers() {
+  if (pushingAll.value || syncingAll.value) return
+  pushingAll.value = true
+  try {
+    const res = await api.post(`/loyalty/organizations/${auth.currentOrgId}/customers/push-all-iiko/`)
+    toast.success(res.data.message || 'Выгрузка клиентов в iiko запущена')
+    await Promise.all([loadCustomers(), loadStats()])
+  } catch (err) {
+    const msg = err.response?.data?.error || 'Ошибка при запуске массовой выгрузки'
+    toast.error(msg)
+  } finally {
+    pushingAll.value = false
   }
 }
 

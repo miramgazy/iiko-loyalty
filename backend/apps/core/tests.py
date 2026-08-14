@@ -257,6 +257,16 @@ class CoreViewsTests(TestCase):
         self.assertEqual(res.data['count'], 2)
         self.assertEqual(mock_sync_delay.call_count, 2)
 
+        # Test push_all_iiko
+        mock_sync_delay.reset_mock()
+        res = self.client.post(f'/api/loyalty/organizations/{self.organization.id}/customers/push-all-iiko/')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['count'], 2)
+        self.assertEqual(mock_sync_delay.call_count, 2)
+        # Check that card numbers were generated for customers missing one
+        c2.refresh_from_db()
+        self.assertTrue(bool(c2.iiko_card_number))
+
     @patch('requests.post')
     def test_send_test_message_api(self, mock_requests_post, mock_tasks_post):
         mock_requests_post.return_value.status_code = 200

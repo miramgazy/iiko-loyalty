@@ -331,6 +331,32 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
             "count": count
         })
 
+    @action(detail=False, methods=['post'], url_path='push-all-iiko')
+    def push_all_iiko(self, request, organization_id=None):
+        """Bulk force push all active customers with phone numbers to iiko."""
+        customers = Customer.objects.filter(
+            organization_id=organization_id,
+            is_active=True
+        ).exclude(phone__isnull=True).exclude(phone='')
+        
+        count = customers.count()
+        if count == 0:
+            return Response({"message": "Нет клиентов с номером телефона для выгрузки в iiko", "count": 0})
+
+        from apps.loyalty.utils import generate_unique_card_number
+        from apps.loyalty.tasks import sync_customer_to_iiko
+
+        for c in customers:
+            if not c.iiko_card_number:
+                c.iiko_card_number = generate_unique_card_number(c.organization)
+                c.save(update_fields=['iiko_card_number'])
+            sync_customer_to_iiko.delay(c.id, push=True)
+
+        return Response({
+            "message": f"Запущена выгрузка {count} клиентов в iiko",
+            "count": count
+        })
+
     @action(detail=True, methods=['post'], url_path='sync')
     def sync(self, request, organization_id=None, pk=None):
         """Manually sync a single customer with iiko by their phone number (pull changes from iiko)."""

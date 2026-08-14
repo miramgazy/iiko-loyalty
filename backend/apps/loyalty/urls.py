@@ -24,6 +24,7 @@ urlpatterns = [
     path('organizations/<int:organization_id>/customers/', OrgCustomerViewSet.as_view({'get': 'list'}), name='org_customers'),
     path('organizations/<int:organization_id>/customers/stats/', OrgCustomerViewSet.as_view({'get': 'stats'}), name='org_customers_stats'),
     path('organizations/<int:organization_id>/customers/sync-all/', OrgCustomerViewSet.as_view({'post': 'sync_all'}), name='org_customers_sync_all'),
+    path('organizations/<int:organization_id>/customers/push-all-iiko/', OrgCustomerViewSet.as_view({'post': 'push_all_iiko'}), name='org_customers_push_all_iiko'),
     path('organizations/<int:organization_id>/customers/<int:pk>/sync/', OrgCustomerViewSet.as_view({'post': 'sync'}), name='org_customer_sync'),
     path('organizations/<int:organization_id>/customers/<int:pk>/push-iiko/', OrgCustomerViewSet.as_view({'post': 'push_iiko'}), name='org_customer_push_iiko'),
 
