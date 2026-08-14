@@ -239,30 +239,33 @@ class CoreViewsTests(TestCase):
         c3 = Customer.objects.create(
             organization=self.organization, first_name="Charlie", phone=""
         )
+        c4 = Customer.objects.create(
+            organization=self.organization, telegram_id=444, first_name="Guest", phone="+77011110004"
+        )
 
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.org_admin)}')
 
         # Test stats
         res = self.client.get(f'/api/loyalty/organizations/{self.organization.id}/customers/stats/')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data['total_count'], 3)
-        self.assertEqual(res.data['with_telegram'], 2)
-        self.assertEqual(res.data['with_phone'], 2)
+        self.assertEqual(res.data['total_count'], 4)
+        self.assertEqual(res.data['with_telegram'], 3)
+        self.assertEqual(res.data['with_phone'], 3)
         self.assertEqual(res.data['synced_iiko'], 1)
         self.assertEqual(res.data['bot_subscribed'], 1)
 
-        # Test sync_all
+        # Test sync_all (only targets nameless/Guest customers c4)
         res = self.client.post(f'/api/loyalty/organizations/{self.organization.id}/customers/sync-all/')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data['count'], 2)
-        self.assertEqual(mock_sync_delay.call_count, 2)
+        self.assertEqual(res.data['count'], 1)
+        self.assertEqual(mock_sync_delay.call_count, 1)
 
-        # Test push_all_iiko
+        # Test push_all_iiko (targets all customers with phone numbers: c1, c2, c4)
         mock_sync_delay.reset_mock()
         res = self.client.post(f'/api/loyalty/organizations/{self.organization.id}/customers/push-all-iiko/')
         self.assertEqual(res.status_code, 200)
-        self.assertEqual(res.data['count'], 2)
-        self.assertEqual(mock_sync_delay.call_count, 2)
+        self.assertEqual(res.data['count'], 3)
+        self.assertEqual(mock_sync_delay.call_count, 3)
         # Check that card numbers were generated for customers missing one
         c2.refresh_from_db()
         self.assertTrue(bool(c2.iiko_card_number))

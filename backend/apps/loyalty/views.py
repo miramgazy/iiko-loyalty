@@ -312,22 +312,27 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='sync-all')
     def sync_all(self, request, organization_id=None):
-        """Bulk sync all active customers with phone numbers for the organization with iiko."""
+        """Bulk sync active customers missing a real name from iiko."""
         customers = Customer.objects.filter(
             organization_id=organization_id,
             is_active=True
-        ).exclude(phone__isnull=True).exclude(phone='')
+        ).exclude(phone__isnull=True).exclude(phone='').filter(
+            Q(first_name__isnull=True) |
+            Q(first_name='') |
+            Q(first_name__iexact='guest') |
+            Q(first_name__iexact='гость')
+        )
         
         count = customers.count()
         if count == 0:
-            return Response({"message": "Нет клиентов с номером телефона для синхронизации", "count": 0})
+            return Response({"message": "Нет клиентов без имени для обновления из iiko", "count": 0})
 
         from apps.loyalty.tasks import sync_customer_to_iiko
         for c in customers:
             sync_customer_to_iiko.delay(c.id, push=False)
 
         return Response({
-            "message": f"Запущена синхронизация {count} клиентов с iiko",
+            "message": f"Запущена синхронизация {count} клиентов без имени с iiko",
             "count": count
         })
 

@@ -39,20 +39,32 @@ def sync_customer_to_iiko(self, customer_id, push=False):
 
         if guest_info:
             cards = guest_info.get("cards", [])
-            if not cards:
+            iiko_card_numbers = [str(c.get("number")) for c in cards if c.get("number")]
+
+            # Ensure platform-generated card number is pushed to iiko if missing in iiko
+            if customer.iiko_card_number and str(customer.iiko_card_number) not in iiko_card_numbers:
                 try:
-                    logger.info(f"Customer {customer.id} has no cards in iiko. Creating virtual card...")
-                    if not customer.iiko_card_number:
-                        from apps.loyalty.utils import generate_unique_card_number
-                        customer.iiko_card_number = generate_unique_card_number(customer.organization)
-                        customer.save(update_fields=['iiko_card_number'])
-                    service.add_virtual_card(customer.iiko_customer_id, customer.iiko_card_number)
-                    # Re-fetch guest info to get the newly created card details
+                    logger.info(f"Customer {customer.id} has platform card {customer.iiko_card_number} missing in iiko. Adding virtual card...")
+                    service.add_virtual_card(customer.iiko_customer_id, str(customer.iiko_card_number))
                     new_guest_info = service.get_customer_info_by_id(customer.iiko_customer_id)
                     if new_guest_info:
                         guest_info = new_guest_info
+                        cards = guest_info.get("cards", [])
                 except Exception as e:
                     logger.error(f"Error registering virtual card for customer {customer.id}: {e}")
+            elif not cards and not customer.iiko_card_number:
+                try:
+                    logger.info(f"Customer {customer.id} has no cards in iiko or platform. Generating virtual card...")
+                    from apps.loyalty.utils import generate_unique_card_number
+                    customer.iiko_card_number = generate_unique_card_number(customer.organization)
+                    customer.save(update_fields=['iiko_card_number'])
+                    service.add_virtual_card(customer.iiko_customer_id, str(customer.iiko_card_number))
+                    new_guest_info = service.get_customer_info_by_id(customer.iiko_customer_id)
+                    if new_guest_info:
+                        guest_info = new_guest_info
+                        cards = guest_info.get("cards", [])
+                except Exception as e:
+                    logger.error(f"Error creating virtual card for customer {customer.id}: {e}")
 
             update_fields = []
 
@@ -126,10 +138,20 @@ def sync_customer_to_iiko(self, customer_id, push=False):
             # Update Cards
             cards = guest_info.get("cards", [])
             if cards:
-                card = cards[0]
-                customer.iiko_card_id = card.get("id")
-                customer.iiko_card_number = card.get("number")
-                update_fields.extend(['iiko_card_id', 'iiko_card_number'])
+                matched_card = None
+                if customer.iiko_card_number:
+                    matched_card = next((c for c in cards if str(c.get("number")) == str(customer.iiko_card_number)), None)
+                if not matched_card:
+                    matched_card = cards[0]
+                
+                card_id = matched_card.get("id")
+                card_num = matched_card.get("number")
+                if card_id and customer.iiko_card_id != card_id:
+                    customer.iiko_card_id = card_id
+                    update_fields.append('iiko_card_id')
+                if card_num and customer.iiko_card_number != card_num:
+                    customer.iiko_card_number = card_num
+                    update_fields.append('iiko_card_number')
 
             if update_fields:
                 customer.save(update_fields=list(set(update_fields)))
