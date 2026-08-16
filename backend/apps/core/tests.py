@@ -270,6 +270,12 @@ class CoreViewsTests(TestCase):
         c2.refresh_from_db()
         self.assertTrue(bool(c2.iiko_card_number))
 
+    @patch('apps.loyalty.tasks.register_tg_webhook.delay')
+    def test_register_all_tg_webhooks_task(self, mock_webhook_delay, mock_post):
+        from apps.loyalty.tasks import register_all_tg_webhooks
+        register_all_tg_webhooks()
+        mock_webhook_delay.assert_called_with(self.organization.id)
+
     @patch('requests.post')
     def test_send_test_message_api(self, mock_requests_post, mock_tasks_post):
         mock_requests_post.return_value.status_code = 200

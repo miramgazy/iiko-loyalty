@@ -203,6 +203,18 @@ def register_tg_webhook(self, organization_id):
         raise self.retry(exc=exc)
 
 @app.task
+def register_all_tg_webhooks():
+    """Register Telegram webhooks for all active organizations with bot tokens."""
+    from apps.core.models import Organization
+    orgs = Organization.objects.filter(is_active=True).exclude(tg_bot_token__isnull=True).exclude(tg_bot_token='')
+    logger.info(f"Triggering Telegram webhook registration for {orgs.count()} organizations...")
+    for org in orgs:
+        try:
+            register_tg_webhook.delay(org.id)
+        except Exception as e:
+            logger.error(f"Failed to dispatch register_tg_webhook for org {org.id}: {e}")
+
+@app.task
 def process_iiko_webhook(log_id):
     from apps.loyalty.models import IikoWebhookLog, Customer
     from apps.core.models import Organization
