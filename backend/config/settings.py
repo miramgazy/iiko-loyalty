@@ -205,9 +205,9 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.mailing.tasks.check_scheduled_mailings',
         'schedule': 60.0,  # 1 minute
     },
-    'register-all-tg-webhooks-hourly': {
+    'register-all-tg-webhooks-every-5-minutes': {
         'task': 'apps.loyalty.tasks.register_all_tg_webhooks',
-        'schedule': 3600.0,  # 1 hour
+        'schedule': 300.0,  # 5 minutes
     },
 }
 

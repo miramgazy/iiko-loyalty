@@ -189,15 +189,34 @@ def register_tg_webhook(self, organization_id):
     from django.conf import settings
     try:
         org = Organization.objects.get(id=organization_id)
-        if not org.tg_bot_token:
+        if not org.tg_bot_token or not org.is_active:
             return
         
-        webhook_url = f"{settings.WEBHOOK_DOMAIN.rstrip('/')}/api/loyalty/webhook/{org.id}/{org.tg_bot_token}/"
-        url = f"https://api.telegram.org/bot{org.tg_bot_token}/setWebhook"
+        domain = settings.WEBHOOK_DOMAIN.rstrip('/')
+        if not domain.startswith('http://') and not domain.startswith('https://'):
+            domain = f"https://{domain}"
+
+        webhook_url = f"{domain}/api/loyalty/webhook/{org.id}/{org.tg_bot_token}/"
         
+        # Check current webhook info to capture any error reported by Telegram
+        try:
+            info_url = f"https://api.telegram.org/bot{org.tg_bot_token}/getWebhookInfo"
+            info_res = requests.get(info_url, timeout=10)
+            if info_res.status_code == 200:
+                info_data = info_res.json().get('result', {})
+                last_error_msg = info_data.get('last_error_message')
+                if last_error_msg:
+                    logger.warning(
+                        f"Telegram reported webhook delivery error for org {organization_id}: '{last_error_msg}'"
+                    )
+        except Exception as info_err:
+            logger.debug(f"Could not fetch getWebhookInfo for org {organization_id}: {info_err}")
+
+        # Set or restore webhook
+        url = f"https://api.telegram.org/bot{org.tg_bot_token}/setWebhook"
         response = requests.post(url, json={"url": webhook_url}, timeout=10)
         response.raise_for_status()
-        logger.info(f"Successfully registered webhook for organization {organization_id}")
+        logger.info(f"Successfully registered webhook for organization {organization_id} at {webhook_url}")
     except Exception as exc:
         logger.error(f"Error registering Telegram Webhook for organization {organization_id}: {exc}")
         raise self.retry(exc=exc)
