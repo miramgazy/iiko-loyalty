@@ -314,6 +314,13 @@ class CoreViewsTests(TestCase):
         self.assertEqual(qs1.first().first_name, "User Org 1")
         self.assertEqual(qs2.first().first_name, "User Org 2")
 
+    def test_celery_task_priority_queues(self, mock_post):
+        from django.conf import settings
+        routes = getattr(settings, 'CELERY_TASK_ROUTES', {})
+        self.assertEqual(routes.get('apps.loyalty.tasks.register_tg_webhook'), {'queue': 'high_priority'})
+        self.assertEqual(routes.get('apps.loyalty.tasks.process_iiko_webhook'), {'queue': 'high_priority'})
+        self.assertEqual(routes.get('apps.loyalty.tasks.sync_customer_to_iiko'), {'queue': 'celery'})
+
     @patch('requests.post')
     def test_send_test_message_api(self, mock_requests_post, mock_tasks_post):
         mock_requests_post.return_value.status_code = 200

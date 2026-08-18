@@ -52,7 +52,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: loyalty_celery_worker
-    command: celery -A config worker -l info --concurrency=4
+    command: celery -A config worker -l info -Q high_priority,celery --concurrency=4
     volumes:
       - media_data:/app/media
     depends_on:
