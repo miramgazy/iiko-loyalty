@@ -58,22 +58,47 @@
         </Transition>
       </div>
 
-      <!-- Bottom Section: Share contact button -->
+      <!-- Bottom Section: Share contact button or Manual Phone form -->
       <div class="w-full">
-        <button
-          id="btn-share-contact"
-          @click="handleShareContact"
-          :disabled="waiting"
-          class="btn-primary w-full"
-        >
-          <span v-if="waiting" class="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
-          <template v-else>
-            <svg class="w-5 h-5 fill-current opacity-95" viewBox="0 0 24 24">
-              <path d="M19 14v3h3v2h-3v3h-2v-3h-3v-2h3v-3h2zm-9-2c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-2.67 0-8 1.34-8 4v3h10.19c-.12-.65-.19-1.32-.19-2 0-2.24 1.28-4.17 3.14-5.14L10 14z"/>
-            </svg>
-            {{ t('sharePhoneBtn') }}
-          </template>
-        </button>
+        <Transition name="page">
+          <form v-if="manualInputMode" @submit.prevent="submitManualPhone" class="flex flex-col gap-3">
+            <div class="flex flex-col gap-1">
+              <input 
+                type="tel" 
+                v-model="manualPhone" 
+                class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-center tracking-wider font-bold text-lg text-[color:var(--text)] focus:outline-none focus:border-[color:var(--gold)]"
+                :placeholder="t('phonePlaceholder') || '+7 (___) ___-__-__'"
+              />
+              <span v-if="submitError" class="text-xs text-[color:var(--text-error)] text-center">{{ submitError }}</span>
+            </div>
+            <button
+              type="submit"
+              :disabled="isSubmitting"
+              class="btn-primary w-full mt-2"
+            >
+              <span v-if="isSubmitting" class="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+              <template v-else>
+                {{ t('continue') }}
+              </template>
+            </button>
+          </form>
+
+          <button
+            v-else
+            id="btn-share-contact"
+            @click="handleShareContact"
+            :disabled="waiting"
+            class="btn-primary w-full"
+          >
+            <span v-if="waiting" class="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+            <template v-else>
+              <svg class="w-5 h-5 fill-current opacity-95" viewBox="0 0 24 24">
+                <path d="M19 14v3h3v2h-3v3h-2v-3h-3v-2h3v-3h2zm-9-2c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-2.67 0-8 1.34-8 4v3h10.19c-.12-.65-.19-1.32-.19-2 0-2.24 1.28-4.17 3.14-5.14L10 14z"/>
+              </svg>
+              {{ t('sharePhoneBtn') }}
+            </template>
+          </button>
+        </Transition>
       </div>
     </div>
   </div>
@@ -95,8 +120,14 @@ const theme = useThemeStore()
 const waiting = ref(false)
 const error = ref('')
 
+const manualInputMode = ref(false)
+const manualPhone = ref('+7')
+const submitError = ref('')
+const isSubmitting = ref(false)
+
 let ws = null
 let pollInterval = null
+let fallbackTimer = null
 
 function connectWebSocket() {
   const customerId = auth.customer?.id
@@ -160,24 +191,65 @@ function startPolling() {
 function cleanup() {
   if (ws) { ws.close(); ws = null }
   if (pollInterval) { clearInterval(pollInterval); pollInterval = null }
+  if (fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null }
   waiting.value = false
 }
 
 async function handleShareContact() {
   error.value = ''
   waiting.value = true
+  manualInputMode.value = false
 
   // Start polling and websocket listening immediately
   connectWebSocket()
   startPolling()
+
+  // Start 5-second fallback timer
+  fallbackTimer = setTimeout(() => {
+    if (waiting.value) {
+      cleanup()
+      manualInputMode.value = true
+      error.value = t('phoneFallbackMessage') || 'Не удалось получить номер телефона автоматически. Пожалуйста, введите номер вручную.'
+    }
+  }, 5000)
 
   try {
     await requestContact()
   } catch (e) {
     // If user cancelled, clean up background tasks
     cleanup()
-    waiting.value = false
+    manualInputMode.value = true
     error.value = e.message || t('declinedPhone')
+  }
+}
+
+async function submitManualPhone() {
+  if (!manualPhone.value || manualPhone.value.length < 11) {
+    submitError.value = 'Пожалуйста, введите корректный номер'
+    return
+  }
+  
+  submitError.value = ''
+  isSubmitting.value = true
+  
+  try {
+    const res = await api.post('/loyalty/customer/phone/', { phone: manualPhone.value })
+    if (res.data.phone) {
+      auth.updateCustomer({
+        phone: res.data.phone,
+        is_onboarded: true,
+        loyalty_balance: res.data.loyalty_balance,
+      })
+      if (auth.needsConsent) {
+        router.replace('/onboarding/consent')
+      } else {
+        router.replace('/')
+      }
+    }
+  } catch (err) {
+    submitError.value = err.response?.data?.error || 'Ошибка при сохранении номера'
+  } finally {
+    isSubmitting.value = false
   }
 }
 

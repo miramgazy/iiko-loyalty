@@ -140,8 +140,64 @@ class CustomerMeView(APIView):
 
             from apps.loyalty.tasks import sync_customer_to_iiko
             sync_customer_to_iiko.delay(customer.id, push=True)
+            
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class CustomerPhoneUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        if not isinstance(request.user, Customer):
+            return Response({"error": "Unauthorized, not a Customer"}, status=status.HTTP_403_FORBIDDEN)
+            
+        phone_number = request.data.get('phone')
+        if not phone_number:
+            return Response({"error": "Phone number is required"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        normalized_phone = normalize_phone(phone_number)
+        
+        customer = request.user
+        org = customer.organization
+        
+        existing_iiko_customer = Customer.objects.filter(
+            organization=org,
+            phone=normalized_phone
+        ).exclude(id=customer.id).first()
+
+        if existing_iiko_customer:
+            if not customer.iiko_customer_id and existing_iiko_customer.iiko_customer_id:
+                customer.iiko_customer_id = existing_iiko_customer.iiko_customer_id
+            if not customer.iiko_card_number and existing_iiko_customer.iiko_card_number:
+                customer.iiko_card_number = existing_iiko_customer.iiko_card_number
+            if not customer.iiko_card_id and existing_iiko_customer.iiko_card_id:
+                customer.iiko_card_id = existing_iiko_customer.iiko_card_id
+            if existing_iiko_customer.iiko_categories:
+                customer.iiko_categories = existing_iiko_customer.iiko_categories
+            if existing_iiko_customer.loyalty_balance:
+                customer.loyalty_balance = existing_iiko_customer.loyalty_balance
+            if existing_iiko_customer.wallet_barcode and not customer.wallet_barcode:
+                customer.wallet_barcode = existing_iiko_customer.wallet_barcode
+
+            if not customer.first_name and existing_iiko_customer.first_name:
+                customer.first_name = existing_iiko_customer.first_name
+            if not customer.last_name and existing_iiko_customer.last_name:
+                customer.last_name = existing_iiko_customer.last_name
+            if not customer.email and existing_iiko_customer.email:
+                customer.email = existing_iiko_customer.email
+            if not customer.birthday and existing_iiko_customer.birthday:
+                customer.birthday = existing_iiko_customer.birthday
+
+            existing_iiko_customer.delete()
+        
+        customer.phone = normalized_phone
+        customer.save()
+        
+        from apps.loyalty.tasks import sync_customer_to_iiko
+        sync_customer_to_iiko.delay(customer.id, push=True)
+        
+        serializer = CustomerSerializer(customer)
+        return Response(serializer.data)
 
 class CustomerSyncView(APIView):
     permission_classes = [permissions.IsAuthenticated]
