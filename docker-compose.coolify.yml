@@ -24,8 +24,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.2'
-          memory: 128M
+          cpus: '0.5'
+          memory: 256M
 
   backend:
     build:
@@ -52,7 +52,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: loyalty_celery_worker
-    command: celery -A config worker -l info --concurrency=1
+    command: celery -A config worker -l info --concurrency=4
     volumes:
       - media_data:/app/media
     depends_on:

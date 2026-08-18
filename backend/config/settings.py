@@ -141,14 +141,22 @@ CSRF_TRUSTED_ORIGINS = os.environ.get(
     'http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001'
 ).split(',')
 
-# Django Channels (WebSockets)
+# Redis Configuration & DB Isolation
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0')
+_redis_parts = REDIS_URL.rsplit('/', 1)
+_redis_base = _redis_parts[0] if len(_redis_parts) == 2 and _redis_parts[1].isdigit() else REDIS_URL.rstrip('/')
+
+REDIS_CELERY_URL = f"{_redis_base}/0"
+REDIS_CHANNELS_URL = f"{_redis_base}/1"
+REDIS_CACHE_URL = f"{_redis_base}/2"
+
+# Django Channels (WebSockets) - DB 1
 CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
             'hosts': [{
-                'address': REDIS_URL,
+                'address': REDIS_CHANNELS_URL,
                 'socket_timeout': 30.0,
                 'socket_connect_timeout': 10.0,
                 'health_check_interval': 15,
@@ -160,11 +168,11 @@ CHANNEL_LAYERS = {
     },
 }
 
-# Cache Settings (Redis built-in backend)
+# Cache Settings (Redis built-in backend) - DB 2
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-        'LOCATION': REDIS_URL,
+        'LOCATION': REDIS_CACHE_URL,
     }
 }
 
@@ -196,13 +204,16 @@ SIMPLE_JWT = {
 FIELD_ENCRYPTION_KEY = os.environ.get('FIELD_ENCRYPTION_KEY', 'yqymH0qmsVeH6oQiJ2SNnoZZvOBAu8vum3pXvykfnkE=')
 WEBHOOK_DOMAIN = os.environ.get('WEBHOOK_DOMAIN', 'http://localhost:8000')
 
-# Celery Configuration
-CELERY_BROKER_URL = REDIS_URL
-CELERY_RESULT_BACKEND = REDIS_URL
+# Celery Configuration - DB 0
+CELERY_BROKER_URL = REDIS_CELERY_URL
+CELERY_RESULT_BACKEND = REDIS_CELERY_URL
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = TIME_ZONE
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_ACKS_LATE = True
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
 import sys
 if 'test' in sys.argv or 'test_coverage' in sys.argv:
