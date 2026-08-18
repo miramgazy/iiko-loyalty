@@ -276,6 +276,44 @@ class CoreViewsTests(TestCase):
         register_all_tg_webhooks()
         mock_webhook_delay.assert_called_with(self.organization.id)
 
+    def test_multitenancy_same_phone_different_organizations(self, mock_post):
+        org2 = Organization.objects.create(
+            name="Second Cafe",
+            slug="second-cafe",
+            tg_bot_token="token_second_cafe"
+        )
+        phone = "+77019998877"
+        tg_id = 999888
+
+        # Create customer in organization 1
+        c1 = Customer.objects.create(
+            organization=self.organization,
+            telegram_id=tg_id,
+            phone=phone,
+            first_name="User Org 1"
+        )
+
+        # Create customer in organization 2 with SAME phone number and SAME telegram_id
+        c2 = Customer.objects.create(
+            organization=org2,
+            telegram_id=tg_id,
+            phone=phone,
+            first_name="User Org 2"
+        )
+
+        self.assertEqual(c1.phone, phone)
+        self.assertEqual(c2.phone, phone)
+        self.assertNotEqual(c1.organization_id, c2.organization_id)
+        self.assertNotEqual(c1.id, c2.id)
+
+        # Verify that querying customers by organization and phone returns the exact scoped customer
+        qs1 = Customer.objects.filter(organization=self.organization, phone=phone)
+        qs2 = Customer.objects.filter(organization=org2, phone=phone)
+        self.assertEqual(qs1.count(), 1)
+        self.assertEqual(qs2.count(), 1)
+        self.assertEqual(qs1.first().first_name, "User Org 1")
+        self.assertEqual(qs2.first().first_name, "User Org 2")
+
     @patch('requests.post')
     def test_send_test_message_api(self, mock_requests_post, mock_tasks_post):
         mock_requests_post.return_value.status_code = 200
