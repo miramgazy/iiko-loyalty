@@ -112,7 +112,7 @@ function connectWebSocket() {
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data)
-      if (data?.message?.event === 'phone_updated' && data.message.phone) {
+      if ((data?.message?.event === 'phone_updated' || data?.message?.event === 'phone_confirmed') && data.message.phone) {
         auth.updateCustomer({
           phone: data.message.phone,
           is_onboarded: true,

@@ -153,7 +153,7 @@ class TmaWebhookView(APIView):
         # 3. Handle contact sharing (from original TmaWebhookView in apps.loyalty)
         contact = message.get('contact')
         if contact:
-            tg_user_id = contact.get('user_id')
+            tg_user_id = contact.get('user_id') or message.get('from', {}).get('id')
             phone_number = contact.get('phone_number')
 
             if not tg_user_id or not phone_number:
@@ -172,26 +172,30 @@ class TmaWebhookView(APIView):
 
             existing_iiko_customer = Customer.objects.filter(
                 organization=org, 
-                phone=normalized_phone, 
-                telegram_id__isnull=True
-            ).first()
+                phone=normalized_phone
+            ).exclude(id=customer.id).first()
 
             if existing_iiko_customer:
-                customer.iiko_customer_id = existing_iiko_customer.iiko_customer_id
-                customer.iiko_card_number = existing_iiko_customer.iiko_card_number
-                customer.iiko_card_id = existing_iiko_customer.iiko_card_id
-                customer.iiko_categories = existing_iiko_customer.iiko_categories
-                customer.loyalty_balance = existing_iiko_customer.loyalty_balance
-                if existing_iiko_customer.wallet_barcode:
+                if not customer.iiko_customer_id and existing_iiko_customer.iiko_customer_id:
+                    customer.iiko_customer_id = existing_iiko_customer.iiko_customer_id
+                if not customer.iiko_card_number and existing_iiko_customer.iiko_card_number:
+                    customer.iiko_card_number = existing_iiko_customer.iiko_card_number
+                if not customer.iiko_card_id and existing_iiko_customer.iiko_card_id:
+                    customer.iiko_card_id = existing_iiko_customer.iiko_card_id
+                if existing_iiko_customer.iiko_categories:
+                    customer.iiko_categories = existing_iiko_customer.iiko_categories
+                if existing_iiko_customer.loyalty_balance:
+                    customer.loyalty_balance = existing_iiko_customer.loyalty_balance
+                if existing_iiko_customer.wallet_barcode and not customer.wallet_barcode:
                     customer.wallet_barcode = existing_iiko_customer.wallet_barcode
                 
-                if existing_iiko_customer.first_name:
+                if not customer.first_name and existing_iiko_customer.first_name:
                     customer.first_name = existing_iiko_customer.first_name
-                if existing_iiko_customer.last_name:
+                if not customer.last_name and existing_iiko_customer.last_name:
                     customer.last_name = existing_iiko_customer.last_name
-                if existing_iiko_customer.email:
+                if not customer.email and existing_iiko_customer.email:
                     customer.email = existing_iiko_customer.email
-                if existing_iiko_customer.birthday:
+                if not customer.birthday and existing_iiko_customer.birthday:
                     customer.birthday = existing_iiko_customer.birthday
 
                 existing_iiko_customer.delete()
