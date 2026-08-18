@@ -61,15 +61,18 @@
       <!-- Bottom Section: Share contact button or Manual Phone form -->
       <div class="w-full">
         <Transition name="page">
-          <form v-if="manualInputMode" @submit.prevent="submitManualPhone" class="flex flex-col gap-3">
-            <div class="flex flex-col gap-1">
-              <input 
-                type="tel" 
-                v-model="manualPhone" 
-                class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-2xl text-center tracking-wider font-bold text-lg text-[color:var(--text)] focus:outline-none focus:border-[color:var(--gold)]"
-                :placeholder="t('phonePlaceholder') || '+7 (___) ___-__-__'"
-              />
-              <span v-if="submitError" class="text-xs text-[color:var(--text-error)] text-center">{{ submitError }}</span>
+          <form v-if="manualInputMode" @submit.prevent="submitManualPhone" class="flex flex-col gap-4">
+            <div class="card-luxury flex flex-col items-center justify-center gap-3 w-full p-6 text-center">
+              <label class="text-sm font-semibold text-[color:var(--gold)] uppercase tracking-widest">{{ t('phoneLabel') || 'Номер телефона' }}</label>
+              <div class="w-full relative">
+                <input 
+                  type="tel" 
+                  v-model="manualPhone" 
+                  class="w-full px-5 py-4 bg-black/20 border-2 border-[color:var(--border)] rounded-2xl text-center tracking-[0.2em] font-extrabold text-2xl text-[color:var(--text)] focus:outline-none focus:border-[color:var(--gold)] transition-colors shadow-inner"
+                  :placeholder="t('phonePlaceholder') || '+7 (___) ___-__-__'"
+                />
+              </div>
+              <span v-if="submitError" class="text-xs text-[color:var(--text-error)] font-medium mt-1">{{ submitError }}</span>
             </div>
             <button
               type="submit"
