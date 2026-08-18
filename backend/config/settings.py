@@ -220,7 +220,7 @@ CELERY_TASK_DEFAULT_QUEUE = 'celery'
 CELERY_TASK_ROUTES = {
     'apps.loyalty.tasks.register_tg_webhook': {'queue': 'high_priority'},
     'apps.loyalty.tasks.process_iiko_webhook': {'queue': 'high_priority'},
-    'apps.loyalty.tasks.sync_customer_to_iiko': {'queue': 'celery'},
+    'apps.loyalty.tasks.sync_customer_to_iiko': {'queue': 'high_priority'},
     'apps.loyalty.tasks.register_all_tg_webhooks': {'queue': 'celery'},
     'apps.mailing.tasks.*': {'queue': 'celery'},
 }

@@ -165,16 +165,61 @@ class TmaWebhookView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
 
-
     def post(self, request, org_id, bot_token, *args, **kwargs):
         org = get_object_or_404(Organization, id=org_id, is_active=True)
         if org.tg_bot_token != bot_token:
             return Response({"error": "Invalid token"}, status=status.HTTP_403_FORBIDDEN)
 
         data = request.data
+
+        # 1. Handle Callback Query (Consent collection)
+        callback_query = data.get('callback_query')
+        if callback_query:
+            callback_data = callback_query.get('data', '')
+            callback_id = callback_query.get('id')
+            from_user = callback_query.get('from', {})
+            chat_id = from_user.get('id')
+
+            if callback_data.startswith('consent_') and chat_id:
+                parts = callback_data.split('_')
+                if len(parts) == 3:
+                    action = parts[1]  # 'yes' or 'no'
+                    user_id = parts[2]  # customer database ID
+
+                    try:
+                        customer = Customer.objects.get(id=user_id, organization=org)
+                        if action == 'yes':
+                            customer.is_bot_subscribed = True
+                            reply_text = "Благодарим за доверие!"
+                        else:
+                            customer.is_bot_subscribed = False
+                            reply_text = "Хорошо, мы не будем беспокоить вас рассылками."
+                        customer.save(update_fields=['is_bot_subscribed'])
+
+                        tma_link = org.get_tma_link()
+                        inline_keyboard = [
+                            [{"text": "Вернуться в приложение", "url": tma_link}]
+                        ] if tma_link else None
+
+                        send_telegram_message(org.tg_bot_token, chat_id, reply_text, inline_keyboard)
+                        answer_callback_query(org.tg_bot_token, callback_id)
+                        return Response({"status": "success"}, status=status.HTTP_200_OK)
+                    except Customer.DoesNotExist:
+                        answer_callback_query(org.tg_bot_token, callback_id, "Пользователь не найден")
+                        return Response({"error": "Customer not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # 2. Handle message
         message = data.get('message')
         if not message:
             return Response({"status": "ignored"}, status=status.HTTP_200_OK)
+
+        chat_id = message.get('chat', {}).get('id')
+        text = message.get('text', '').strip()
+
+        if text == '/getmyid' and chat_id:
+            reply_text = f"Ваш Telegram ID: <code>{chat_id}</code>"
+            send_telegram_message(org.tg_bot_token, chat_id, reply_text)
+            return Response({"status": "success"}, status=status.HTTP_200_OK)
 
         contact = message.get('contact')
         if not contact:
@@ -191,10 +236,14 @@ class TmaWebhookView(APIView):
         try:
             customer = Customer.objects.get(organization=org, telegram_id=tg_user_id)
         except Customer.DoesNotExist:
-            return Response({"error": "Customer not found"}, status=status.HTTP_404_NOT_FOUND)
+            customer = Customer.objects.create(
+                organization=org,
+                telegram_id=tg_user_id,
+                phone=normalized_phone
+            )
 
         existing_iiko_customer = Customer.objects.filter(
-            organization=org, 
+            organization=org,
             phone=normalized_phone
         ).exclude(id=customer.id).first()
 
@@ -211,7 +260,7 @@ class TmaWebhookView(APIView):
                 customer.loyalty_balance = existing_iiko_customer.loyalty_balance
             if existing_iiko_customer.wallet_barcode and not customer.wallet_barcode:
                 customer.wallet_barcode = existing_iiko_customer.wallet_barcode
-            
+
             # Copy profile details from existing iiko customer if they exist
             if not customer.first_name and existing_iiko_customer.first_name:
                 customer.first_name = existing_iiko_customer.first_name
@@ -261,14 +310,27 @@ class TmaWebhookView(APIView):
 
         return Response({"status": "success"}, status=status.HTTP_200_OK)
 
+def answer_callback_query(bot_token, callback_query_id, text=None):
+    url = f"https://api.telegram.org/bot{bot_token}/answerCallbackQuery"
+    payload = {
+        "callback_query_id": callback_query_id
+    }
+    if text:
+        payload["text"] = text
+    try:
+        requests.post(url, json=payload, timeout=5)
+    except Exception:
+        pass
+
 def send_telegram_message(bot_token, chat_id, text, inline_keyboard=None):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {
         "chat_id": chat_id,
         "text": text,
+        "parse_mode": "HTML"
     }
     if inline_keyboard:
-        payload["reply_markup"] = json.dumps({"inline_keyboard": inline_keyboard})
+        payload["reply_markup"] = {"inline_keyboard": inline_keyboard}
     try:
         res = requests.post(url, json=payload, timeout=5)
         res.raise_for_status()

@@ -319,7 +319,7 @@ class CoreViewsTests(TestCase):
         routes = getattr(settings, 'CELERY_TASK_ROUTES', {})
         self.assertEqual(routes.get('apps.loyalty.tasks.register_tg_webhook'), {'queue': 'high_priority'})
         self.assertEqual(routes.get('apps.loyalty.tasks.process_iiko_webhook'), {'queue': 'high_priority'})
-        self.assertEqual(routes.get('apps.loyalty.tasks.sync_customer_to_iiko'), {'queue': 'celery'})
+        self.assertEqual(routes.get('apps.loyalty.tasks.sync_customer_to_iiko'), {'queue': 'high_priority'})
 
     @patch('requests.post')
     def test_send_test_message_api(self, mock_requests_post, mock_tasks_post):
