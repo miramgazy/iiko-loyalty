@@ -155,7 +155,7 @@
         </div>
       </div>
 
-      <!-- TAB: iiko Integration -->
+      <!-- TAB: iiko Cloud API Integration -->
       <div v-show="activeTab === 'iiko'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-5">
         <div>
           <label class="form-label">Тип интеграции iiko</label>
@@ -219,7 +219,8 @@
             <input v-model="form.iiko_webhook_password" type="text" class="form-input" placeholder="Введите пароль..." />
           </div>
         </div>
-        <div class="flex justify-between items-center pt-2">
+
+        <div class="flex justify-between items-center pt-2 border-t border-slate-800">
           <button 
             type="button"
             @click="testIikoConnection" 
@@ -230,7 +231,104 @@
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span>{{ testingIiko ? 'Проверка...' : 'Проверить подключение iiko' }}</span>
+            <span>{{ testingIiko ? 'Проверка...' : 'Проверить подключение Cloud API' }}</span>
+          </button>
+          <SaveButton :saving="saving" @save="saveSettings" />
+        </div>
+      </div>
+
+      <!-- TAB: iiko Server API Integration -->
+      <div v-show="activeTab === 'iiko_server'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-5">
+        <div>
+          <h3 class="text-white font-medium mb-3 flex items-center gap-2">
+            <span>🖥️</span> Настройки iiko Server (RMS / Chain)
+          </h3>
+          <p class="text-xs text-slate-400 mb-4">Настройки для подключения к вашему выделенному серверу iiko RMS или iiko Chain для работы с OLAP-отчетами и документами (накладными).</p>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="form-label">Адрес сервера (iiko Server URL)</label>
+              <input id="input-iiko-server-url" v-model="form.iiko_server_url" type="url" class="form-input" placeholder="Например: https://banya-dastur.iiko.it:443" />
+            </div>
+            <div>
+              <label class="form-label">Логин пользователя</label>
+              <input id="input-iiko-server-login" v-model="form.iiko_server_login" type="text" class="form-input" placeholder="Введите логин..." />
+            </div>
+            <div class="md:col-span-2">
+              <label class="form-label">Пароль пользователя</label>
+              <input id="input-iiko-server-password" v-model="form.iiko_server_password" type="password" class="form-input" placeholder="••••••••••" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Настройки OLAP-отчетов iiko -->
+        <div v-if="form.is_analytics_enabled" class="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 mt-6 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-700 pb-3">
+            <h3 class="text-white font-medium flex items-center gap-2">
+              <span class="text-indigo-400">📊</span> Настройки OLAP-отчетов iiko (RMS)
+            </h3>
+            <button type="button" @click="openCreatePresetModal"
+              class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-lg font-semibold transition-all">
+              + Добавить кастомный отчет
+            </button>
+          </div>
+
+          <p class="text-xs text-slate-400">Укажите UUID (presetId) сохраненных отчетов из вашего RMS для автоматической синхронизации и AI-анализа.</p>
+
+          <!-- List of Presets -->
+          <div class="space-y-4 pt-2">
+            <!-- System Presets -->
+            <div v-for="preset in presets.filter(p => p.is_system)" :key="preset.id" 
+              class="p-4 bg-slate-900/60 border border-slate-850 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div class="flex-1">
+                <span class="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Системный отчет</span>
+                <h4 class="text-sm font-bold text-white mt-0.5">{{ preset.name }}</h4>
+                <p class="text-xs text-slate-500 mt-1 max-w-lg leading-relaxed">{{ preset.description }}</p>
+              </div>
+              <div class="flex items-center gap-2 w-full md:w-auto">
+                <input v-model="preset.preset_id" type="text" 
+                  class="form-input font-mono text-xs w-full md:w-[280px]" 
+                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                <button type="button" @click="saveSystemPreset(preset)"
+                  class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-2 rounded-lg transition-all font-semibold">
+                  Сохранить
+                </button>
+              </div>
+            </div>
+
+            <!-- Custom Presets -->
+            <div v-for="preset in presets.filter(p => !p.is_system)" :key="preset.id"
+              class="p-4 bg-slate-950/40 border border-slate-850 rounded-xl flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-slate-800 transition-colors">
+              <div class="flex-1">
+                <span class="text-xs text-amber-400 font-semibold uppercase tracking-wider">Кастомный отчет (Только AI-анализ)</span>
+                <h4 class="text-sm font-bold text-white mt-0.5">{{ preset.name }}</h4>
+                <p class="text-xs text-slate-500 mt-1 max-w-lg leading-relaxed">{{ preset.description || 'Без описания.' }}</p>
+                <div class="text-[11px] font-mono text-slate-500 mt-2">ID: {{ preset.preset_id }}</div>
+              </div>
+              <div class="flex items-center gap-3">
+                <button type="button" @click="openEditPresetModal(preset)" class="text-xs text-indigo-400 hover:text-indigo-300 font-semibold">Редактировать</button>
+                <button type="button" @click="deletePreset(preset)" class="text-xs text-rose-400 hover:text-rose-300 font-semibold">Удалить</button>
+              </div>
+            </div>
+
+            <div v-if="!presets.length" class="text-center py-6 text-slate-500 text-xs">
+              Загрузка пресетов отчетов...
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center pt-2 border-t border-slate-800">
+          <button 
+            type="button"
+            @click="testIikoServerConnection" 
+            :disabled="testingIikoServer" 
+            class="px-4 py-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+          >
+            <svg v-if="testingIikoServer" class="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>{{ testingIikoServer ? 'Проверка...' : 'Проверить подключение Server API' }}</span>
           </button>
           <SaveButton :saving="saving" @save="saveSettings" />
         </div>
@@ -434,8 +532,9 @@
             </div>
           </div>
         </div>
+      </div>
 
-        <!-- Delete Confirmation Modal -->
+      <!-- Delete Confirmation Modal -->
         <div v-if="showDeleteConfirm" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div class="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-[scaleIn_0.2s_ease-out]">
             <div class="p-6 text-center space-y-4">
@@ -501,6 +600,73 @@
             </div>
           </div>
         </div>
+
+        <!-- TAB: LLM Settings -->
+        <div v-show="activeTab === 'llm'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
+          <div>
+            <label class="form-label">Провайдер LLM</label>
+            <select id="input-llm-provider" v-model="form.llm_provider" class="form-input">
+              <option value="openai">OpenAI (GPT)</option>
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="gemini">Google Gemini</option>
+              <option value="deepseek">DeepSeek</option>
+            </select>
+          </div>
+          <div>
+            <label class="form-label">Модель LLM</label>
+            <select v-model="selectedModelOption" class="form-input mb-3">
+              <option v-for="model in availableModels" :key="model.value" :value="model.value">
+                {{ model.label }}
+              </option>
+            </select>
+            <div v-if="selectedModelOption === 'custom'" class="transition-all duration-200">
+              <label class="form-label text-xs text-slate-400">Имя кастомной модели</label>
+              <input id="input-llm-model" v-model="customModelName" type="text" class="form-input" placeholder="например: deepseek-coder, gpt-4o-audio" />
+            </div>
+          </div>
+          <div>
+            <label class="form-label">API Ключ</label>
+            <div class="relative">
+              <input id="input-llm-api-key" v-model="form.llm_api_key" :type="showLlmKey ? 'text' : 'password'" class="form-input pr-12" placeholder="Введите API ключ..." />
+              <button type="button" @click="showLlmKey = !showLlmKey"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                {{ showLlmKey ? '🙈' : '👁' }}
+              </button>
+            </div>
+            <p class="text-[10px] text-slate-500 mt-1">Ключ хранится в зашифрованном виде. При повторном сохранении оставьте плейсхолдер ••••••••, чтобы не перезаписывать существующий ключ.</p>
+          </div>
+          <div>
+            <label class="form-label">Системный промпт для AI-агента</label>
+            <textarea id="input-llm-prompt" v-model="form.llm_system_prompt" class="form-input min-h-[120px] resize-none" placeholder="Вы — полезный AI-помощник..."></textarea>
+          </div>
+          <div class="flex justify-end pt-2">
+            <SaveButton :saving="savingLlm" @save="saveLlmSettings" />
+          </div>
+        </div>
+      </div>
+
+    <!-- Preset Modal -->
+    <div v-if="showPresetModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-950 border border-slate-800 rounded-3xl p-8 w-full max-w-md shadow-2xl">
+        <h2 class="text-lg font-bold text-white mb-6">{{ presetModalMode === 'create' ? 'Добавить кастомный отчет' : 'Редактировать кастомный отчет' }}</h2>
+        <form @submit.prevent="savePreset" class="space-y-4">
+          <div>
+            <label class="form-label">Название отчета</label>
+            <input v-model="presetForm.name" type="text" class="form-input" placeholder="например: Отчет по списаниям" required />
+          </div>
+          <div>
+            <label class="form-label">Описание</label>
+            <textarea v-model="presetForm.description" class="form-input min-h-[60px]" placeholder="Краткое описание назначения отчета..."></textarea>
+          </div>
+          <div>
+            <label class="form-label">UUID пресета в iiko RMS (presetId)</label>
+            <input v-model="presetForm.preset_id" type="text" class="form-input font-mono text-sm" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required />
+          </div>
+          <div class="flex gap-3 pt-4">
+            <button type="button" @click="showPresetModal = false" class="flex-1 border border-slate-850 text-slate-400 hover:text-white py-2.5 rounded-xl text-sm font-medium transition-all">Отмена</button>
+            <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-sm font-semibold transition-all">Сохранить</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
@@ -516,13 +682,24 @@ import SaveButton from '@/components/SaveButton.vue'
 const auth = useAuthStore()
 const toast = useToastStore()
 
-const tabs = [
-  { id: 'general', label: 'Основные / Telegram' },
-  { id: 'iiko', label: 'Интеграция iiko' },
-  { id: 'branding', label: 'Брендинг TMA' },
-  { id: 'wallet', label: 'Google Wallet' },
-  { id: 'loyalty_programs', label: 'Программа лояльности' },
-]
+const tabs = computed(() => {
+  const list = [
+    { id: 'general', label: 'Основные / Telegram' },
+    { id: 'iiko', label: 'Интеграция iiko Cloud API' },
+    { id: 'iiko_server', label: 'Интеграция iiko Server API' },
+  ]
+  if (form.value.is_loyalty_enabled) {
+    list.push(
+      { id: 'branding', label: 'Брендинг TMA' },
+      { id: 'wallet', label: 'Google Wallet' },
+      { id: 'loyalty_programs', label: 'Программа лояльности' }
+    )
+  }
+  if (form.value.is_ai_agent_enabled) {
+    list.push({ id: 'llm', label: 'Настройки LLM' })
+  }
+  return list
+})
 const activeTab = ref('general')
 const loading = ref(true)
 const saving = ref(false)
@@ -633,8 +810,11 @@ const form = ref({
   iiko_api_base_url: 'https://api-ru.iiko.services/api/1',
   iiko_api_login: '', iiko_app_id: '', iiko_client_secret: '', iiko_organization_id: '', iiko_loyalty_program_id: '',
   is_iiko_webhook_password_enabled: false, iiko_webhook_password: '',
+  iiko_server_url: '', iiko_server_login: '', iiko_server_password: '',
   branding: {},
   instagram_link: '', whatsapp_link: '',
+  is_loyalty_enabled: true, is_analytics_enabled: false, is_ai_agent_enabled: false,
+  llm_provider: 'openai', llm_model_name: 'gpt-4o-mini', llm_api_key: '', llm_system_prompt: '',
 })
 
 const brandColor = computed({
@@ -650,11 +830,169 @@ const greetingTextKz = computed({
   set: (v) => { form.value.branding = { ...form.value.branding, greeting_text_kz: v } },
 })
 
+const showLlmKey = ref(false)
+
+const providerModels = {
+  openai: [
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Быстрая, Рекомендуемая)' },
+    { value: 'gpt-4o', label: 'GPT-4o (Максимальная точность)' },
+    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }
+  ],
+  anthropic: [
+    { value: 'claude-3-5-sonnet-20240620', label: 'Claude 3.5 Sonnet (Интеллектуальная)' },
+    { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku (Экономичная)' },
+    { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' }
+  ],
+  gemini: [
+    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash (Быстрая)' },
+    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro (Продвинутая)' },
+    { value: 'gemini-1.0-pro', label: 'Gemini 1.0 Pro' }
+  ],
+  deepseek: [
+    { value: 'deepseek-chat', label: 'DeepSeek Chat (DeepSeek-V3)' },
+    { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner (DeepSeek-R1, Рассуждения)' }
+  ]
+}
+
+const selectedModelOption = ref('gpt-4o-mini')
+const customModelName = ref('')
+
+const availableModels = computed(() => {
+  const provider = form.value.llm_provider
+  const models = providerModels[provider] || []
+  return [...models, { value: 'custom', label: 'Ввести имя модели вручную...' }]
+})
+
+watch(() => form.value.llm_provider, (newProvider) => {
+  const models = providerModels[newProvider] || []
+  if (models.length > 0) {
+    selectedModelOption.value = models[0].value
+    form.value.llm_model_name = models[0].value
+  } else {
+    selectedModelOption.value = 'custom'
+    customModelName.value = ''
+    form.value.llm_model_name = ''
+  }
+})
+
+watch(selectedModelOption, (newVal) => {
+  if (newVal !== 'custom') {
+    form.value.llm_model_name = newVal
+  } else {
+    form.value.llm_model_name = customModelName.value
+  }
+})
+
+watch(customModelName, (newVal) => {
+  if (selectedModelOption.value === 'custom') {
+    form.value.llm_model_name = newVal
+  }
+})
+
+function initLlmModelFields() {
+  const provider = form.value.llm_provider
+  const models = providerModels[provider] || []
+  const found = models.find(m => m.value === form.value.llm_model_name)
+  if (found) {
+    selectedModelOption.value = form.value.llm_model_name
+  } else {
+    selectedModelOption.value = 'custom'
+    customModelName.value = form.value.llm_model_name
+  }
+}
+
+const presets = ref([])
+const showPresetModal = ref(false)
+const presetModalMode = ref('create')
+const presetForm = ref({
+  id: null,
+  name: '',
+  description: '',
+  preset_id: ''
+})
+
+async function loadPresets() {
+  try {
+    const res = await api.get(`/analytics/organizations/${auth.currentOrgId}/presets/`)
+    presets.value = res.data
+  } catch {
+    toast.error('Не удалось загрузить пресеты отчетов')
+  }
+}
+
+function openCreatePresetModal() {
+  presetModalMode.value = 'create'
+  presetForm.value = { id: null, name: '', description: '', preset_id: '' }
+  showPresetModal.value = true
+}
+
+function openEditPresetModal(preset) {
+  presetModalMode.value = 'edit'
+  presetForm.value = { ...preset }
+  showPresetModal.value = true
+}
+
+async function savePreset() {
+  try {
+    const orgId = auth.currentOrgId
+    if (presetModalMode.value === 'create') {
+      await api.post(`/analytics/organizations/${orgId}/presets/`, {
+        name: presetForm.value.name,
+        description: presetForm.value.description,
+        preset_id: presetForm.value.preset_id
+      })
+      toast.success('Кастомный отчет добавлен')
+    } else {
+      await api.put(`/analytics/organizations/${orgId}/presets/${presetForm.value.id}/`, {
+        preset_id: presetForm.value.preset_id,
+        name: presetForm.value.name,
+        description: presetForm.value.description
+      })
+      toast.success('Кастомный отчет обновлен')
+    }
+    showPresetModal.value = false
+    await loadPresets()
+  } catch (e) {
+    toast.error('Ошибка сохранения отчета')
+  }
+}
+
+async function deletePreset(preset) {
+  if (!confirm(`Вы действительно хотите удалить кастомный отчет "${preset.name}"?`)) return
+  try {
+    await api.delete(`/analytics/organizations/${auth.currentOrgId}/presets/${preset.id}/`)
+    toast.success('Отчет удален')
+    await loadPresets()
+  } catch {
+    toast.error('Не удалось удалить отчет')
+  }
+}
+
+async function saveSystemPreset(preset) {
+  try {
+    await api.put(`/analytics/organizations/${auth.currentOrgId}/presets/${preset.id}/`, {
+      preset_id: preset.preset_id,
+      name: preset.name,
+      description: preset.description
+    })
+    toast.success('Системный отчет сохранен')
+    await loadPresets()
+  } catch {
+    toast.error('Ошибка сохранения системного отчета')
+  }
+}
+
 async function load() {
   try {
     const res = await api.get(`/core/organizations/${auth.currentOrgId}/settings/`)
     form.value = { ...form.value, ...res.data }
     walletForm.value.issuer_id = res.data.google_issuer_id || ''
+    
+    initLlmModelFields()
+    
+    if (form.value.is_analytics_enabled) {
+      await loadPresets()
+    }
   } catch {
     toast.error('Не удалось загрузить настройки')
   } finally {
@@ -681,6 +1019,9 @@ async function saveSettings() {
       iiko_loyalty_program_id: form.value.iiko_loyalty_program_id || null,
       is_iiko_webhook_password_enabled: form.value.is_iiko_webhook_password_enabled,
       iiko_webhook_password: form.value.iiko_webhook_password || null,
+      iiko_server_url: form.value.iiko_server_url || null,
+      iiko_server_login: form.value.iiko_server_login || undefined,
+      iiko_server_password: form.value.iiko_server_password || undefined,
       instagram_link: form.value.instagram_link || null,
       whatsapp_link: form.value.whatsapp_link || null,
     })
@@ -690,6 +1031,26 @@ async function saveSettings() {
     toast.error(msg)
   } finally {
     saving.value = false
+  }
+}
+
+const savingLlm = ref(false)
+
+async function saveLlmSettings() {
+  savingLlm.value = true
+  try {
+    await api.patch(`/core/organizations/${auth.currentOrgId}/settings/`, {
+      llm_provider: form.value.llm_provider,
+      llm_model_name: form.value.llm_model_name,
+      llm_api_key: form.value.llm_api_key || undefined,
+      llm_system_prompt: form.value.llm_system_prompt,
+    })
+    toast.success('Настройки LLM сохранены')
+  } catch (e) {
+    const msg = Object.values(e.response?.data || {}).flat().join(', ') || 'Ошибка сохранения настроек LLM'
+    toast.error(msg)
+  } finally {
+    savingLlm.value = false
   }
 }
 
@@ -710,6 +1071,25 @@ async function testIikoConnection() {
     toast.error(msg)
   } finally {
     testingIiko.value = false
+  }
+}
+
+const testingIikoServer = ref(false)
+
+async function testIikoServerConnection() {
+  testingIikoServer.value = true
+  try {
+    const res = await api.post(`/core/organizations/${auth.currentOrgId}/test-iiko-server-connection/`, {
+      iiko_server_url: form.value.iiko_server_url,
+      iiko_server_login: form.value.iiko_server_login,
+      iiko_server_password: form.value.iiko_server_password,
+    })
+    toast.success(res.data.message || 'Подключение к iiko Server успешно установлено!')
+  } catch (e) {
+    const msg = e.response?.data?.error || 'Ошибка проверки подключения к iiko Server'
+    toast.error(msg)
+  } finally {
+    testingIikoServer.value = false
   }
 }
 

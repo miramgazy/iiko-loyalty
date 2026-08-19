@@ -281,3 +281,62 @@ class OrganizationTestIikoConnectionView(APIView):
         except Exception as e:
             return Response({"error": f"Ошибка авторизации iiko: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
+
+class OrganizationTestIikoServerConnectionView(APIView):
+    """
+    View for OrgManager to test connection to iiko Server (RMS / Chain) and verify auth.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+
+    def post(self, request, organization_id, *args, **kwargs):
+        from apps.loyalty.services import IikoServerAuthService
+        from django.core.cache import cache
+        
+        org = get_object_or_404(Organization, id=organization_id)
+        
+        # Override with request data if transient values provided
+        iiko_server_url = request.data.get('iiko_server_url', org.iiko_server_url)
+        iiko_server_login = request.data.get('iiko_server_login', org.iiko_server_login)
+        iiko_server_password = request.data.get('iiko_server_password', org.iiko_server_password)
+        
+        # If the client sent the masked password placeholder, fetch the saved password from db
+        if iiko_server_password == '••••••••':
+            iiko_server_password = org.iiko_server_password
+
+        if not iiko_server_url:
+            return Response({"error": "Укажите адрес сервера (iiko Server URL)"}, status=status.HTTP_400_BAD_REQUEST)
+        if not iiko_server_login or not iiko_server_password:
+            return Response({"error": "Укажите логин и пароль пользователя сервера"}, status=status.HTTP_400_BAD_REQUEST)
+
+        test_org = Organization(
+            id=org.id,
+            iiko_server_url=iiko_server_url,
+            iiko_server_login=iiko_server_login,
+            iiko_server_password=iiko_server_password
+        )
+        
+        # Invalidate existing server token cache to force a fresh test authentication
+        try:
+            cache_key = f"iiko_server_token_{org.id}"
+            cache.delete(cache_key)
+        except Exception:
+            pass
+        
+        try:
+            auth_service = IikoServerAuthService(test_org)
+            token = auth_service.get_access_token()
+            
+            # Since testing connections consumes a slot, we should immediately release it
+            try:
+                auth_service.logout()
+            except Exception:
+                pass
+                
+            return Response({
+                "status": "success",
+                "message": "Подключение к iiko Server успешно установлено! Авторизационный токен получен.",
+                "token_prefix": f"{token[:8]}..." if len(token) > 8 else token
+            })
+        except Exception as e:
+            return Response({"error": f"Ошибка авторизации на сервере iiko: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+

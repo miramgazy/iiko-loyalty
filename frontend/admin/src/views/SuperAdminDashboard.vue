@@ -24,6 +24,7 @@
             <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Название</th>
             <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Slug</th>
             <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Статус</th>
+            <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Модули</th>
             <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Создан</th>
             <th class="px-6 py-4"></th>
           </tr>
@@ -44,6 +45,22 @@
                 <span class="w-1.5 h-1.5 rounded-full" :class="org.is_active ? 'bg-emerald-400' : 'bg-red-400'"></span>
                 {{ org.is_active ? 'Активна' : 'Отключена' }}
               </span>
+            </td>
+            <td class="px-6 py-4">
+              <div class="flex flex-col gap-1 text-xs">
+                <label class="inline-flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                  <input type="checkbox" :checked="org.is_loyalty_enabled" @change="toggleModule(org, 'is_loyalty_enabled')" :disabled="updatingModule === org.id" class="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-slate-900" />
+                  Лояльность
+                </label>
+                <label class="inline-flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                  <input type="checkbox" :checked="org.is_analytics_enabled" @change="toggleModule(org, 'is_analytics_enabled')" :disabled="updatingModule === org.id" class="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-slate-900" />
+                  Аналитика
+                </label>
+                <label class="inline-flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                  <input type="checkbox" :checked="org.is_ai_agent_enabled" @change="toggleModule(org, 'is_ai_agent_enabled')" :disabled="updatingModule === org.id" class="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-slate-900" />
+                  AI-Агент
+                </label>
+              </div>
             </td>
             <td class="px-6 py-4 text-sm text-slate-400">{{ formatDate(org.created_at) }}</td>
             <td class="px-6 py-4 text-right">
@@ -123,6 +140,21 @@ const showModal = ref(false)
 const creating = ref(false)
 const createdPassword = ref('')
 const newOrg = ref({ name: '', slug: '', owner_email: '' })
+const updatingModule = ref(null)
+
+async function toggleModule(org, field) {
+  updatingModule.value = org.id
+  const payload = { [field]: !org[field] }
+  try {
+    await api.patch(`/core/organizations/${org.id}/`, payload)
+    org[field] = !org[field]
+    toast.success('Модули организации обновлены')
+  } catch {
+    toast.error('Не удалось обновить модули')
+  } finally {
+    updatingModule.value = null
+  }
+}
 
 async function loadOrgs() {
   loading.value = true

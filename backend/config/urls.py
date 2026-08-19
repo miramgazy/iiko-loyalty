@@ -12,6 +12,15 @@ urlpatterns = [
     # Mailings app routes
     path('api/mailings/', include('apps.mailing.urls')),
     
+    # Analytics app routes
+    path('api/analytics/', include('apps.analytics.urls')),
+    
+    # Inventory app routes
+    path('api/inventory/', include('apps.inventory.urls')),
+    
+    # AI Agent app routes
+    path('api/ai_agent/', include('apps.ai_agent.urls')),
+    
     # Organization webhook setting
     path('api/organization/set-webhook/', SetWebhookView.as_view(), name='set_webhook'),
 ]

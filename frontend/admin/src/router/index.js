@@ -58,6 +58,24 @@ const routes = [
     meta: { requiresAuth: true, requiresOrgAdmin: true },
   },
   {
+    path: '/admin/analytics',
+    name: 'analytics',
+    component: () => import('@/views/AnalyticsDashboardView.vue'),
+    meta: { requiresAuth: true, requiresOrgAdmin: true },
+  },
+  {
+    path: '/admin/inventory',
+    name: 'inventory',
+    component: () => import('@/views/InventoryRulesView.vue'),
+    meta: { requiresAuth: true, requiresOrgAdmin: true },
+  },
+  {
+    path: '/admin/ai-agent',
+    name: 'ai-agent',
+    component: () => import('@/views/AiAgentChatView.vue'),
+    meta: { requiresAuth: true, requiresOrgAdmin: true },
+  },
+  {
     path: '/',
     redirect: () => {
       const auth = useAuthStore()

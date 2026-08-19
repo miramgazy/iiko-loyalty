@@ -34,6 +34,9 @@ INSTALLED_APPS = [
     'apps.accounts',
     'apps.loyalty',
     'apps.mailing',
+    'apps.analytics',
+    'apps.inventory',
+    'apps.ai_agent',
 ]
 
 MIDDLEWARE = [
@@ -237,6 +240,22 @@ CELERY_BEAT_SCHEDULE = {
     'register-all-tg-webhooks-every-5-minutes': {
         'task': 'apps.loyalty.tasks.register_all_tg_webhooks',
         'schedule': 300.0,  # 5 minutes
+    },
+    'sync-all-organizations-olap-every-15-minutes': {
+        'task': 'apps.analytics.tasks.sync_all_organizations_olap',
+        'schedule': 900.0,  # 15 minutes
+    },
+    'sync-all-organizations-inventory-every-15-minutes': {
+        'task': 'apps.inventory.tasks.sync_all_organizations_inventory',
+        'schedule': 900.0,  # 15 minutes
+    },
+    'sync-all-organizations-purchases-every-4-hours': {
+        'task': 'apps.inventory.tasks.sync_all_organizations_purchases',
+        'schedule': 14400.0,  # 4 hours
+    },
+    'sync-all-organizations-stop-lists-every-10-minutes': {
+        'task': 'apps.inventory.tasks.sync_all_organizations_stop_lists',
+        'schedule': 600.0,  # 10 minutes
     },
 }
 

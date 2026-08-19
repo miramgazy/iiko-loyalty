@@ -33,12 +33,33 @@
           <RouterLink v-if="auth.isOrgManager" to="/admin/tma-employees" class="nav-link" active-class="nav-link-active">
             <span>👥</span> Персонал TMA
           </RouterLink>
-          <RouterLink v-if="auth.isOrgAdmin" to="/admin/customers" class="nav-link" active-class="nav-link-active">
-            <span>🎯</span> Клиенты
-          </RouterLink>
-          <RouterLink v-if="auth.isOrgAdmin" to="/admin/mailings" class="nav-link" active-class="nav-link-active">
-            <span>📢</span> Рассылки
-          </RouterLink>
+
+          <!-- Loyalty Module Links -->
+          <template v-if="auth.currentMembership?.organization?.is_loyalty_enabled">
+            <RouterLink v-if="auth.isOrgAdmin" to="/admin/customers" class="nav-link" active-class="nav-link-active">
+              <span>🎯</span> Клиенты
+            </RouterLink>
+            <RouterLink v-if="auth.isOrgAdmin" to="/admin/mailings" class="nav-link" active-class="nav-link-active">
+              <span>📢</span> Рассылки
+            </RouterLink>
+          </template>
+
+          <!-- Analytics & Inventory Module Links -->
+          <template v-if="auth.currentMembership?.organization?.is_analytics_enabled">
+            <RouterLink to="/admin/analytics" class="nav-link" active-class="nav-link-active">
+              <span>📊</span> Аналитика
+            </RouterLink>
+            <RouterLink to="/admin/inventory" class="nav-link" active-class="nav-link-active">
+              <span>📦</span> Закупки & Min-Max
+            </RouterLink>
+          </template>
+
+          <!-- AI Agent Module Links -->
+          <template v-if="auth.currentMembership?.organization?.is_ai_agent_enabled">
+            <RouterLink to="/admin/ai-agent" class="nav-link" active-class="nav-link-active">
+              <span>🤖</span> Чат с AI
+            </RouterLink>
+          </template>
         </template>
       </nav>
 

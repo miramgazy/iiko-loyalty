@@ -41,6 +41,82 @@ class IikoAuthService:
                 pass
             return token
 
+class IikoServerAuthService:
+    def __init__(self, organization: Organization):
+        self.org = organization
+        self.cache_key = f"iiko_server_token_{self.org.id}"
+
+    def get_access_token(self) -> str:
+        try:
+            token = cache.get(self.cache_key)
+            if token:
+                return token
+        except Exception:
+            pass
+
+        if not self.org.iiko_server_url:
+            raise ValueError("Адрес iiko Server не настроен")
+        if not self.org.iiko_server_login or not self.org.iiko_server_password:
+            raise ValueError("Логин или пароль iiko Server не настроен")
+
+        import hashlib
+        password_hash = hashlib.sha1(self.org.iiko_server_password.encode('utf-8')).hexdigest()
+
+        server_url = self.org.iiko_server_url.rstrip('/')
+        url = f"{server_url}/resto/api/auth"
+        params = {
+            "login": self.org.iiko_server_login,
+            "pass": password_hash
+        }
+
+        # Bypassing SSL verification for RMS servers with self-signed certs
+        with httpx.Client(timeout=15, verify=False) as client:
+            response = client.post(url, data=params)
+            
+            if response.status_code != 200:
+                error_msg = response.text
+                raise ValueError(f"Сервер вернул код {response.status_code}: {error_msg}")
+
+            token = response.text.strip()
+            if not token or len(token) < 10:
+                raise ValueError(f"Сервер вернул некорректный токен: {token}")
+
+            try:
+                cache.set(self.cache_key, token, timeout=1800)
+            except Exception:
+                pass
+
+            return token
+
+    def logout(self) -> None:
+        """
+        Releases the license slot on the iiko Server.
+        """
+        try:
+            token = cache.get(self.cache_key)
+            if not token:
+                return
+        except Exception:
+            return
+
+        if not self.org.iiko_server_url:
+            return
+
+        server_url = self.org.iiko_server_url.rstrip('/')
+        url = f"{server_url}/resto/api/logout"
+        params = {"key": token}
+
+        try:
+            with httpx.Client(timeout=10, verify=False) as client:
+                client.get(url, params=params)
+        except Exception:
+            pass
+        finally:
+            try:
+                cache.delete(self.cache_key)
+            except Exception:
+                pass
+
 class BaseIikoIntegrationService(ABC):
     def __init__(self, organization: Organization):
         self.org = organization

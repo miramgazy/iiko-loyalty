@@ -264,6 +264,34 @@ class TmaWebhookView(APIView):
                         answer_callback_query(org.tg_bot_token, callback_id, "Пользователь не найден")
                         return Response({"error": "Customer not found"}, status=status.HTTP_404_NOT_FOUND)
 
+            elif callback_data.startswith('create_order_') and chat_id:
+                product_uuid = callback_data.replace('create_order_', '')
+                from apps.inventory.models import ProductInventoryRule, PurchaseOrder, PurchaseOrderItem
+                try:
+                    rule = ProductInventoryRule.objects.get(organization=org, product_id=product_uuid)
+                    order = PurchaseOrder.objects.create(
+                        organization=org,
+                        status='DRAFT'
+                    )
+                    qty = rule.max_stock - rule.min_stock
+                    if qty <= 0:
+                        qty = rule.max_stock
+                    PurchaseOrderItem.objects.create(
+                        purchase_order=order,
+                        product_id=rule.product_id,
+                        product_name=rule.product_name,
+                        quantity=qty,
+                        price=rule.target_price
+                    )
+                    reply_text = f"✅ Черновик заказа #{order.id} на товар <b>{rule.product_name}</b> (кол-во: {qty} ед.) успешно создан!\n\nВы можете утвердить его в панели управления в разделе 'Закупки'."
+                    send_telegram_message(org.tg_bot_token, chat_id, reply_text)
+                    answer_callback_query(org.tg_bot_token, callback_id, "Заказ сформирован!")
+                    return Response({"status": "success"}, status=status.HTTP_200_OK)
+                except Exception as e:
+                    logger.error(f"Failed to create order from callback {callback_data}: {e}", exc_info=True)
+                    answer_callback_query(org.tg_bot_token, callback_id, "Ошибка создания заказа")
+                    return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
         # 2. Handle message
         message = data.get('message')
         if not message:

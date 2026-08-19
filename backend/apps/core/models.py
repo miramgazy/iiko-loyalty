@@ -39,6 +39,11 @@ class Organization(models.Model):
     iiko_organization_id = models.UUIDField("iiko Organization ID", null=True, blank=True)
     iiko_loyalty_program_id = models.UUIDField("iiko Loyalty Program ID", null=True, blank=True)
     
+    # iiko Server REST API (RMS / Chain)
+    iiko_server_url = models.URLField("iiko Server URL", blank=True, null=True)
+    iiko_server_login = EncryptedCharField("iiko Server Login", max_length=255, blank=True, null=True)
+    iiko_server_password = EncryptedCharField("iiko Server Password", max_length=255, blank=True, null=True)
+    
     # Настройки Webhook iiko
     is_iiko_webhook_password_enabled = models.BooleanField("Включить проверку пароля для Webhook", default=False)
     iiko_webhook_password = models.CharField("Пароль вебхука iiko (subscriptionPassword)", max_length=255, blank=True, null=True)
@@ -59,6 +64,43 @@ class Organization(models.Model):
     instagram_link = models.URLField("Ссылка на Instagram", blank=True, null=True)
     whatsapp_link = models.URLField("Ссылка на WhatsApp", blank=True, null=True)
     tma_direct_link = models.URLField("Прямая ссылка на TMA", blank=True, null=True)
+
+    # Модули (переключатели)
+    is_loyalty_enabled = models.BooleanField("Включена система лояльности", default=True)
+    is_analytics_enabled = models.BooleanField("Включена аналитика и закупки", default=False)
+    is_ai_agent_enabled = models.BooleanField("Включен AI-агент", default=False)
+
+    # Настройки LLM
+    LLM_PROVIDER_CHOICES = (
+        ('openai', 'OpenAI'),
+        ('anthropic', 'Anthropic Claude'),
+        ('gemini', 'Google Gemini'),
+        ('deepseek', 'DeepSeek'),
+    )
+    llm_provider = models.CharField(
+        "Провайдер LLM",
+        max_length=20,
+        choices=LLM_PROVIDER_CHOICES,
+        default='openai'
+    )
+    llm_model_name = models.CharField(
+        "Название модели",
+        max_length=100,
+        default='gpt-4o-mini',
+        blank=True
+    )
+    llm_api_key = EncryptedCharField(
+        "API ключ LLM",
+        max_length=255,
+        blank=True,
+        null=True
+    )
+    llm_system_prompt = models.TextField(
+        "Системный промпт для AI-агента",
+        blank=True,
+        null=True,
+        default="Вы — полезный AI-финансовый аналитик и закупщик для ресторана. Помогайте управлять заказами, анализировать фудкост, цены и упущенную выручку."
+    )
 
     is_active = models.BooleanField("Активен", default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -92,6 +134,23 @@ class Employee(models.Model):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} ({self.get_role_display()}) - {self.organization.name}"
+
+
+class AlertLog(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='alert_logs')
+    alert_type = models.CharField("Тип оповещения", max_length=50)
+    entity_id = models.UUIDField("ID сущности (например, товара)", null=True, blank=True)
+    message = models.TextField("Текст оповещения")
+    created_at = models.DateTimeField("Дата отправки", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Лог оповещения"
+        verbose_name_plural = "Логи оповещений"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.organization.name} - {self.alert_type} ({self.created_at})"
+
 
 from django.db.models.signals import post_save
 from django.dispatch import receiver

@@ -14,9 +14,10 @@ class SuperAdminOrganizationSerializer(serializers.ModelSerializer):
         model = Organization
         fields = [
             'id', 'name', 'slug', 'is_active', 'created_at', 
-            'owner_email', 'temp_password'
+            'owner_email', 'temp_password',
+            'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled'
         ]
-        read_only_fields = ['id', 'is_active', 'created_at', 'temp_password']
+        read_only_fields = ['id', 'created_at', 'temp_password']
 
     def create(self, validated_data):
         owner_email = validated_data.pop('owner_email')
@@ -63,10 +64,32 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
             'tg_bot_token', 'tg_bot_username', 'tma_name', 'tma_direct_link',
             'iiko_integration_type', 'iiko_api_base_url', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_organization_id', 'iiko_loyalty_program_id',
             'is_iiko_webhook_password_enabled', 'iiko_webhook_password',
+            'iiko_server_url', 'iiko_server_login', 'iiko_server_password',
             'google_issuer_id', 'google_loyalty_class_id',
-            'branding', 'instagram_link', 'whatsapp_link'
+            'branding', 'instagram_link', 'whatsapp_link',
+            'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled',
+            'llm_provider', 'llm_model_name', 'llm_api_key', 'llm_system_prompt'
         ]
-        read_only_fields = ['id', 'slug']
+        read_only_fields = ['id', 'slug', 'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Mask sensitive keys
+        for field in ['llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
+            if getattr(instance, field, None):
+                data[field] = '••••••••'
+            else:
+                data[field] = ''
+        return data
+
+    def update(self, instance, validated_data):
+        # Prevent overwriting with masked placeholders
+        for field in ['llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
+            if field in validated_data:
+                val = validated_data[field]
+                if val == '••••••••':
+                    validated_data.pop(field)
+        return super().update(instance, validated_data)
 
 from apps.core.models import Employee
 

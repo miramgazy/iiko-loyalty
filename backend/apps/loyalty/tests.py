@@ -373,6 +373,55 @@ class IikoAuthServiceTests(TestCase):
         self.assertEqual(payload.get('clientSecret'), "test_secret_789")
 
 @override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
+class IikoServerAuthServiceTests(TestCase):
+    @patch('apps.loyalty.services.httpx.Client')
+    def test_get_server_access_token_and_logout(self, mock_httpx_client):
+        from apps.loyalty.services import IikoServerAuthService
+        import hashlib
+        
+        org = Organization.objects.create(
+            name="Server Auth Test Org",
+            slug="server-auth-test-org",
+            iiko_server_url="https://test-server.iiko.ru:443",
+            iiko_server_login="admin",
+            iiko_server_password="password123"
+        )
+        
+        # Mock auth response
+        mock_auth_response = MagicMock()
+        mock_auth_response.status_code = 200
+        mock_auth_response.text = "test_server_token_xyz\n"
+        
+        # Mock logout response
+        mock_logout_response = MagicMock()
+        mock_logout_response.status_code = 200
+        mock_logout_response.text = "test_server_token_xyz"
+        
+        mock_client_instance = MagicMock()
+        mock_client_instance.post.return_value = mock_auth_response
+        mock_client_instance.get.return_value = mock_logout_response
+        mock_httpx_client.return_value.__enter__.return_value = mock_client_instance
+
+        auth_service = IikoServerAuthService(org)
+        token = auth_service.get_access_token()
+        
+        self.assertEqual(token, "test_server_token_xyz")
+        mock_client_instance.post.assert_called_once()
+        
+        # Verify SHA-1 hash is computed and sent in pass
+        call_args = mock_client_instance.post.call_args
+        params = call_args[1]['data']
+        self.assertEqual(params.get('login'), "admin")
+        self.assertEqual(params.get('pass'), hashlib.sha1(b"password123").hexdigest())
+
+        # Test logout
+        auth_service.logout()
+        mock_client_instance.get.assert_called_once()
+        logout_call_args = mock_client_instance.get.call_args
+        logout_params = logout_call_args[1]['params']
+        self.assertEqual(logout_params.get('key'), "test_server_token_xyz")
+
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
 class OwnerDashboardTests(TestCase):
     def setUp(self):
         self.client = APIClient()

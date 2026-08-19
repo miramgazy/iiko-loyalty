@@ -7,7 +7,10 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
-        fields = ['id', 'name', 'slug', 'address', 'branding', 'instagram_link', 'whatsapp_link', 'is_active', 'created_at']
+        fields = [
+            'id', 'name', 'slug', 'address', 'branding', 'instagram_link', 'whatsapp_link', 'is_active', 'created_at',
+            'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled'
+        ]
 
 class UserOrganizationSerializer(serializers.ModelSerializer):
     organization = OrganizationSerializer(read_only=True)
