@@ -76,6 +76,14 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')
     localStorage.removeItem('current_org_id')
+    
+    // Clear all chat histories
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith('iiko_chat_history_')) {
+        localStorage.removeItem(key)
+      }
+    }
   }
 
   return {

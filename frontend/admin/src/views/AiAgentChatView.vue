@@ -1,11 +1,20 @@
 <template>
   <div class="p-8 h-[85vh] flex flex-col justify-between">
     <!-- Header -->
-    <div class="mb-4 flex-shrink-0">
-      <h1 class="text-2xl font-bold text-white flex items-center gap-2">
-        <span>🤖</span> AI Финансовый Аналитик & Закупщик
-      </h1>
-      <p class="text-slate-400 text-sm mt-1">Чат-интерфейс для анализа выручки, инфляции сырья, Min-Max остатков и планирования закупок.</p>
+    <div class="mb-4 flex-shrink-0 flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-white flex items-center gap-2">
+          <span>🤖</span> AI Финансовый Аналитик & Закупщик
+        </h1>
+        <p class="text-slate-400 text-sm mt-1">Чат-интерфейс для анализа выручки, инфляции сырья, Min-Max остатков и планирования закупок.</p>
+      </div>
+      <button 
+        v-if="messages.length" 
+        @click="clearChat" 
+        class="px-4 py-2 bg-slate-800 hover:bg-slate-700 hover:text-white text-slate-300 border border-slate-700/60 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5"
+      >
+        <span>🗑️</span> Очистить чат
+      </button>
     </div>
 
     <!-- Messages Container -->
@@ -59,7 +68,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, computed, onMounted } from 'vue'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
@@ -72,6 +81,33 @@ const sending = ref(false)
 const messages = ref([])
 const messagesContainer = ref(null)
 
+const cacheKey = computed(() => {
+  const userId = auth.user?.id || 'default'
+  const orgId = auth.currentOrgId || 'default'
+  return `iiko_chat_history_${userId}_${orgId}`
+})
+
+onMounted(() => {
+  const cached = localStorage.getItem(cacheKey.value)
+  if (cached) {
+    try {
+      messages.value = JSON.parse(cached)
+      scrollToBottom()
+    } catch (e) {
+      console.error('Failed to parse cached chat history', e)
+    }
+  }
+})
+
+function saveHistory() {
+  localStorage.setItem(cacheKey.value, JSON.stringify(messages.value))
+}
+
+function clearChat() {
+  messages.value = []
+  localStorage.removeItem(cacheKey.value)
+}
+
 async function sendMessage() {
   if (!inputMsg.value.trim() || sending.value) return
   
@@ -80,6 +116,7 @@ async function sendMessage() {
   
   // Add user message
   messages.value.push({ role: 'user', content: text })
+  saveHistory()
   scrollToBottom()
   
   sending.value = true
@@ -97,6 +134,7 @@ async function sendMessage() {
     // Remove last message if failed or just show error
     messages.value.push({ role: 'assistant', content: `❌ Ошибка: ${errorMsg}` })
   } finally {
+    saveHistory()
     sending.value = false
     scrollToBottom()
   }
