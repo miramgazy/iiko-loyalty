@@ -33,7 +33,15 @@ class IikoOlapService:
             raise ValueError("Период запроса не должен превышать 31 день во избежание перегрузки сервера iiko")
 
         from datetime import timedelta
-        url = self._get_api_url("/reports/olap")
+        from django.core.cache import cache
+        
+        # Detect if we should use classic Server API or Cloud API
+        is_cloud = False
+        if not self.org.iiko_server_url:
+            base = self.org.iiko_api_base_url.rstrip('/')
+            if 'api-ru.iiko.services' in base or '/api/1' in base:
+                is_cloud = True
+                
         parsed_rows = []
         
         # Split into sequential chunks of max 7 days (6 days offset)
@@ -54,23 +62,55 @@ class IikoOlapService:
                   "to": current_to.strftime("%Y-%m-%d")
                 }
               },
-              "organizationIds": [str(self.org.iiko_organization_id)]
+              "organizationIds": [str(self.org.iiko_organization_id)] if self.org.iiko_organization_id else []
             }
 
-            with httpx.Client(timeout=30) as client:
-                response = client.post(url, json=payload, headers=self._get_headers())
-                response.raise_for_status()
-                res_data = response.json()
+            if is_cloud:
+                url = self._get_api_url("/reports/olap")
+                with httpx.Client(timeout=45) as client:
+                    response = client.post(url, json=payload, headers=self._get_headers())
+                    response.raise_for_status()
+                    res_data = response.json()
+            else:
+                # Classic Server API
+                server_auth = IikoServerAuthService(self.org)
+                token = server_auth.get_access_token()
                 
-                # Parse the response format
-                columns = [col["name"] for col in res_data.get("columns", [])]
-                data_rows = res_data.get("data", [])
+                # Use iiko_server_url if set, otherwise fallback to base url
+                base = (self.org.iiko_server_url or self.org.iiko_api_base_url).rstrip('/')
                 
-                for row in data_rows:
-                    values = row.get("values", [])
-                    parsed_row = dict(zip(columns, values))
-                    parsed_rows.append(parsed_row)
-                    
+                # Ensure correct v2 endpoint prefix
+                v2_base = base
+                for suffix in ['/resto/api/v2', '/resto/api/v1', '/resto/api', '/resto', '/api/v2', '/api/v1', '/api/1', '/api']:
+                    if v2_base.endswith(suffix):
+                        v2_base = v2_base[:-len(suffix)]
+                        break
+                v2_base = f"{v2_base.rstrip('/')}/resto/api/v2"
+                
+                url = f"{v2_base}/reports/olap"
+                params = {
+                    "key": token
+                }
+                
+                with httpx.Client(timeout=45, verify=False) as client:
+                    response = client.post(url, json=payload, params=params)
+                    if response.status_code == 401:
+                        cache.delete(server_auth.cache_key)
+                        token = server_auth.get_access_token()
+                        params["key"] = token
+                        response = client.post(url, json=payload, params=params)
+                    response.raise_for_status()
+                    res_data = response.json()
+                
+            # Parse the response format
+            columns = [col["name"] for col in res_data.get("columns", [])]
+            data_rows = res_data.get("data", [])
+            
+            for row in data_rows:
+                values = row.get("values", [])
+                parsed_row = dict(zip(columns, values))
+                parsed_rows.append(parsed_row)
+                
             current_from = current_to + timedelta(days=1)
             
         return parsed_rows
