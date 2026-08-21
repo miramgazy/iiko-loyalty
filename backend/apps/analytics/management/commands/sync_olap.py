@@ -24,7 +24,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         days = options["days"]
-        org_id = options["org-id"]
+        org_id = options["org_id"]
 
         today = date.today()
         start_date = today - timedelta(days=days)

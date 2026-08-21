@@ -58,8 +58,8 @@ class IikoOlapService:
                 "OpenDate.Typed": {
                   "filterType": "DateRange",
                   "periodType": "CUSTOM",
-                  "from": current_from.strftime("%Y-%m-%d"),
-                  "to": current_to.strftime("%Y-%m-%d")
+                  "from": current_from.strftime("%Y-%m-%dT00:00:00.000"),
+                  "to": current_to.strftime("%Y-%m-%dT23:59:59.999")
                 }
               },
               "organizationIds": [str(self.org.iiko_organization_id)] if self.org.iiko_organization_id else []
@@ -103,12 +103,22 @@ class IikoOlapService:
                     res_data = response.json()
                 
             # Parse the response format
-            columns = [col["name"] for col in res_data.get("columns", [])]
-            data_rows = res_data.get("data", [])
+            columns = [col["name"] for col in res_data.get("columns", [])] if isinstance(res_data, dict) else []
+            if isinstance(res_data, dict):
+                data_rows = res_data.get("data", [])
+            elif isinstance(res_data, list):
+                data_rows = res_data
+            else:
+                data_rows = []
             
             for row in data_rows:
-                values = row.get("values", [])
-                parsed_row = dict(zip(columns, values))
+                if not isinstance(row, dict):
+                    continue
+                if "values" in row and columns:
+                    values = row.get("values", [])
+                    parsed_row = dict(zip(columns, values))
+                else:
+                    parsed_row = row
                 parsed_rows.append(parsed_row)
                 
             current_from = current_to + timedelta(days=1)
@@ -198,12 +208,22 @@ class IikoOlapService:
                     res_data = response.json()
                     
             # Parse standard iiko OLAP columns and values for this chunk
-            columns = [col["name"] for col in res_data.get("columns", [])]
-            data_rows = res_data.get("data", [])
+            columns = [col["name"] for col in res_data.get("columns", [])] if isinstance(res_data, dict) else []
+            if isinstance(res_data, dict):
+                data_rows = res_data.get("data", [])
+            elif isinstance(res_data, list):
+                data_rows = res_data
+            else:
+                data_rows = []
             
             for row in data_rows:
-                values = row.get("values", [])
-                parsed_row = dict(zip(columns, values))
+                if not isinstance(row, dict):
+                    continue
+                if "values" in row and columns:
+                    values = row.get("values", [])
+                    parsed_row = dict(zip(columns, values))
+                else:
+                    parsed_row = row
                 parsed_rows.append(parsed_row)
                 
             current_from = current_to + timedelta(days=1)
