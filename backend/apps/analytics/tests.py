@@ -58,19 +58,19 @@ class OlapSyncTests(TestCase):
 
     @patch("apps.loyalty.services.IikoAuthService.get_access_token")
     @patch("httpx.Client.post")
-    def test_sync_daily_olap_flat_response(self, mock_post, mock_get_token):
+    def test_sync_daily_olap_flat_response_new_fields(self, mock_post, mock_get_token):
         mock_get_token.return_value = "mock_token"
         
-        # Prepare mock response for flat dictionary format
+        # Prepare mock response for flat dictionary format with new fields
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
             "data": [
                 {
                     "DishSumInt": 1600.0,
-                    "DishCost.ProductCost": 400.0,
+                    "ProductCostBase.ProductCost": 400.0,
                     "DishDiscountSumInt": 50.0,
-                    "ChecksCount": 10,
+                    "UniqOrderId": 10,
                     "GuestNum": 15
                 }
             ]
@@ -92,10 +92,10 @@ class OlapSyncTests(TestCase):
 
     @patch("apps.loyalty.services.IikoAuthService.get_access_token")
     @patch("httpx.Client.post")
-    def test_sync_daily_olap_nested_response(self, mock_post, mock_get_token):
+    def test_sync_daily_olap_nested_response_fallback_fields(self, mock_post, mock_get_token):
         mock_get_token.return_value = "mock_token"
         
-        # Prepare mock response for columns-values nested format
+        # Prepare mock response for columns-values nested format using fallback fields
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {

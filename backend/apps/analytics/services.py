@@ -58,14 +58,15 @@ class IikoOlapService:
                 "OpenDate.Typed": {
                   "filterType": "DateRange",
                   "periodType": "CUSTOM",
-                  "from": current_from.strftime("%Y-%m-%dT00:00:00.000"),
-                  "to": current_to.strftime("%Y-%m-%dT23:59:59.999")
+                  "from": current_from.strftime("%Y-%m-%d"),
+                  "to": (current_to + timedelta(days=1)).strftime("%Y-%m-%d")
                 }
-              },
-              "organizationIds": [str(self.org.iiko_organization_id)] if self.org.iiko_organization_id else []
+              }
             }
 
             if is_cloud:
+                if self.org.iiko_organization_id:
+                    payload["organizationIds"] = [str(self.org.iiko_organization_id)]
                 url = self._get_api_url("/reports/olap")
                 with httpx.Client(timeout=45) as client:
                     response = client.post(url, json=payload, headers=self._get_headers())
@@ -168,7 +169,7 @@ class IikoOlapService:
                     "presetId": str(preset_id),
                     "organizationId": str(self.org.iiko_organization_id),
                     "dateFrom": current_from.strftime("%Y-%m-%d"),
-                    "dateTo": current_to.strftime("%Y-%m-%d")
+                    "dateTo": (current_to + timedelta(days=1)).strftime("%Y-%m-%d")
                 }
                 with httpx.Client(timeout=45) as client:
                     response = client.post(url, json=payload, headers=self._get_headers())
@@ -193,7 +194,7 @@ class IikoOlapService:
                 url = f"{v2_base}/reports/olap/byPresetId/{preset_id}"
                 params = {
                     "dateFrom": current_from.strftime("%Y-%m-%d"),
-                    "dateTo": current_to.strftime("%Y-%m-%d"),
+                    "dateTo": (current_to + timedelta(days=1)).strftime("%Y-%m-%d"),
                     "key": token
                 }
                 
@@ -250,7 +251,7 @@ def sync_daily_olap_for_date(org: Organization, target_date: date):
             rows = service.get_olap_by_preset(preset.preset_id, target_date, target_date)
         else:
             group_by = ["OpenDate.Typed"]
-            aggregates = ["DishSumInt", "DishCost.ProductCost", "DishDiscountSumInt", "ChecksCount", "GuestNum"]
+            aggregates = ["DishSumInt", "ProductCostBase.ProductCost", "DishDiscountSumInt", "UniqOrderId", "GuestNum"]
             rows = service.get_olap_report(target_date, target_date, group_by, aggregates)
             
         if not rows:
@@ -258,14 +259,23 @@ def sync_daily_olap_for_date(org: Organization, target_date: date):
             return
         
         row = rows[0]
+        # Support both standard key formats (UniqOrderId vs ChecksCount and ProductCostBase.ProductCost vs DishCost.ProductCost)
+        cost_val = row.get("ProductCostBase.ProductCost")
+        if cost_val is None:
+            cost_val = row.get("DishCost.ProductCost", 0.0)
+            
+        checks_val = row.get("UniqOrderId")
+        if checks_val is None:
+            checks_val = row.get("ChecksCount", 0)
+            
         DailyOlapReport.objects.update_or_create(
             organization=org,
             date=target_date,
             defaults={
                 "revenue": row.get("DishSumInt", 0.0),
-                "cost": row.get("DishCost.ProductCost", 0.0),
+                "cost": cost_val,
                 "discounts": row.get("DishDiscountSumInt", 0.0),
-                "checks_count": int(row.get("ChecksCount", 0)),
+                "checks_count": int(checks_val),
                 "guests_count": int(row.get("GuestNum", 0)),
             }
         )
@@ -285,8 +295,8 @@ def sync_hourly_olap_for_date(org: Organization, target_date: date):
         if preset and preset.preset_id and str(preset.preset_id) != "00000000-0000-0000-0000-000000000000":
             rows = service.get_olap_by_preset(preset.preset_id, target_date, target_date)
         else:
-            group_by = ["OpenDate.Typed", "Hour", "DishId", "DishName"]
-            aggregates = ["DishQty", "DishSumInt"]
+            group_by = ["OpenDate.Typed", "HourOpen", "DishId", "DishName"]
+            aggregates = ["DishAmountInt", "DishSumInt"]
             rows = service.get_olap_report(target_date, target_date, group_by, aggregates)
         
         # Clear existing hourly records for this date
@@ -294,11 +304,20 @@ def sync_hourly_olap_for_date(org: Organization, target_date: date):
         
         objs = []
         for row in rows:
-            hour = int(row.get("Hour", 0))
+            hour_val = row.get("HourOpen")
+            if hour_val is None:
+                hour_val = row.get("Hour", 0)
+            hour = int(hour_val)
+            
             product_id = row.get("DishId")
             product_name = row.get("DishName", "")
-            quantity = row.get("DishQty", 0.0)
-            revenue = row.get("DishSumInt", 0.0)
+            
+            qty_val = row.get("DishAmountInt")
+            if qty_val is None:
+                qty_val = row.get("DishQty", 0.0)
+            quantity = float(qty_val)
+            
+            revenue = float(row.get("DishSumInt", 0.0))
             
             if not product_id:
                 continue
