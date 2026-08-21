@@ -32,6 +32,49 @@ class DashboardKpiView(APIView):
         return Response(kpis)
 
 
+class OlapSyncView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsOrgEmployee]
+
+    def post(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        
+        if not org.is_analytics_enabled:
+            return Response({"error": "Модуль аналитики отключен для этой организации"}, status=status.HTTP_403_FORBIDDEN)
+            
+        days = request.data.get('days', 7)
+        if not isinstance(days, int) or days <= 0 or days > 30:
+            return Response({"error": "Количество дней должно быть от 1 до 30"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from apps.analytics.services import sync_daily_olap_for_date, sync_hourly_olap_for_date
+        from datetime import date, timedelta
+        
+        today = date.today()
+        success_count = 0
+        error_count = 0
+        last_error = None
+        
+        for i in range(days):
+            target_date = today - timedelta(days=i)
+            try:
+                sync_daily_olap_for_date(org, target_date)
+                sync_hourly_olap_for_date(org, target_date)
+                success_count += 1
+            except Exception as e:
+                error_count += 1
+                last_error = str(e)
+                
+        if error_count == days:
+            return Response({
+                "success": False,
+                "error": f"Ошибка обновления: {last_error or 'проверьте настройки подключения к iiko'}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        return Response({
+            "success": True,
+            "message": f"Синхронизация завершена. Успешно обновлено дней: {success_count}. Ошибок: {error_count}."
+        })
+
+
 class IikoOlapPresetViewSet(viewsets.ModelViewSet):
     serializer_class = IikoOlapPresetSerializer
     permission_classes = [permissions.IsAuthenticated, IsOrgEmployee]

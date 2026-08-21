@@ -126,3 +126,66 @@ class OlapSyncTests(TestCase):
         self.assertEqual(float(report.discounts), 50.0)
         self.assertEqual(report.checks_count, 10)
         self.assertEqual(report.guests_count, 15)
+
+from rest_framework.test import APIClient
+from apps.accounts.models import User, UserOrganization
+from rest_framework_simplejwt.tokens import RefreshToken
+
+class OlapSyncViewTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            username="analyst",
+            email="analyst@example.com",
+            password="password123"
+        )
+        self.org = Organization.objects.create(
+            name="Sync View Org",
+            slug="sync-view-org",
+            is_analytics_enabled=True,
+            iiko_api_base_url="https://api-ru.iiko.services/api/1"
+        )
+        UserOrganization.objects.create(
+            user=self.user,
+            organization=self.org,
+            role=UserOrganization.ROLE_ORG_MANAGER
+        )
+        
+    def get_token(self, user):
+        refresh = RefreshToken.for_user(user)
+        refresh['user_type'] = 'employee'
+        return str(refresh.access_token)
+
+    @patch("apps.analytics.services.sync_daily_olap_for_date")
+    @patch("apps.analytics.services.sync_hourly_olap_for_date")
+    def test_sync_view_success(self, mock_sync_hourly, mock_sync_daily):
+        mock_sync_daily.return_value = None
+        mock_sync_hourly.return_value = None
+        
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.user)}')
+        response = self.client.post(
+            f'/api/analytics/organizations/{self.org.id}/sync/',
+            {"days": 3},
+            format='json'
+        )
+        
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(mock_sync_daily.call_count, 3)
+        self.assertEqual(mock_sync_hourly.call_count, 3)
+
+    @patch("apps.analytics.services.sync_daily_olap_for_date")
+    @patch("apps.analytics.services.sync_hourly_olap_for_date")
+    def test_sync_view_failure(self, mock_sync_hourly, mock_sync_daily):
+        mock_sync_daily.side_effect = Exception("API connection timed out")
+        
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.user)}')
+        response = self.client.post(
+            f'/api/analytics/organizations/{self.org.id}/sync/',
+            {"days": 1},
+            format='json'
+        )
+        
+        self.assertEqual(response.status_code, 500)
+        self.assertFalse(response.data["success"])
+        self.assertIn("API connection timed out", response.data["error"])
