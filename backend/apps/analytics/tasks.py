@@ -1,5 +1,6 @@
 import logging
 from datetime import date, timedelta
+from django.utils import timezone
 from config.celery import app
 from apps.core.models import Organization
 from apps.analytics.services import sync_daily_olap_for_date, sync_hourly_olap_for_date
@@ -12,7 +13,7 @@ def sync_all_organizations_olap():
     Periodic task to sync OLAP data for all organizations that have analytics module enabled.
     """
     active_orgs = Organization.objects.filter(is_active=True, is_analytics_enabled=True)
-    today = date.today()
+    today = timezone.localdate()
     yesterday = today - timedelta(days=1)
     
     for org in active_orgs:

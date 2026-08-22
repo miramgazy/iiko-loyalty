@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework import permissions, status, viewsets
 from django.shortcuts import get_object_or_404
 from datetime import datetime
+from django.utils import timezone
 from apps.core.models import Organization
 from apps.accounts.permissions import IsOrgEmployee
 from apps.analytics.services import get_dashboard_kpis
@@ -26,7 +27,7 @@ class DashboardKpiView(APIView):
             except ValueError:
                 return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=status.HTTP_400_BAD_REQUEST)
         else:
-            target_date = datetime.today().date()
+            target_date = timezone.localdate()
             
         kpis = get_dashboard_kpis(org, target_date)
         return Response(kpis)
@@ -48,7 +49,7 @@ class OlapSyncView(APIView):
         from apps.analytics.services import sync_daily_olap_for_date, sync_hourly_olap_for_date
         from datetime import date, timedelta
         
-        today = date.today()
+        today = timezone.localdate()
         success_count = 0
         error_count = 0
         last_error = None

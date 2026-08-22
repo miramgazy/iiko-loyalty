@@ -1,5 +1,6 @@
 import logging
 from datetime import date, timedelta, datetime
+from django.utils import timezone
 from django.core.management.base import BaseCommand
 from apps.core.models import Organization
 from apps.analytics.services import sync_daily_olap_for_date, sync_hourly_olap_for_date
@@ -26,7 +27,7 @@ class Command(BaseCommand):
         days = options["days"]
         org_id = options["org_id"]
 
-        today = date.today()
+        today = timezone.localdate()
         start_date = today - timedelta(days=days)
         end_date = today
 
