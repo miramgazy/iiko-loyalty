@@ -29,6 +29,6 @@ class ChatWithAgentView(APIView):
                 cleaned_history.append({"role": role, "content": content})
                 
         service = LLMService(org)
-        response_text = service.run_chat(cleaned_history, user=request.user)
+        response_data = service.run_chat(cleaned_history, user=request.user)
         
-        return Response({"response": response_text})
+        return Response(response_data)

@@ -1,11 +1,117 @@
 import httpx
 import json
 import logging
+import re
 from datetime import datetime, date
 from django.conf import settings
+from django.db import connection
 from apps.core.models import Organization
+import sqlglot
+from sqlglot import exp
 
 logger = logging.getLogger(__name__)
+
+ALLOWED_VIEWS = {"v_ai_daily_sales", "v_ai_payment_types", "v_ai_stop_list", "v_ai_product_purchases"}
+
+def rewrite_and_validate_sql(query_str: str, org_id: int) -> str:
+    try:
+        # Parse all statements
+        expressions = sqlglot.parse(query_str, read="postgres")
+    except Exception as e:
+        raise ValueError(f"Ошибка парсинга SQL: {e}")
+        
+    expressions = [exp for exp in expressions if exp]
+    if len(expressions) != 1:
+        raise ValueError("Ошибка безопасности: Допускается только один SQL-запрос.")
+        
+    expression = expressions[0]
+    
+    if not isinstance(expression, exp.Select):
+        raise ValueError("Ошибка безопасности: Разрешены только SELECT-запросы.")
+        
+    forbidden_types = (exp.Insert, exp.Update, exp.Delete, exp.Drop, exp.Create, exp.Alter)
+    for node in expression.find_all(forbidden_types):
+        raise ValueError("Ошибка безопасности: Разрешены только SELECT-запросы.")
+
+    tables = list(expression.find_all(exp.Table))
+    if not tables:
+        raise ValueError("Запрос должен содержать выборку из разрешенных таблиц/представлений.")
+        
+    for t in tables:
+        tbl_name = t.name.lower()
+        if tbl_name not in ALLOWED_VIEWS:
+            raise ValueError(f"Доступ к таблице '{tbl_name}' запрещен. Разрешены только: {', '.join(ALLOWED_VIEWS)}")
+
+    # Rewrite Table references to enforce organization filter
+    def transform(node):
+        if isinstance(node, exp.Table):
+            view_name = node.name.lower()
+            wrapped = sqlglot.parse_one(
+                f"(SELECT * FROM {view_name} WHERE organization_id = {org_id})",
+                read="postgres"
+            )
+            if node.alias:
+                wrapped = wrapped.as_(node.alias)
+            else:
+                wrapped = wrapped.as_(view_name)
+            return wrapped
+        return node
+
+    rewritten_expression = expression.transform(transform)
+    
+    # Enforce limit of 50
+    if not rewritten_expression.args.get("limit"):
+        rewritten_expression = rewritten_expression.limit(50)
+        
+    # Compile to SQLite or Postgres depending on Django database backend
+    dialect = "sqlite" if connection.vendor == "sqlite" else "postgres"
+    return rewritten_expression.sql(dialect=dialect)
+
+def parse_agent_response(text: str) -> dict:
+    text = text.strip()
+    
+    # Try parsing the whole text as JSON
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict) and "text" in data:
+            return {
+                "response": data["text"],
+                "chart": data.get("chart")
+            }
+    except Exception:
+        pass
+
+    # Try extracting JSON from markdown code block
+    json_block_match = re.search(r'```json\s*(.*?)\s*```', text, re.DOTALL)
+    if json_block_match:
+        try:
+            data = json.loads(json_block_match.group(1))
+            if isinstance(data, dict) and "text" in data:
+                return {
+                    "response": data["text"],
+                    "chart": data.get("chart")
+                }
+        except Exception:
+            pass
+            
+    # Try searching for any outer curly braces
+    brace_match = re.search(r'(\{.*\})', text, re.DOTALL)
+    if brace_match:
+        try:
+            data = json.loads(brace_match.group(1))
+            if isinstance(data, dict) and "text" in data:
+                return {
+                    "response": data["text"],
+                    "chart": data.get("chart")
+                }
+        except Exception:
+            pass
+
+    # Fallback to plain text
+    return {
+        "response": text,
+        "chart": None
+    }
 
 TOOLS = [
     {
@@ -87,7 +193,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "list_tables",
-            "description": "Получить список доступных таблиц в базе данных проекта (для прямого SQL-анализа).",
+            "description": "Получить список доступных представлений (SQL Views) в базе данных проекта (для прямого SQL-анализа).",
             "parameters": {
                 "type": "object",
                 "properties": {}
@@ -98,13 +204,13 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "get_table_schema",
-            "description": "Получить структуру и имена колонок для конкретной таблицы.",
+            "description": "Получить структуру и имена колонок для конкретного представления.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "table_name": {
                         "type": "string",
-                        "description": "Имя таблицы (например, 'analytics_waiterolapreport')."
+                        "description": "Имя представления (например, 'v_ai_daily_sales')."
                     }
                 },
                 "required": ["table_name"]
@@ -115,45 +221,16 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "execute_sql_query",
-            "description": "Выполнить безопасный SQL-запрос на чтение (SELECT) к базе данных и получить результаты. Лимит вывода - 50 строк.",
+            "description": "Выполнить безопасный SQL-запрос на чтение (SELECT) к разрешенным представлениям и получить результаты. Лимит вывода - 50 строк.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "query": {
                         "type": "string",
-                        "description": "SQL-запрос (например, 'SELECT * FROM analytics_dailyolapreport WHERE organization_id = 1')."
+                        "description": "SQL-запрос (например, 'SELECT * FROM v_ai_daily_sales WHERE date > \'2026-08-15\'')."
                     }
                 },
                 "required": ["query"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "call_api_endpoint",
-            "description": "Сделать HTTP-запрос к любому REST API эндпоинту бэкенда для получения данных (например, по продажам, типам оплат, официантам, клиентам или настройкам). Используйте относительные пути (начинающиеся с /api/).",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "method": {
-                        "type": "string",
-                        "description": "HTTP-метод (GET или POST)."
-                    },
-                    "path": {
-                        "type": "string",
-                        "description": "Относительный путь эндпоинта (например, '/api/analytics/organizations/1/payments/')."
-                    },
-                    "params": {
-                        "type": "object",
-                        "description": "Query параметры для GET-запроса (например, {'date': '2026-08-19'})."
-                    },
-                    "body": {
-                        "type": "object",
-                        "description": "Тело запроса для POST-запроса."
-                    }
-                },
-                "required": ["method", "path"]
             }
         }
     }
@@ -219,20 +296,15 @@ def execute_tool(org: Organization, name: str, arguments: dict, user=None) -> di
             return olap_service.get_olap_by_preset(preset_uuid, from_date, to_date)
 
         elif name == "list_tables":
-            from django.db import connection
-            with connection.cursor() as cursor:
-                if connection.vendor == 'sqlite':
-                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-                else:
-                    cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
-                tables = [row[0] for row in cursor.fetchall()]
-            safe_tables = [t for t in tables if not any(x in t for x in ['user', 'session', 'token', 'permission'])]
-            return {"tables": safe_tables}
+            return {"tables": sorted(list(ALLOWED_VIEWS))}
 
         elif name == "get_table_schema":
             table_name = arguments.get("table_name", "")
             if not table_name:
                 return {"error": "Параметр table_name обязателен"}
+            if table_name not in ALLOWED_VIEWS:
+                return {"error": f"Доступ к таблице '{table_name}' запрещен. Разрешены только: {', '.join(ALLOWED_VIEWS)}"}
+            
             from django.db import connection
             with connection.cursor() as cursor:
                 if connection.vendor == 'sqlite':
@@ -252,52 +324,22 @@ def execute_tool(org: Organization, name: str, arguments: dict, user=None) -> di
             if not query:
                 return {"error": "Параметр query обязателен"}
             
-            upper_query = query.upper()
-            forbidden = ["DELETE", "DROP", "UPDATE", "INSERT", "ALTER", "GRANT", "CREATE", "TRUNCATE"]
-            if any(word in upper_query for word in forbidden):
-                return {"error": "Ошибка безопасности: Разрешены только SELECT-запросы."}
-            
-            if "LIMIT" not in upper_query:
-                query = query.rstrip(';') + " LIMIT 50;"
+            try:
+                rewritten_query = rewrite_and_validate_sql(query, org.id)
+            except ValueError as ve:
+                return {"error": str(ve)}
+            except Exception as e:
+                return {"error": f"Ошибка безопасности или парсинга SQL: {str(e)}"}
                 
             from django.db import connection
             with connection.cursor() as cursor:
                 try:
-                    cursor.execute(query)
+                    cursor.execute(rewritten_query)
                     columns = [col[0] for col in cursor.description]
                     results = [dict(zip(columns, row)) for row in cursor.fetchall()]
                     return {"results": results}
                 except Exception as e:
                     return {"error": str(e)}
-
-        elif name == "call_api_endpoint":
-            method = arguments.get("method", "GET").upper()
-            path = arguments.get("path", "")
-            params = arguments.get("params", {})
-            body = arguments.get("body", {})
-            
-            if not path.startswith("/"):
-                path = "/" + path
-                
-            from rest_framework.test import APIClient
-            client = APIClient()
-            if user:
-                client.force_authenticate(user=user)
-                
-            try:
-                if method == "GET":
-                    response = client.get(path, data=params)
-                elif method == "POST":
-                    response = client.post(path, data=body, format='json')
-                else:
-                    return {"error": f"Method {method} not supported"}
-                    
-                try:
-                    return response.json()
-                except Exception:
-                    return {"status_code": response.status_code, "content": response.content.decode("utf-8")}
-            except Exception as e:
-                return {"error": f"API request failed: {e}"}
             
     except Exception as e:
         logger.error(f"Error executing tool {name}: {e}", exc_info=True)
@@ -306,13 +348,69 @@ def execute_tool(org: Organization, name: str, arguments: dict, user=None) -> di
     return {"error": "Tool not found"}
 
 
+
 class LLMService:
     def __init__(self, organization: Organization):
         self.org = organization
         self.provider = organization.llm_provider
         self.model = organization.llm_model_name
         self.api_key = organization.llm_api_key
-        self.system_prompt = organization.llm_system_prompt or "Вы — полезный AI-финансовый аналитик."
+        
+        semantic_prompt = """
+Вы — полезный AI-финансовый аналитик ресторана. Вам доступен прямой SQL-доступ к базе данных, но исключительно через следующие 4 аналитических представления (SQL Views). Имена таблиц в БД совпадают с именами представлений:
+
+1. `v_ai_daily_sales` — агрегированные дневные продажи и KPI:
+   - `date` (DATE): дата отчета
+   - `revenue` (DECIMAL): выручка (общие продажи за день)
+   - `cost` (DECIMAL): себестоимость проданных товаров (фудкост в деньгах)
+   - `discounts` (DECIMAL): сумма предоставленных скидок
+   - `checks_count` (INTEGER): количество чеков/транзакций за день
+   - `guests_count` (INTEGER): количество обслуженных гостей
+
+2. `v_ai_payment_types` — продажи в разрезе типов оплаты:
+   - `date` (DATE): дата отчета
+   - `payment_type` (VARCHAR): тип оплаты (например, "Карта", "Наличные", "Kaspi QR", "iikoCard")
+   - `revenue` (DECIMAL): сумма выручки по данному типу оплаты
+   - `checks_count` (INTEGER): количество транзакций/чеков этого типа оплаты
+
+3. `v_ai_stop_list` — упущенная выручка из-за нахождения блюд в стоп-листах:
+   - `product_name` (VARCHAR): название блюда
+   - `started_at` (TIMESTAMP): время добавления в стоп-лист
+   - `ended_at` (TIMESTAMP): время удаления из стоп-листа (может быть null, если блюдо все еще в стопе)
+   - `duration_seconds` (INTEGER): время простоя в секундах
+   - `lost_revenue` (DECIMAL): упущенная выручка за время простоя
+   - `lost_profit` (DECIMAL): упущенная валовая прибыль за время простоя
+
+4. `v_ai_product_purchases` — история закупок ингредиентов у поставщиков:
+   - `product_name` (VARCHAR): название закупаемого ингредиента/товара
+   - `supplier_name` (VARCHAR): название поставщика (может быть null)
+   - `price` (DECIMAL): цена закупа за единицу товара
+   - `quantity` (DECIMAL): количество закупленного товара
+   - `date` (DATE): дата прихода товара/закупки
+
+Правила работы:
+- Вы можете выполнять ТОЛЬКО SELECT-запросы к этим представлениям с помощью инструмента `execute_sql_query`.
+- Вся фильтрация по вашей организации (organization_id) происходит автоматически на бэкенде. Вам НЕ нужно фильтровать по organization_id, поля organization_id скрыты от вас и отсутствуют в представлениях.
+- Если для ответа на сложный вопрос вам нужно выполнить несколько шагов (например, сначала посмотреть общую выручку по дням, потом проанализировать типы оплаты или закупки конкретного подорожавшего сырья), делайте это последовательно в цикле вызовов функций.
+- Если пользователю требуется наглядная визуализация данных (например, динамика выручки, структура оплат по категориям, топ подорожавших товаров), вы ДОЛЖНЫ вернуть ответ строго в формате JSON, содержащем текстовое описание и структуру данных для графика.
+
+Формат ответа с графиком (JSON):
+```json
+{
+  "text": "Ваш аналитический ответ и выводы на русском языке...",
+  "chart": {
+    "type": "bar", // или "line", "pie"
+    "title": "Понятное название графика",
+    "data": [
+      {"label": "Подпись 1", "value": 150000},
+      {"label": "Подпись 2", "value": 240000}
+    ]
+  }
+}
+```
+Если график не требуется или для него нет достаточных данных, вы можете вернуть обычный текст (не в формате JSON).
+"""
+        self.system_prompt = (organization.llm_system_prompt or "Вы — полезный AI-финансовый аналитик.") + "\n\n" + semantic_prompt
 
     def _call_openai_compatible(self, url: str, messages: list, tools: list = None) -> dict:
         headers = {
@@ -320,9 +418,27 @@ class LLMService:
             "Content-Type": "application/json"
         }
         
+        # Clean messages payload for OpenAI API requirements.
+        # OpenAI compatibility layers (e.g. DeepSeek) might require tool messages to have tool_call_id.
+        payload_messages = []
+        for msg in messages:
+            clean_msg = {"role": msg["role"]}
+            if msg.get("content") is not None:
+                clean_msg["content"] = msg["content"]
+            else:
+                clean_msg["content"] = None
+                
+            if msg.get("tool_calls"):
+                clean_msg["tool_calls"] = msg["tool_calls"]
+            if msg.get("tool_call_id"):
+                clean_msg["tool_call_id"] = msg["tool_call_id"]
+            if msg.get("name"):
+                clean_msg["name"] = msg["name"]
+            payload_messages.append(clean_msg)
+
         payload = {
             "model": self.model or ("gpt-4o-mini" if "openai" in url else "deepseek-chat"),
-            "messages": messages
+            "messages": payload_messages
         }
         if tools:
             payload["tools"] = tools
@@ -334,18 +450,50 @@ class LLMService:
             return response.json()
 
     def _call_gemini(self, messages: list, tools: list = None) -> dict:
-        # Convert messages to Gemini format
-        # Gemini format: { "contents": [ { "role": "user"|"model", "parts": [ { "text": "..." } ] } ] }
         contents = []
         for msg in messages:
-            role = "model" if msg["role"] == "assistant" else "user"
             if msg["role"] == "system":
                 # system prompt is passed in systemInstruction
                 continue
-            contents.append({
-                "role": role,
-                "parts": [{"text": msg.get("content", "")}]
-            })
+                
+            if msg["role"] == "assistant":
+                parts = []
+                if msg.get("content"):
+                    parts.append({"text": msg["content"]})
+                if msg.get("tool_calls"):
+                    for tc in msg["tool_calls"]:
+                        parts.append({
+                            "functionCall": {
+                                "name": tc["function"]["name"],
+                                "args": json.loads(tc["function"]["arguments"])
+                            }
+                        })
+                contents.append({
+                    "role": "model",
+                    "parts": parts if parts else [{"text": ""}]
+                })
+            elif msg["role"] == "tool":
+                try:
+                    tool_res_obj = json.loads(msg["content"])
+                except Exception:
+                    tool_res_obj = {"result": msg["content"]}
+                if not isinstance(tool_res_obj, dict):
+                    tool_res_obj = {"result": tool_res_obj}
+                    
+                contents.append({
+                    "role": "user",
+                    "parts": [{
+                        "functionResponse": {
+                            "name": msg.get("name"),
+                            "response": tool_res_obj
+                        }
+                    }]
+                })
+            else:
+                contents.append({
+                    "role": "user",
+                    "parts": [{"text": msg.get("content", "")}]
+                })
             
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model or 'gemini-1.5-flash'}:generateContent?key={self.api_key}"
         
@@ -357,11 +505,9 @@ class LLMService:
         }
         
         if tools:
-            # Format function declarations for Gemini
             declarations = []
             for t in tools:
                 func = t["function"]
-                # Convert OpenAI parameters schema to Gemini
                 declarations.append({
                     "name": func["name"],
                     "description": func["description"],
@@ -374,7 +520,6 @@ class LLMService:
             response.raise_for_status()
             res_json = response.json()
             
-            # Map Gemini response structure to OpenAI format to keep unified processing
             candidate = res_json.get("candidates", [{}])[0]
             content = candidate.get("content", {})
             parts = content.get("parts", [{}])
@@ -382,13 +527,13 @@ class LLMService:
             text = ""
             tool_calls = []
             
-            for part in parts:
+            for i, part in enumerate(parts):
                 if "text" in part:
                     text = part["text"]
                 elif "functionCall" in part:
                     fc = part["functionCall"]
                     tool_calls.append({
-                        "id": "gemini_tool_id",
+                        "id": f"gemini_tool_{i}",
                         "type": "function",
                         "function": {
                             "name": fc["name"],
@@ -408,15 +553,42 @@ class LLMService:
             return {"choices": [choice]}
 
     def _call_anthropic(self, messages: list, tools: list = None) -> dict:
-        # Claude messages format (does not support system in messages array, instead in root)
         claude_messages = []
         for msg in messages:
             if msg["role"] == "system":
                 continue
-            claude_messages.append({
-                "role": "assistant" if msg["role"] == "assistant" else "user",
-                "content": msg.get("content", "")
-            })
+            
+            role = msg["role"]
+            if role == "assistant":
+                content = []
+                if msg.get("content"):
+                    content.append({"type": "text", "text": msg["content"]})
+                if msg.get("tool_calls"):
+                    for tc in msg["tool_calls"]:
+                        content.append({
+                            "type": "tool_use",
+                            "id": tc["id"],
+                            "name": tc["function"]["name"],
+                            "input": json.loads(tc["function"]["arguments"])
+                        })
+                claude_messages.append({
+                    "role": "assistant",
+                    "content": content if content else [{"type": "text", "text": ""}]
+                })
+            elif role == "tool":
+                claude_messages.append({
+                    "role": "user",
+                    "content": [{
+                        "type": "tool_result",
+                        "tool_use_id": msg["tool_call_id"],
+                        "content": msg["content"]
+                    }]
+                })
+            else:
+                claude_messages.append({
+                    "role": "user",
+                    "content": msg.get("content", "")
+                })
             
         url = "https://api.anthropic.com/v1/messages"
         headers = {
@@ -448,7 +620,6 @@ class LLMService:
             response.raise_for_status()
             res_json = response.json()
             
-            # Map Claude format to OpenAI-like
             content_list = res_json.get("content", [])
             text = ""
             tool_calls = []
@@ -477,74 +648,72 @@ class LLMService:
                 
             return {"choices": [choice]}
 
-    def run_chat(self, history: list, user=None) -> str:
+    def run_chat(self, history: list, user=None) -> dict:
         """
-        Runs chat completion with history and calls tools if requested.
+        Runs chat completion with history in a ReAct loop and returns a structured response dict.
         """
         if not self.api_key:
-            return "Ошибка: В настройках LLM не указан API-ключ!"
+            return {"response": "Ошибка: В настройках LLM не указан API-ключ!", "chart": None}
             
-        # Build messages payload
         messages = [{"role": "system", "content": self.system_prompt}] + history
         
+        max_steps = 5
+        step = 0
+        
         try:
-            # 1. First invocation
-            if self.provider == "openai":
-                url = "https://api.openai.com/v1/chat/completions"
-                res = self._call_openai_compatible(url, messages, TOOLS)
-            elif self.provider == "deepseek":
-                url = "https://api.deepseek.com/chat/completions"
-                res = self._call_openai_compatible(url, messages, TOOLS)
-            elif self.provider == "gemini":
-                res = self._call_gemini(messages, TOOLS)
-            elif self.provider == "anthropic":
-                res = self._call_anthropic(messages, TOOLS)
-            else:
-                return f"Ошибка: Неизвестный LLM провайдер '{self.provider}'"
+            while step < max_steps:
+                # Force text response on the last step by removing tools
+                current_tools = TOOLS if step < max_steps - 1 else None
                 
-            choice = res["choices"][0]
-            message = choice["message"]
-            tool_calls = message.get("tool_calls")
-            
-            if not tool_calls:
-                return message.get("content") or ""
+                if self.provider == "openai":
+                    url = "https://api.openai.com/v1/chat/completions"
+                    res = self._call_openai_compatible(url, messages, current_tools)
+                elif self.provider == "deepseek":
+                    url = "https://api.deepseek.com/chat/completions"
+                    res = self._call_openai_compatible(url, messages, current_tools)
+                elif self.provider == "gemini":
+                    res = self._call_gemini(messages, current_tools)
+                elif self.provider == "anthropic":
+                    res = self._call_anthropic(messages, current_tools)
+                else:
+                    return {"response": f"Ошибка: Неизвестный LLM провайдер '{self.provider}'", "chart": None}
+                    
+                choice = res["choices"][0]
+                message = choice["message"]
+                tool_calls = message.get("tool_calls")
                 
-            # 2. Handle Tool Call
-            tool_call = tool_calls[0]
-            tool_name = tool_call["function"]["name"]
-            tool_args = json.loads(tool_call["function"]["arguments"])
-            
-            tool_result = execute_tool(self.org, tool_name, tool_args, user=user)
-            
-            # 3. Second invocation with tool results
-            # For Gemini and Claude, we can just append a system instruction with the context:
-            # "Пользователь запросил данные {tool_name}. Вот результат выполнения: {result}. Ответьте пользователю."
-            # This is simpler and works across all LLM models without strict tool message formatting constraints.
-            prompt_with_result = (
-                f"\n\n[Вызов внутренней системы]: Функция '{tool_name}' с аргументами {tool_args} вернула:\n"
-                f"{json.dumps(tool_result, ensure_ascii=False)}\n\n"
-                f"Используйте эти данные, чтобы ответить на последний вопрос пользователя."
-            )
-            
-            messages.append({
-                "role": "system",
-                "content": prompt_with_result
-            })
-            
-            # Remove tools on the second call to force text response
-            if self.provider == "openai":
-                url = "https://api.openai.com/v1/chat/completions"
-                res2 = self._call_openai_compatible(url, messages)
-            elif self.provider == "deepseek":
-                url = "https://api.deepseek.com/chat/completions"
-                res2 = self._call_openai_compatible(url, messages)
-            elif self.provider == "gemini":
-                res2 = self._call_gemini(messages)
-            elif self.provider == "anthropic":
-                res2 = self._call_anthropic(messages)
+                if not tool_calls:
+                    final_text = message.get("content") or ""
+                    return parse_agent_response(final_text)
+                    
+                # Append assistant's intent to call tools to history
+                # We need to ensure message is a dictionary with role: 'assistant'
+                clean_assistant_msg = {
+                    "role": "assistant",
+                    "content": message.get("content") or "",
+                    "tool_calls": tool_calls
+                }
+                messages.append(clean_assistant_msg)
                 
-            return res2["choices"][0]["message"].get("content") or ""
+                # Execute all requested tool calls
+                for tc in tool_calls:
+                    tool_name = tc["function"]["name"]
+                    tool_args = json.loads(tc["function"]["arguments"])
+                    
+                    tool_result = execute_tool(self.org, tool_name, tool_args, user=user)
+                    
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "name": tool_name,
+                        "content": json.dumps(tool_result, ensure_ascii=False)
+                    })
+                    
+                step += 1
+                
+            return {"response": "Ошибка: Превышен лимит шагов рассуждения (ReAct loop limit).", "chart": None}
             
         except Exception as e:
             logger.error(f"Error calling LLM provider {self.provider}: {e}", exc_info=True)
-            return f"Ошибка при обращении к AI-модели ({self.provider}): {str(e)}"
+            return {"response": f"Ошибка при обращении к AI-модели ({self.provider}): {str(e)}", "chart": None}
+
