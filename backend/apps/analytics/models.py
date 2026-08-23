@@ -117,3 +117,58 @@ class WaiterOlapReport(models.Model):
     def __str__(self):
         return f"{self.organization.name} - {self.date}: {self.waiter_name} ({self.revenue})"
 
+
+class FoodCostReport(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='food_cost_reports')
+    date = models.DateField("Дата отчета")
+    category_name = models.CharField("Категория блюда (iiko)", max_length=255, default="Все")
+    
+    revenue = models.DecimalField("Выручка", max_digits=12, decimal_places=2, default=0.0)
+    
+    # Theoretical COGS
+    theoretical_cost = models.DecimalField("Теоретическая себестоимость", max_digits=12, decimal_places=2, default=0.0)
+    theoretical_foodcost_percent = models.DecimalField("Теоретический фудкост %", max_digits=5, decimal_places=2, default=0.0)
+    
+    # Actual COGS
+    actual_cost = models.DecimalField("Фактическая себестоимость", max_digits=12, decimal_places=2, default=0.0, null=True, blank=True)
+    actual_foodcost_percent = models.DecimalField("Фактический фудкост %", max_digits=5, decimal_places=2, default=0.0, null=True, blank=True)
+    
+    # Variance
+    variance_cost = models.DecimalField("Отклонение себестоимости", max_digits=12, decimal_places=2, default=0.0, null=True, blank=True)
+    variance_percent = models.DecimalField("Отклонение фудкоста %", max_digits=5, decimal_places=2, default=0.0, null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('organization', 'date', 'category_name')
+        verbose_name = "Отчет по фудкосту"
+        verbose_name_plural = "Отчеты по фудкосту"
+        ordering = ['-date', 'category_name']
+
+    def __str__(self):
+        return f"{self.organization.name} - {self.date}: {self.category_name} (FC: {self.theoretical_foodcost_percent}%)"
+
+
+class ProductStockSnapshot(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='stock_snapshots')
+    date = models.DateField("Дата снимка остатков")
+    product_id = models.UUIDField("UUID Товара/Ингредиента")
+    product_name = models.CharField("Название товара", max_length=255)
+    
+    balance = models.DecimalField("Текущий остаток", max_digits=12, decimal_places=3, default=0.0)
+    cost = models.DecimalField("Стоимость единицы (себестоимость)", max_digits=12, decimal_places=2, default=0.0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('organization', 'date', 'product_id')
+        verbose_name = "Снимок остатка товара"
+        verbose_name_plural = "Снимки остатков товаров"
+        ordering = ['-date', 'product_name']
+
+    def __str__(self):
+        return f"{self.organization.name} - {self.date}: {self.product_name} ({self.balance})"
+
+
+

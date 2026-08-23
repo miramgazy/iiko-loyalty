@@ -13,7 +13,7 @@ from sqlglot import exp
 
 logger = logging.getLogger(__name__)
 
-ALLOWED_VIEWS = {"v_ai_daily_sales", "v_ai_payment_types", "v_ai_stop_list", "v_ai_product_purchases"}
+ALLOWED_VIEWS = {"v_ai_daily_sales", "v_ai_payment_types", "v_ai_stop_list", "v_ai_product_purchases", "v_ai_food_cost"}
 
 def rewrite_and_validate_sql(query_str: str, org_id: int) -> str:
     try:
@@ -359,7 +359,7 @@ class LLMService:
         self.api_key = organization.llm_api_key
         
         semantic_prompt = """
-Вы — полезный AI-финансовый аналитик ресторана. Вам доступен прямой SQL-доступ к базе данных, но исключительно через следующие 4 аналитических представления (SQL Views). Имена таблиц в БД совпадают с именами представлений:
+Вы — полезный AI-финансовый аналитик ресторана. Вам доступен прямой SQL-доступ к базе данных, но исключительно через следующие 5 аналитических представлений (SQL Views). Имена таблиц в БД совпадают с именами представлений:
 
 1. `v_ai_daily_sales` — агрегированные дневные продажи и KPI:
    - `date` (DATE): дата отчета
@@ -390,6 +390,16 @@ class LLMService:
    - `quantity` (DECIMAL): количество закупленного товара
    - `date` (DATE): дата прихода товара/закупки
 
+5. `v_ai_food_cost` — теоретический и фактический фудкост (Food Cost), а также отклонения (Variance):
+   - `date` (DATE): дата отчета
+   - `category_name` (VARCHAR): категория блюда из iiko (например, "Горячие блюда", "Пиво", "Десерты"). При общей оценке ресторана значение равно "Все".
+   - `revenue` (DECIMAL): выручка по этой категории (или по всему ресторану при значении "Все")
+   - `theoretical_cost` (DECIMAL): теоретическая себестоимость проданных блюд (на основе технологических карт iiko)
+   - `theoretical_foodcost_percent` (DECIMAL): процент теоретического фудкоста от выручки (сколько *должно быть* в идеале)
+   - `actual_cost` (DECIMAL): фактическая себестоимость (на основе инвентаризаций и закупок сырья). Рассчитывается раз в две недели и сохраняется на дату инвентаризации только для категории "Все", в обычные дни равно null.
+   - `actual_foodcost_percent` (DECIMAL): процент фактического фудкоста (сколько потрачено в реальности, только для категории "Все", иначе null)
+   - `variance_percent` (DECIMAL): процент отклонения фактического фудкоста от теоретического (только для категории "Все", иначе null). Положительное значение означает перерасход и потери, отрицательное — экономию.
+
 Правила работы:
 - Вы можете выполнять ТОЛЬКО SELECT-запросы к этим представлениям с помощью инструмента `execute_sql_query`.
 - Вся фильтрация по вашей организации (organization_id) происходит автоматически на бэкенде. Вам НЕ нужно фильтровать по organization_id, поля organization_id скрыты от вас и отсутствуют в представлениях.
@@ -413,6 +423,7 @@ class LLMService:
 Если график не требуется или для него нет достаточных данных, вы можете вернуть обычный текст (не в формате JSON).
 """
         self.system_prompt = (organization.llm_system_prompt or "Вы — полезный AI-финансовый аналитик.") + "\n\n" + semantic_prompt
+
 
     def _call_openai_compatible(self, url: str, messages: list, tools: list = None) -> dict:
         headers = {

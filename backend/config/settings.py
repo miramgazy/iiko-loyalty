@@ -257,6 +257,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.inventory.tasks.sync_all_organizations_stop_lists',
         'schedule': 600.0,  # 10 minutes
     },
+    'sync-all-organizations-food-cost-daily': {
+        'task': 'apps.analytics.tasks.sync_all_organizations_food_cost',
+        'schedule': 86400.0,  # 24 hours (once per day)
+    },
 }
 
 
