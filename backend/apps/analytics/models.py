@@ -74,3 +74,44 @@ class IikoOlapPreset(models.Model):
     def __str__(self):
         return f"{self.organization.name} - {self.name} ({self.preset_id})"
 
+
+class PaymentTypeOlapReport(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='payment_type_olap_reports')
+    date = models.DateField("Дата отчета")
+    payment_type = models.CharField("Тип оплаты", max_length=255)
+    
+    revenue = models.DecimalField("Выручка", max_digits=12, decimal_places=2, default=0.0)
+    checks_count = models.IntegerField("Количество чеков", default=0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('organization', 'date', 'payment_type')
+        verbose_name = "Отчет OLAP по типам оплаты"
+        verbose_name_plural = "Отчеты OLAP по типам оплаты"
+
+    def __str__(self):
+        return f"{self.organization.name} - {self.date}: {self.payment_type} ({self.revenue})"
+
+
+class WaiterOlapReport(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='waiter_olap_reports')
+    date = models.DateField("Дата отчета")
+    waiter_name = models.CharField("Имя официанта", max_length=255)
+    
+    revenue = models.DecimalField("Выручка", max_digits=12, decimal_places=2, default=0.0)
+    checks_count = models.IntegerField("Количество чеков", default=0)
+    guests_count = models.IntegerField("Количество гостей", default=0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('organization', 'date', 'waiter_name')
+        verbose_name = "Отчет OLAP по официантам"
+        verbose_name_plural = "Отчеты OLAP по официантам"
+
+    def __str__(self):
+        return f"{self.organization.name} - {self.date}: {self.waiter_name} ({self.revenue})"
+

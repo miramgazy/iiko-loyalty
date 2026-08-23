@@ -3,7 +3,12 @@ from datetime import date, timedelta
 from django.utils import timezone
 from config.celery import app
 from apps.core.models import Organization
-from apps.analytics.services import sync_daily_olap_for_date, sync_hourly_olap_for_date
+from apps.analytics.services import (
+    sync_daily_olap_for_date,
+    sync_hourly_olap_for_date,
+    sync_payment_types_olap_for_date,
+    sync_waiters_olap_for_date
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +26,8 @@ def sync_all_organizations_olap():
         try:
             sync_daily_olap_for_date(org, yesterday)
             sync_hourly_olap_for_date(org, yesterday)
+            sync_payment_types_olap_for_date(org, yesterday)
+            sync_waiters_olap_for_date(org, yesterday)
         except Exception as e:
             logger.error(f"Failed to sync OLAP for {org.name} on {yesterday}: {e}")
             
@@ -28,5 +35,7 @@ def sync_all_organizations_olap():
         try:
             sync_daily_olap_for_date(org, today)
             sync_hourly_olap_for_date(org, today)
+            sync_payment_types_olap_for_date(org, today)
+            sync_waiters_olap_for_date(org, today)
         except Exception as e:
             logger.error(f"Failed to sync OLAP for {org.name} on {today}: {e}")

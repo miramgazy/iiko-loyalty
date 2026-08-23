@@ -46,7 +46,16 @@ class OlapSyncView(APIView):
         if not isinstance(days, int) or days <= 0 or days > 30:
             return Response({"error": "Количество дней должно быть от 1 до 30"}, status=status.HTTP_400_BAD_REQUEST)
             
-        from apps.analytics.services import sync_daily_olap_for_date, sync_hourly_olap_for_date
+        report_type = request.data.get('report_type', 'kpi')
+        if report_type not in ['kpi', 'payments', 'waiters']:
+            return Response({"error": "Неверный тип отчета"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from apps.analytics.services import (
+            sync_daily_olap_for_date,
+            sync_hourly_olap_for_date,
+            sync_payment_types_olap_for_date,
+            sync_waiters_olap_for_date
+        )
         from datetime import date, timedelta
         
         today = timezone.localdate()
@@ -57,8 +66,13 @@ class OlapSyncView(APIView):
         for i in range(days):
             target_date = today - timedelta(days=i)
             try:
-                sync_daily_olap_for_date(org, target_date)
-                sync_hourly_olap_for_date(org, target_date)
+                if report_type == 'kpi':
+                    sync_daily_olap_for_date(org, target_date)
+                    sync_hourly_olap_for_date(org, target_date)
+                elif report_type == 'payments':
+                    sync_payment_types_olap_for_date(org, target_date)
+                elif report_type == 'waiters':
+                    sync_waiters_olap_for_date(org, target_date)
                 success_count += 1
             except Exception as e:
                 error_count += 1
@@ -74,6 +88,73 @@ class OlapSyncView(APIView):
             "success": True,
             "message": f"Синхронизация завершена. Успешно обновлено дней: {success_count}. Ошибок: {error_count}."
         })
+
+
+class PaymentTypeOlapView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsOrgEmployee]
+
+    def get(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        if not org.is_analytics_enabled:
+            return Response({"error": "Module 'analytics' is not enabled for this organization"}, status=status.HTTP_403_FORBIDDEN)
+            
+        date_str = request.query_params.get('date')
+        if date_str:
+            try:
+                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            target_date = timezone.localdate()
+            
+        from apps.analytics.models import PaymentTypeOlapReport
+        reports = PaymentTypeOlapReport.objects.filter(organization=org, date=target_date)
+        
+        data = []
+        for r in reports:
+            data.append({
+                "payment_type": r.payment_type,
+                "revenue": float(r.revenue),
+                "checks_count": r.checks_count
+            })
+            
+        return Response(data)
+
+
+class WaiterOlapView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsOrgEmployee]
+
+    def get(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        if not org.is_analytics_enabled:
+            return Response({"error": "Module 'analytics' is not enabled for this organization"}, status=status.HTTP_403_FORBIDDEN)
+            
+        date_str = request.query_params.get('date')
+        if date_str:
+            try:
+                target_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({"error": "Invalid date format. Use YYYY-MM-DD"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            target_date = timezone.localdate()
+            
+        from apps.analytics.models import WaiterOlapReport
+        reports = WaiterOlapReport.objects.filter(organization=org, date=target_date).order_by('-revenue')
+        
+        data = []
+        for r in reports:
+            revenue = float(r.revenue)
+            checks = r.checks_count
+            avg_check = revenue / checks if checks > 0 else 0.0
+            data.append({
+                "waiter_name": r.waiter_name,
+                "revenue": revenue,
+                "checks_count": checks,
+                "guests_count": r.guests_count,
+                "avg_check": avg_check
+            })
+            
+        return Response(data)
 
 
 class IikoOlapPresetViewSet(viewsets.ModelViewSet):

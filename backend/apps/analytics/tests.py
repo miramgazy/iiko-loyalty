@@ -189,3 +189,86 @@ class OlapSyncViewTests(TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertFalse(response.data["success"])
         self.assertIn("API connection timed out", response.data["error"])
+
+    @patch("apps.analytics.services.sync_payment_types_olap_for_date")
+    def test_sync_view_success_payments(self, mock_sync_payments):
+        mock_sync_payments.return_value = None
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.user)}')
+        response = self.client.post(
+            f'/api/analytics/organizations/{self.org.id}/sync/',
+            {"days": 2, "report_type": "payments"},
+            format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(mock_sync_payments.call_count, 2)
+
+    @patch("apps.analytics.services.sync_waiters_olap_for_date")
+    def test_sync_view_success_waiters(self, mock_sync_waiters):
+        mock_sync_waiters.return_value = None
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.user)}')
+        response = self.client.post(
+            f'/api/analytics/organizations/{self.org.id}/sync/',
+            {"days": 1, "report_type": "waiters"},
+            format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(mock_sync_waiters.call_count, 1)
+
+    def test_payment_type_olap_view(self):
+        from apps.analytics.models import PaymentTypeOlapReport
+        PaymentTypeOlapReport.objects.create(
+            organization=self.org,
+            date=date(2026, 8, 19),
+            payment_type="Наличные",
+            revenue=1500.00,
+            checks_count=5
+        )
+        PaymentTypeOlapReport.objects.create(
+            organization=self.org,
+            date=date(2026, 8, 19),
+            payment_type="Банковские карты",
+            revenue=3500.00,
+            checks_count=10
+        )
+        
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.user)}')
+        response = self.client.get(
+            f'/api/analytics/organizations/{self.org.id}/payments/',
+            {"date": "2026-08-19"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 2)
+        
+        cash_item = next(item for item in response.data if item["payment_type"] == "Наличные")
+        card_item = next(item for item in response.data if item["payment_type"] == "Банковские карты")
+        
+        self.assertEqual(cash_item["revenue"], 1500.00)
+        self.assertEqual(cash_item["checks_count"], 5)
+        self.assertEqual(card_item["revenue"], 3500.00)
+        self.assertEqual(card_item["checks_count"], 10)
+
+    def test_waiter_olap_view(self):
+        from apps.analytics.models import WaiterOlapReport
+        WaiterOlapReport.objects.create(
+            organization=self.org,
+            date=date(2026, 8, 19),
+            waiter_name="Алексей",
+            revenue=8000.00,
+            checks_count=12,
+            guests_count=18
+        )
+        
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.user)}')
+        response = self.client.get(
+            f'/api/analytics/organizations/{self.org.id}/waiters/',
+            {"date": "2026-08-19"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["waiter_name"], "Алексей")
+        self.assertEqual(response.data[0]["revenue"], 8000.00)
+        self.assertEqual(response.data[0]["checks_count"], 12)
+        self.assertEqual(response.data[0]["guests_count"], 18)
+        self.assertEqual(response.data[0]["avg_check"], 8000.00 / 12)

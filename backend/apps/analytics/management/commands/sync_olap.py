@@ -3,7 +3,12 @@ from datetime import date, timedelta, datetime
 from django.utils import timezone
 from django.core.management.base import BaseCommand
 from apps.core.models import Organization
-from apps.analytics.services import sync_daily_olap_for_date, sync_hourly_olap_for_date
+from apps.analytics.services import (
+    sync_daily_olap_for_date,
+    sync_hourly_olap_for_date,
+    sync_payment_types_olap_for_date,
+    sync_waiters_olap_for_date
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +67,9 @@ class Command(BaseCommand):
                     sync_daily_olap_for_date(org, current_date)
                     # Sync hourly sales details
                     sync_hourly_olap_for_date(org, current_date)
+                    # Sync payment types and waiters
+                    sync_payment_types_olap_for_date(org, current_date)
+                    sync_waiters_olap_for_date(org, current_date)
                     
                     self.stdout.write(self.style.SUCCESS("ОК"))
                     success_count += 1

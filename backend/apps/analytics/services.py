@@ -338,6 +338,89 @@ def sync_hourly_olap_for_date(org: Organization, target_date: date):
         logger.error(f"Error syncing hourly OLAP: {e}", exc_info=True)
 
 
+def sync_payment_types_olap_for_date(org: Organization, target_date: date):
+    logger.info(f"Syncing payment types OLAP for org {org.name} on {target_date}")
+    service = IikoOlapService(org)
+    
+    try:
+        group_by = ["OpenDate.Typed", "PayTypes"]
+        aggregates = ["DishSumInt", "UniqOrderId"]
+        rows = service.get_olap_report(target_date, target_date, group_by, aggregates)
+        
+        # Clear existing payment type records for this date
+        from apps.analytics.models import PaymentTypeOlapReport
+        PaymentTypeOlapReport.objects.filter(organization=org, date=target_date).delete()
+        
+        objs = []
+        for row in rows:
+            payment_type = row.get("PayTypes", "(без оплаты)")
+            revenue = float(row.get("DishSumInt", 0.0))
+            
+            checks_val = row.get("UniqOrderId")
+            if checks_val is None:
+                checks_val = row.get("ChecksCount", 0)
+            checks_count = int(checks_val)
+            
+            if not payment_type:
+                continue
+                
+            objs.append(PaymentTypeOlapReport(
+                organization=org,
+                date=target_date,
+                payment_type=payment_type,
+                revenue=revenue,
+                checks_count=checks_count
+            ))
+            
+        PaymentTypeOlapReport.objects.bulk_create(objs)
+        logger.info(f"Successfully synced {len(objs)} payment type records")
+    except Exception as e:
+        logger.error(f"Error syncing payment types OLAP: {e}", exc_info=True)
+
+
+def sync_waiters_olap_for_date(org: Organization, target_date: date):
+    logger.info(f"Syncing waiters OLAP for org {org.name} on {target_date}")
+    service = IikoOlapService(org)
+    
+    try:
+        group_by = ["OpenDate.Typed", "WaiterName"]
+        aggregates = ["DishSumInt", "UniqOrderId", "GuestNum"]
+        rows = service.get_olap_report(target_date, target_date, group_by, aggregates)
+        
+        # Clear existing waiter records for this date
+        from apps.analytics.models import WaiterOlapReport
+        WaiterOlapReport.objects.filter(organization=org, date=target_date).delete()
+        
+        objs = []
+        for row in rows:
+            waiter_name = row.get("WaiterName", "")
+            revenue = float(row.get("DishSumInt", 0.0))
+            
+            checks_val = row.get("UniqOrderId")
+            if checks_val is None:
+                checks_val = row.get("ChecksCount", 0)
+            checks_count = int(checks_val)
+            
+            guests_count = int(row.get("GuestNum", 0))
+            
+            if not waiter_name:
+                continue
+                
+            objs.append(WaiterOlapReport(
+                organization=org,
+                date=target_date,
+                waiter_name=waiter_name,
+                revenue=revenue,
+                checks_count=checks_count,
+                guests_count=guests_count
+            ))
+            
+        WaiterOlapReport.objects.bulk_create(objs)
+        logger.info(f"Successfully synced {len(objs)} waiter records")
+    except Exception as e:
+        logger.error(f"Error syncing waiters OLAP: {e}", exc_info=True)
+
+
 def get_dashboard_kpis(org, target_date: date):
     # Fetch data for target_date
     current_report = DailyOlapReport.objects.filter(organization=org, date=target_date).first()
