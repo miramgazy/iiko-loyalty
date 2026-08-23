@@ -5,9 +5,11 @@ import re
 from datetime import datetime, date
 from django.conf import settings
 from django.db import connection
+from django.core.serializers.json import DjangoJSONEncoder
 from apps.core.models import Organization
 import sqlglot
 from sqlglot import exp
+
 
 logger = logging.getLogger(__name__)
 
@@ -706,7 +708,7 @@ class LLMService:
                         "role": "tool",
                         "tool_call_id": tc["id"],
                         "name": tool_name,
-                        "content": json.dumps(tool_result, ensure_ascii=False)
+                        "content": json.dumps(tool_result, cls=DjangoJSONEncoder, ensure_ascii=False)
                     })
                     
                 step += 1
