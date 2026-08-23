@@ -368,12 +368,12 @@
           <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
             <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Фактический себестоимость</p>
             <p class="text-2xl font-bold text-white mt-2">
-              {{ foodCostOverall?.actual_cost !== null ? formatCurrency(foodCostOverall.actual_cost) : 'Нет инвентариз.' }}
+              {{ foodCostOverall?.actual_cost != null ? formatCurrency(foodCostOverall.actual_cost) : 'Нет инвентариз.' }}
             </p>
             <div class="flex justify-between items-center mt-2 text-[11px]">
               <span class="text-slate-400">В процентах:</span>
               <span class="font-bold text-slate-200 text-xs">
-                {{ foodCostOverall?.actual_foodcost_percent !== null ? foodCostOverall.actual_foodcost_percent.toFixed(1) + '%' : '-' }}
+                {{ foodCostOverall?.actual_foodcost_percent != null ? foodCostOverall.actual_foodcost_percent.toFixed(1) + '%' : '-' }}
               </span>
             </div>
           </div>
@@ -383,12 +383,12 @@
             <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Отклонение (Variance)</p>
             <p class="text-2xl font-bold mt-2" 
               :class="foodCostOverall?.variance_percent > 0 ? 'text-rose-400' : 'text-emerald-400'">
-              {{ foodCostOverall?.variance_percent !== null ? (foodCostOverall.variance_percent > 0 ? '+' : '') + foodCostOverall.variance_percent.toFixed(1) + '%' : 'Нет данных' }}
+              {{ foodCostOverall?.variance_percent != null ? (foodCostOverall.variance_percent > 0 ? '+' : '') + foodCostOverall.variance_percent.toFixed(1) + '%' : 'Нет данных' }}
             </p>
             <div class="flex justify-between items-center mt-2 text-[11px]">
               <span class="text-slate-400">В деньгах:</span>
               <span class="font-semibold text-slate-200">
-                {{ foodCostOverall?.variance_cost !== null ? formatCurrency(foodCostOverall.variance_cost) : '-' }}
+                {{ foodCostOverall?.variance_cost != null ? formatCurrency(foodCostOverall.variance_cost) : '-' }}
               </span>
             </div>
           </div>
