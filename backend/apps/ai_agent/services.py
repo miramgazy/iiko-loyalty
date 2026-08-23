@@ -82,10 +82,84 @@ TOOLS = [
                 "required": ["preset_id", "date_from", "date_to"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_tables",
+            "description": "Получить список доступных таблиц в базе данных проекта (для прямого SQL-анализа).",
+            "parameters": {
+                "type": "object",
+                "properties": {}
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_table_schema",
+            "description": "Получить структуру и имена колонок для конкретной таблицы.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "table_name": {
+                        "type": "string",
+                        "description": "Имя таблицы (например, 'analytics_waiterolapreport')."
+                    }
+                },
+                "required": ["table_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_sql_query",
+            "description": "Выполнить безопасный SQL-запрос на чтение (SELECT) к базе данных и получить результаты. Лимит вывода - 50 строк.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "SQL-запрос (например, 'SELECT * FROM analytics_dailyolapreport WHERE organization_id = 1')."
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "call_api_endpoint",
+            "description": "Сделать HTTP-запрос к любому REST API эндпоинту бэкенда для получения данных (например, по продажам, типам оплат, официантам, клиентам или настройкам). Используйте относительные пути (начинающиеся с /api/).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "method": {
+                        "type": "string",
+                        "description": "HTTP-метод (GET или POST)."
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "Относительный путь эндпоинта (например, '/api/analytics/organizations/1/payments/')."
+                    },
+                    "params": {
+                        "type": "object",
+                        "description": "Query параметры для GET-запроса (например, {'date': '2026-08-19'})."
+                    },
+                    "body": {
+                        "type": "object",
+                        "description": "Тело запроса для POST-запроса."
+                    }
+                },
+                "required": ["method", "path"]
+            }
+        }
     }
 ]
 
-def execute_tool(org: Organization, name: str, arguments: dict) -> dict:
+def execute_tool(org: Organization, name: str, arguments: dict, user=None) -> dict:
     from apps.analytics.services import get_dashboard_kpis
     from apps.inventory.services import calculate_price_drift
     from apps.inventory.models import StopListHistory
@@ -143,6 +217,87 @@ def execute_tool(org: Organization, name: str, arguments: dict) -> dict:
             from apps.analytics.services import IikoOlapService
             olap_service = IikoOlapService(org)
             return olap_service.get_olap_by_preset(preset_uuid, from_date, to_date)
+
+        elif name == "list_tables":
+            from django.db import connection
+            with connection.cursor() as cursor:
+                if connection.vendor == 'sqlite':
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+                else:
+                    cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")
+                tables = [row[0] for row in cursor.fetchall()]
+            safe_tables = [t for t in tables if not any(x in t for x in ['user', 'session', 'token', 'permission'])]
+            return {"tables": safe_tables}
+
+        elif name == "get_table_schema":
+            table_name = arguments.get("table_name", "")
+            if not table_name:
+                return {"error": "Параметр table_name обязателен"}
+            from django.db import connection
+            with connection.cursor() as cursor:
+                if connection.vendor == 'sqlite':
+                    cursor.execute(f"PRAGMA table_info({table_name});")
+                    schema = {row[1]: row[2] for row in cursor.fetchall()}
+                else:
+                    cursor.execute("""
+                        SELECT column_name, data_type 
+                        FROM information_schema.columns 
+                        WHERE table_name = %s
+                    """, [table_name])
+                    schema = {row[0]: row[1] for row in cursor.fetchall()}
+            return {"table": table_name, "columns": schema}
+
+        elif name == "execute_sql_query":
+            query = arguments.get("query", "")
+            if not query:
+                return {"error": "Параметр query обязателен"}
+            
+            upper_query = query.upper()
+            forbidden = ["DELETE", "DROP", "UPDATE", "INSERT", "ALTER", "GRANT", "CREATE", "TRUNCATE"]
+            if any(word in upper_query for word in forbidden):
+                return {"error": "Ошибка безопасности: Разрешены только SELECT-запросы."}
+            
+            if "LIMIT" not in upper_query:
+                query = query.rstrip(';') + " LIMIT 50;"
+                
+            from django.db import connection
+            with connection.cursor() as cursor:
+                try:
+                    cursor.execute(query)
+                    columns = [col[0] for col in cursor.description]
+                    results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                    return {"results": results}
+                except Exception as e:
+                    return {"error": str(e)}
+
+        elif name == "call_api_endpoint":
+            method = arguments.get("method", "GET").upper()
+            path = arguments.get("path", "")
+            params = arguments.get("params", {})
+            body = arguments.get("body", {})
+            
+            if not path.startswith("/"):
+                path = "/" + path
+                
+            from rest_framework.test import APIClient
+            client = APIClient()
+            if user:
+                client.force_authenticate(user=user)
+                
+            try:
+                if method == "GET":
+                    response = client.get(path, data=params)
+                elif method == "POST":
+                    response = client.post(path, data=body, format='json')
+                else:
+                    return {"error": f"Method {method} not supported"}
+                    
+                try:
+                    return response.json()
+                except Exception:
+                    return {"status_code": response.status_code, "content": response.content.decode("utf-8")}
+            except Exception as e:
+                return {"error": f"API request failed: {e}"}
             
     except Exception as e:
         logger.error(f"Error executing tool {name}: {e}", exc_info=True)
@@ -322,7 +477,7 @@ class LLMService:
                 
             return {"choices": [choice]}
 
-    def run_chat(self, history: list) -> str:
+    def run_chat(self, history: list, user=None) -> str:
         """
         Runs chat completion with history and calls tools if requested.
         """
@@ -359,7 +514,7 @@ class LLMService:
             tool_name = tool_call["function"]["name"]
             tool_args = json.loads(tool_call["function"]["arguments"])
             
-            tool_result = execute_tool(self.org, tool_name, tool_args)
+            tool_result = execute_tool(self.org, tool_name, tool_args, user=user)
             
             # 3. Second invocation with tool results
             # For Gemini and Claude, we can just append a system instruction with the context:
