@@ -272,3 +272,58 @@ class OlapSyncViewTests(TestCase):
         self.assertEqual(response.data[0]["checks_count"], 12)
         self.assertEqual(response.data[0]["guests_count"], 18)
         self.assertEqual(response.data[0]["avg_check"], 8000.00 / 12)
+
+    @patch("apps.analytics.food_cost_service.sync_theoretical_food_cost")
+    @patch("apps.analytics.food_cost_service.take_stock_snapshot")
+    def test_sync_view_success_foodcost(self, mock_take_snapshot, mock_sync_theo):
+        mock_sync_theo.return_value = None
+        mock_take_snapshot.return_value = None
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.user)}')
+        response = self.client.post(
+            f'/api/analytics/organizations/{self.org.id}/sync/',
+            {"days": 1, "report_type": "foodcost"},
+            format='json'
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["success"])
+        self.assertEqual(mock_sync_theo.call_count, 1)
+
+    def test_food_cost_report_view(self):
+        from apps.analytics.models import FoodCostReport
+        FoodCostReport.objects.create(
+            organization=self.org,
+            date=date(2026, 8, 19),
+            category_name="Kitchen",
+            revenue=1000.00,
+            theoretical_cost=300.00,
+            theoretical_foodcost_percent=30.00
+        )
+        FoodCostReport.objects.create(
+            organization=self.org,
+            date=date(2026, 8, 19),
+            category_name="Все",
+            revenue=1000.00,
+            theoretical_cost=300.00,
+            theoretical_foodcost_percent=30.00,
+            actual_cost=320.00,
+            actual_foodcost_percent=32.00,
+            variance_percent=2.00
+        )
+        
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.user)}')
+        response = self.client.get(
+            f'/api/analytics/organizations/{self.org.id}/foodcost/',
+            {"date": "2026-08-19"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["date"], "2026-08-19")
+        self.assertEqual(len(response.data["categories"]), 1)
+        self.assertEqual(response.data["categories"][0]["category_name"], "Kitchen")
+        self.assertEqual(response.data["categories"][0]["theoretical_foodcost_percent"], 30.00)
+        
+        self.assertIsNotNone(response.data["overall"])
+        self.assertEqual(response.data["overall"]["actual_foodcost_percent"], 32.00)
+        
+        self.assertEqual(len(response.data["history"]), 1)
+        self.assertEqual(response.data["history"][0]["theoretical_foodcost_percent"], 30.00)
+

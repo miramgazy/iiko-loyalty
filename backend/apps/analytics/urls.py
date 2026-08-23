@@ -1,6 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from apps.analytics.views import DashboardKpiView, IikoOlapPresetViewSet, OlapSyncView, PaymentTypeOlapView, WaiterOlapView
+from apps.analytics.views import DashboardKpiView, IikoOlapPresetViewSet, OlapSyncView, PaymentTypeOlapView, WaiterOlapView, FoodCostReportView
 
 router = DefaultRouter()
 router.register(r'organizations/(?P<organization_id>\d+)/presets', IikoOlapPresetViewSet, basename='olap_presets')
@@ -11,4 +11,5 @@ urlpatterns = [
     path('organizations/<int:organization_id>/sync/', OlapSyncView.as_view(), name='olap_sync'),
     path('organizations/<int:organization_id>/payments/', PaymentTypeOlapView.as_view(), name='olap_payments'),
     path('organizations/<int:organization_id>/waiters/', WaiterOlapView.as_view(), name='olap_waiters'),
+    path('organizations/<int:organization_id>/foodcost/', FoodCostReportView.as_view(), name='olap_foodcost'),
 ]
