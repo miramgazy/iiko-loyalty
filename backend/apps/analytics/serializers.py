@@ -9,6 +9,6 @@ class IikoOlapPresetSerializer(serializers.ModelSerializer):
 
     def validate_report_type_key(self, value):
         # We don't allow users to manually set system keys
-        if value in ['daily_kpi', 'hourly_sales'] and not self.instance:
+        if value in ['daily_kpi', 'hourly_sales', 'payments', 'waiters'] and not self.instance:
             raise serializers.ValidationError("Нельзя вручную создавать системные отчеты.")
         return value

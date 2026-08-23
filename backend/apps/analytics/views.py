@@ -186,6 +186,26 @@ class IikoOlapPresetViewSet(viewsets.ModelViewSet):
                 'is_system': True
             }
         )
+        IikoOlapPreset.objects.get_or_create(
+            organization=org,
+            report_type_key='payments',
+            defaults={
+                'name': 'Продажи по типам оплаты (Системный)',
+                'description': 'Отчет по типам оплаты. Необходимые поля группировки: OpenDate.Typed, PayTypes. Агрегации: DishSumInt, UniqOrderId.',
+                'preset_id': '00000000-0000-0000-0000-000000000000',
+                'is_system': True
+            }
+        )
+        IikoOlapPreset.objects.get_or_create(
+            organization=org,
+            report_type_key='waiters',
+            defaults={
+                'name': 'Продажи по официантам (Системный)',
+                'description': 'Отчет по официантам. Необходимые поля группировки: OpenDate.Typed, WaiterName. Агрегации: DishSumInt, UniqOrderId, GuestNum.',
+                'preset_id': '00000000-0000-0000-0000-000000000000',
+                'is_system': True
+            }
+        )
         
         return IikoOlapPreset.objects.filter(organization=org).order_by('-is_system', 'name')
 

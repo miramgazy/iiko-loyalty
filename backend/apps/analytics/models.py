@@ -48,6 +48,8 @@ class IikoOlapPreset(models.Model):
     REPORT_TYPE_CHOICES = (
         ('daily_kpi', 'Дневные продажи для KPI (Системный)'),
         ('hourly_sales', 'Почасовые продажи блюд (Системный)'),
+        ('payments', 'Продажи по типам оплаты (Системный)'),
+        ('waiters', 'Продажи по официантам (Системный)'),
         ('custom', 'Пользовательский отчет'),
     )
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='olap_presets')

@@ -342,10 +342,16 @@ def sync_payment_types_olap_for_date(org: Organization, target_date: date):
     logger.info(f"Syncing payment types OLAP for org {org.name} on {target_date}")
     service = IikoOlapService(org)
     
+    from apps.analytics.models import IikoOlapPreset
+    preset = IikoOlapPreset.objects.filter(organization=org, report_type_key='payments').first()
+    
     try:
-        group_by = ["OpenDate.Typed", "PayTypes"]
-        aggregates = ["DishSumInt", "UniqOrderId"]
-        rows = service.get_olap_report(target_date, target_date, group_by, aggregates)
+        if preset and preset.preset_id and str(preset.preset_id) != "00000000-0000-0000-0000-000000000000":
+            rows = service.get_olap_by_preset(preset.preset_id, target_date, target_date)
+        else:
+            group_by = ["OpenDate.Typed", "PayTypes"]
+            aggregates = ["DishSumInt", "UniqOrderId"]
+            rows = service.get_olap_report(target_date, target_date, group_by, aggregates)
         
         # Clear existing payment type records for this date
         from apps.analytics.models import PaymentTypeOlapReport
@@ -382,10 +388,16 @@ def sync_waiters_olap_for_date(org: Organization, target_date: date):
     logger.info(f"Syncing waiters OLAP for org {org.name} on {target_date}")
     service = IikoOlapService(org)
     
+    from apps.analytics.models import IikoOlapPreset
+    preset = IikoOlapPreset.objects.filter(organization=org, report_type_key='waiters').first()
+    
     try:
-        group_by = ["OpenDate.Typed", "WaiterName"]
-        aggregates = ["DishSumInt", "UniqOrderId", "GuestNum"]
-        rows = service.get_olap_report(target_date, target_date, group_by, aggregates)
+        if preset and preset.preset_id and str(preset.preset_id) != "00000000-0000-0000-0000-000000000000":
+            rows = service.get_olap_by_preset(preset.preset_id, target_date, target_date)
+        else:
+            group_by = ["OpenDate.Typed", "WaiterName"]
+            aggregates = ["DishSumInt", "UniqOrderId", "GuestNum"]
+            rows = service.get_olap_report(target_date, target_date, group_by, aggregates)
         
         # Clear existing waiter records for this date
         from apps.analytics.models import WaiterOlapReport
