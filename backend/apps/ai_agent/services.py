@@ -238,6 +238,44 @@ TOOLS = [
     }
 ]
 
+def parse_dsml_tool_calls(text: str) -> list:
+    tool_calls = []
+    # Match both full-width pipe ｜ and standard vertical bar |
+    invoke_pattern = re.compile(
+        r'<[｜\|]+DSML[｜\|]+invoke\s+name=["\']([^"\']+)["\']\s*>(.*?)</[｜\|]+DSML[｜\|]+invoke\s*>',
+        re.DOTALL
+    )
+    param_pattern = re.compile(
+        r'<[｜\|]+DSML[｜\|]+parameter\s+name=["\']([^"\']+)["\'](?:[^>]*)>(.*?)</[｜\|]+DSML[｜\|]+parameter\s*>',
+        re.DOTALL
+    )
+    
+    invokes = invoke_pattern.findall(text)
+    for idx, (func_name, inner_content) in enumerate(invokes):
+        args = {}
+        params = param_pattern.findall(inner_content)
+        for param_name, param_value in params:
+            args[param_name] = param_value.strip()
+            
+        tool_calls.append({
+            "id": f"dsml_tool_{idx}",
+            "type": "function",
+            "function": {
+                "name": func_name,
+                "arguments": json.dumps(args, ensure_ascii=False)
+            }
+        })
+    return tool_calls
+
+def clean_dsml_text(text: str) -> str:
+    cleaned = re.sub(
+        r'<[｜\|]+DSML[｜\|]+tool_calls>.*?</[｜\|]+DSML[｜\|]+tool_calls>',
+        '',
+        text,
+        flags=re.DOTALL
+    )
+    return cleaned.strip()
+
 def execute_tool(org: Organization, name: str, arguments: dict, user=None) -> dict:
     from apps.analytics.services import get_dashboard_kpis
     from apps.inventory.services import calculate_price_drift
@@ -694,6 +732,15 @@ class LLMService:
                 choice = res["choices"][0]
                 message = choice["message"]
                 tool_calls = message.get("tool_calls")
+                
+                content_str = message.get("content") or ""
+                # Parse DSML tool calls if present in the text content
+                if not tool_calls and "DSML" in content_str:
+                    dsml_tools = parse_dsml_tool_calls(content_str)
+                    if dsml_tools:
+                        tool_calls = dsml_tools
+                        message["content"] = clean_dsml_text(content_str)
+                        message["tool_calls"] = tool_calls
                 
                 if not tool_calls:
                     final_text = message.get("content") or ""
