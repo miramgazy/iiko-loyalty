@@ -67,7 +67,7 @@ class AIAgentToolsTests(TestCase):
         raw_sql = "SELECT revenue FROM v_ai_daily_sales"
         rewritten = rewrite_and_validate_sql(raw_sql, self.org.id)
         # It should wrap view access in a subquery containing the organization_id check
-        self.assertIn("organization_id = 1", rewritten)
+        self.assertIn(f"organization_id = {self.org.id}", rewritten)
         self.assertIn("LIMIT 50", rewritten)
 
     def test_execute_sql_query_select_and_isolation(self):
