@@ -1,3 +1,4 @@
+import os
 import logging
 import requests
 import json
@@ -43,6 +44,74 @@ def send_telegram_message(bot_token, chat_id, text, reply_markup=None):
             "status_code": 500,
             "response": {"error": str(e)}
         }
+
+def send_telegram_photo(bot_token, chat_id, photo, caption=None, reply_markup=None):
+    """
+    Sends a photo via Telegram Bot API using sendPhoto.
+    `photo` can be:
+      - a string: Telegram file_id or URL
+      - a local file path
+      - a file-like object (UploadedFile, FieldFile, open file)
+    Returns: { success: bool, status_code: int, response: dict, file_id: str | None }
+    """
+    url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+    caption_text = (caption or "")[:1024]
+    data = {
+        "chat_id": chat_id,
+        "caption": caption_text,
+        "parse_mode": "HTML"
+    }
+    if reply_markup:
+        data["reply_markup"] = reply_markup
+
+    opened_file = None
+    try:
+        if isinstance(photo, str) and not os.path.exists(photo):
+            # Telegram file_id or URL
+            data["photo"] = photo
+            res = requests.post(url, data=data, timeout=15)
+        elif isinstance(photo, str) and os.path.exists(photo):
+            opened_file = open(photo, 'rb')
+            files = {"photo": opened_file}
+            res = requests.post(url, data=data, files=files, timeout=20)
+        elif hasattr(photo, 'read'):
+            filename = getattr(photo, 'name', 'photo.jpg')
+            if hasattr(photo, 'seek'):
+                photo.seek(0)
+            files = {"photo": (filename, photo.read())}
+            res = requests.post(url, data=data, files=files, timeout=20)
+        else:
+            data["photo"] = photo
+            res = requests.post(url, data=data, timeout=15)
+
+        try:
+            response_data = res.json()
+        except Exception:
+            response_data = {"raw_text": res.text}
+
+        file_id = None
+        if res.status_code == 200 and isinstance(response_data, dict):
+            photos = response_data.get("result", {}).get("photo", [])
+            if photos:
+                file_id = photos[-1].get("file_id")
+
+        return {
+            "success": res.status_code == 200,
+            "status_code": res.status_code,
+            "response": response_data,
+            "file_id": file_id
+        }
+    except Exception as e:
+        logger.error(f"Error calling Telegram sendPhoto API: {e}")
+        return {
+            "success": False,
+            "status_code": 500,
+            "response": {"error": str(e)},
+            "file_id": None
+        }
+    finally:
+        if opened_file:
+            opened_file.close()
 
 def get_mailing_recipients(task):
     """
@@ -130,8 +199,23 @@ def process_mailing_batch(task_id):
             name = user.first_name or "Клиент"
             text = template.replace('{{user_name}}', name)
 
-            # Send telegram message
-            res = send_telegram_message(task.organization.tg_bot_token, user.telegram_id, text)
+            # Send telegram message (photo or text)
+            if task.has_image:
+                photo_target = task.telegram_file_id
+                if not photo_target and task.image:
+                    try:
+                        photo_target = task.image.path
+                    except Exception:
+                        photo_target = None
+
+                if photo_target:
+                    res = send_telegram_photo(task.organization.tg_bot_token, user.telegram_id, photo_target, caption=text)
+                    if res.get("success") and res.get("file_id") and not task.telegram_file_id:
+                        task.telegram_file_id = res["file_id"]
+                else:
+                    res = send_telegram_message(task.organization.tg_bot_token, user.telegram_id, text)
+            else:
+                res = send_telegram_message(task.organization.tg_bot_token, user.telegram_id, text)
 
             if res["status_code"] == 403:
                 # User blocked bot - unsubscribe

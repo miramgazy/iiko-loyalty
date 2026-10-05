@@ -34,6 +34,12 @@ class MailingTask(models.Model):
     audience_type = models.CharField("Целевой сегмент", max_length=20, choices=AUDIENCE_CHOICES, default=AUDIENCE_ALL)
     status = models.CharField("Статус", max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
 
+    # Photo broadcast fields
+    has_image = models.BooleanField("Отправка с фото", default=False)
+    image = models.FileField("Изображение", upload_to='mailings/%Y/%m/', null=True, blank=True)
+    tg_id_for_test = models.CharField("Telegram ID для теста", max_length=64, null=True, blank=True)
+    telegram_file_id = models.CharField("Telegram File ID", max_length=255, null=True, blank=True)
+
     # Analytics fields
     total_recipients = models.PositiveIntegerField("Размер целевой аудитории", default=0)
     sent_success = models.PositiveIntegerField("Успешно отправлено", default=0)

@@ -200,3 +200,91 @@ class MailingTests(TestCase):
         self.assertEqual(task.total_recipients, 2)
         self.assertEqual(task.sent_success, 2)
         self.assertEqual(task.failed_count, 0)
+
+    @patch('apps.mailing.tasks.requests.post')
+    def test_get_file_id(self, mock_post):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            "ok": True,
+            "result": {
+                "message_id": 1001,
+                "photo": [
+                    {"file_id": "file_small", "width": 100, "height": 100},
+                    {"file_id": "file_large_12345", "width": 800, "height": 800}
+                ]
+            }
+        }
+
+        test_image = SimpleUploadedFile("promo.jpg", b"image_content_bytes", content_type="image/jpeg")
+
+        res = self.client.post('/api/mailings/get_file_id/', {
+            "tg_id_for_test": "11111",
+            "message_ru": "Тестовая акция!",
+            "message_kz": "Тесттік акция!",
+            "image": test_image
+        }, format='multipart')
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["status"], "success")
+        self.assertEqual(res.data["file_id"], "file_large_12345")
+
+        # Verify telegram_id is updated in profile
+        self.admin.refresh_from_db()
+        self.assertEqual(self.admin.telegram_id, 11111)
+
+        # Check API call
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertIn("sendPhoto", args[0])
+        self.assertEqual(kwargs["data"]["chat_id"], "11111")
+        self.assertIn("[ТЕСТОВОЕ ФОТО]", kwargs["data"]["caption"])
+        self.assertIn("photo", kwargs["files"])
+
+    def test_caption_length_validation(self):
+        # When has_image is true, caption > 1024 chars should fail
+        res = self.client.post('/api/mailings/', {
+            "title": "Слишком длинное фото",
+            "message_ru": "А" * 1025,
+            "message_kz": "Кратко",
+            "scheduled_at": timezone.now() + timedelta(days=1),
+            "audience_type": "all",
+            "has_image": True,
+            "telegram_file_id": "test_id"
+        }, format='json')
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("message_ru", res.data)
+
+    @patch('apps.mailing.tasks.requests.post')
+    def test_celery_mailing_with_photo(self, mock_post):
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            "ok": True,
+            "result": {"message_id": 2001}
+        }
+
+        # Create scheduled task with photo
+        task = MailingTask.objects.create(
+            organization=self.org,
+            title="Фото-рассылка",
+            message_ru="Привет с фото, {{user_name}}!",
+            message_kz="Сәлем, {{user_name}}!",
+            scheduled_at=timezone.now() - timedelta(minutes=5),
+            status="scheduled",
+            has_image=True,
+            telegram_file_id="tg_cached_file_id_999",
+            tg_id_for_test="11111"
+        )
+
+        # Run worker batch
+        process_mailing_batch(task.id)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, 'done')
+        self.assertEqual(task.sent_success, 2)
+
+        # Check call used sendPhoto with telegram_file_id
+        self.assertEqual(mock_post.call_count, 2)
+        args, kwargs = mock_post.call_args
+        self.assertIn("sendPhoto", args[0])
+        self.assertEqual(kwargs["data"]["photo"], "tg_cached_file_id_999")

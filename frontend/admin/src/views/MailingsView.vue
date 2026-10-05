@@ -44,7 +44,12 @@
             <tr v-for="m in mailings" :key="m.id" class="hover:bg-slate-800/30 transition-colors">
               <!-- Mailing title & sample message -->
               <td class="px-6 py-4.5">
-                <p class="font-bold text-white text-[15px]">{{ m.title }}</p>
+                <div class="flex items-center gap-2">
+                  <p class="font-bold text-white text-[15px]">{{ m.title }}</p>
+                  <span v-if="m.has_image" class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-950/80 text-indigo-300 border border-indigo-800/60" title="Рассылка с фото">
+                    📷 С фото
+                  </span>
+                </div>
                 <p class="text-slate-500 text-xs truncate max-w-xs mt-1">{{ m.message_ru }}</p>
               </td>
 
@@ -173,6 +178,136 @@
             <span class="font-extrabold text-sm text-indigo-200">{{ audienceCount }} человек(а)</span>
           </div>
 
+          <!-- Photo broadcast toggle & upload section -->
+          <div class="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-4">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-lg">
+                  📷
+                </div>
+                <div>
+                  <label for="toggle-has-image" class="text-sm font-bold text-white cursor-pointer select-none">
+                    Отправить текст с фото
+                  </label>
+                  <p class="text-xs text-slate-400 mt-0.5">
+                    Прикрепить рекламное изображение к рассылке
+                  </p>
+                </div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input
+                  id="toggle-has-image"
+                  type="checkbox"
+                  v-model="newMailing.has_image"
+                  @change="onToggleHasImage"
+                  class="sr-only peer"
+                />
+                <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+
+            <!-- Expanded Section when has_image is ON -->
+            <div v-if="newMailing.has_image" class="pt-3 border-t border-slate-800 space-y-4 animate-in">
+              <!-- Hidden File Input -->
+              <input
+                ref="fileInputRef"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                class="hidden"
+                @change="handleFileSelect"
+              />
+
+              <!-- Dropzone when no image selected -->
+              <div
+                v-if="!selectedImageFile"
+                @click="triggerFileInput"
+                @dragover.prevent
+                @drop.prevent="handleFileDrop"
+                class="border-2 border-dashed border-slate-800 hover:border-indigo-500/50 bg-slate-950/40 hover:bg-slate-900/50 rounded-2xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 group"
+              >
+                <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 group-hover:bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-2xl transition-all">
+                  📤
+                </div>
+                <div>
+                  <span class="text-sm font-semibold text-indigo-400 hover:underline">Выберите фото</span>
+                  <span class="text-sm text-slate-400"> или перетащите файл сюда</span>
+                </div>
+                <p class="text-xs text-slate-500">Поддерживаются форматы JPG, PNG, WEBP (до 5 МБ)</p>
+              </div>
+
+              <!-- Image Preview Card -->
+              <div v-else class="flex items-center justify-between p-3.5 bg-slate-900 border border-slate-800 rounded-2xl">
+                <div class="flex items-center gap-3.5 overflow-hidden">
+                  <img :src="imagePreviewUrl" alt="Превью" class="w-14 h-14 rounded-xl object-cover border border-slate-700/50 flex-shrink-0" />
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-white truncate">{{ selectedImageFile.name }}</p>
+                    <p class="text-xs text-slate-400 mt-0.5">{{ formatFileSize(selectedImageFile.size) }}</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    @click="triggerFileInput"
+                    class="text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition-all cursor-pointer"
+                  >
+                    Заменить
+                  </button>
+                  <button
+                    type="button"
+                    @click="removeSelectedImage"
+                    class="text-xs font-semibold px-3 py-1.5 rounded-xl border border-rose-950/40 text-rose-400 hover:text-white hover:bg-rose-900/30 transition-all cursor-pointer"
+                  >
+                    ✕ Удалить
+                  </button>
+                </div>
+              </div>
+
+              <!-- Telegram Test ID & Get File ID -->
+              <div class="p-4 bg-slate-900/60 border border-slate-800 rounded-2xl space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-end gap-3">
+                  <div class="flex-1 space-y-1.5">
+                    <label class="block text-xs font-semibold text-slate-300">
+                      Telegram ID для тестовой отправки
+                    </label>
+                    <input
+                      v-model="newMailing.tg_id_for_test"
+                      type="text"
+                      placeholder="Например: 123456789"
+                      class="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all placeholder:text-slate-600"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    @click="fetchFileId"
+                    :disabled="gettingFileId || !selectedImageFile || !newMailing.tg_id_for_test?.trim()"
+                    class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 cursor-pointer flex-shrink-0"
+                  >
+                    <span v-if="gettingFileId" class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+                    <span>{{ gettingFileId ? 'Отправка...' : '⚡ Получить File ID' }}</span>
+                  </button>
+                </div>
+
+                <!-- Status of File ID -->
+                <div v-if="newMailing.telegram_file_id" class="flex items-center justify-between p-3 rounded-xl bg-emerald-950/30 border border-emerald-900/50 text-xs text-emerald-300">
+                  <div class="flex items-center gap-2 overflow-hidden">
+                    <span class="text-emerald-400 text-base">✓</span>
+                    <div class="truncate">
+                      <span class="font-bold">File ID получен:</span>
+                      <span class="font-mono text-emerald-200 ml-1.5">{{ newMailing.telegram_file_id }}</span>
+                    </div>
+                  </div>
+                  <span class="text-[11px] font-semibold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/40 ml-2 whitespace-nowrap">
+                    Готово к отправке
+                  </span>
+                </div>
+                <div v-else class="flex items-center gap-2 p-3 rounded-xl bg-amber-950/30 border border-amber-900/50 text-xs text-amber-300">
+                  <span class="text-amber-400">⚠️</span>
+                  <span>Для подтверждения фото нажмите «Получить File ID». На ваш Telegram придёт тестовое фото с текстом.</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Template tabs / inputs -->
           <div class="space-y-4">
             <div class="flex border-b border-slate-800">
@@ -222,6 +357,18 @@
                 placeholder="Сәлем, {{user_name}}! Тек сіз үшін..."
                 class="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-slate-700 transition-all font-sans leading-relaxed"
               ></textarea>
+
+              <!-- Character counter & caption limit notice -->
+              <div class="flex justify-between items-center text-xs mt-1.5 px-1">
+                <span class="text-slate-500">
+                  {{ newMailing.has_image ? 'Лимит подписи к фото: 1024 символа' : 'Лимит сообщения: 4096 символов' }}
+                </span>
+                <span
+                  :class="currentCaptionLength > maxAllowedCaptionLength ? 'text-rose-400 font-bold' : 'text-slate-400'"
+                >
+                  {{ currentCaptionLength }} / {{ maxAllowedCaptionLength }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -316,16 +463,34 @@ const loading = ref(true)
 // Create modal state
 const createModalOpen = ref(false)
 const saving = ref(false)
+
+// Photo broadcast state
+const selectedImageFile = ref(null)
+const imagePreviewUrl = ref('')
+const fileInputRef = ref(null)
+const gettingFileId = ref(false)
+
 const newMailing = ref({
   title: '',
   audience_type: 'all',
   scheduled_at: '',
   message_ru: '',
   message_kz: '',
+  has_image: false,
+  tg_id_for_test: '',
+  telegram_file_id: '',
 })
 const activeLangTab = ref('ru')
 const audienceCount = ref(null)
 const audienceCountLoading = ref(false)
+
+// Caption limits
+const maxAllowedCaptionLength = computed(() => (newMailing.value.has_image ? 1024 : 4096))
+const currentCaptionLength = computed(() => {
+  return activeLangTab.value === 'ru'
+    ? (newMailing.value.message_ru || '').length
+    : (newMailing.value.message_kz || '').length
+})
 
 // Input textareas references
 const textarea_ru = ref(null)
@@ -400,6 +565,93 @@ async function fetchAudienceCount() {
   }
 }
 
+// Photo file handling methods
+function onToggleHasImage() {
+  if (!newMailing.value.has_image) {
+    removeSelectedImage()
+  } else {
+    if (!newMailing.value.tg_id_for_test && auth.user?.telegram_id) {
+      newMailing.value.tg_id_for_test = String(auth.user.telegram_id)
+    }
+  }
+}
+
+function triggerFileInput() {
+  fileInputRef.value?.click()
+}
+
+function handleFileSelect(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  processSelectedFile(file)
+}
+
+function handleFileDrop(e) {
+  const file = e.dataTransfer?.files?.[0]
+  if (!file) return
+  processSelectedFile(file)
+}
+
+function processSelectedFile(file) {
+  const validTypes = ['image/jpeg', 'image/png', 'image/webp']
+  if (!validTypes.includes(file.type)) {
+    return toast.error('Поддерживаются только изображения JPG, PNG или WEBP')
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    return toast.error('Размер файла не должен превышать 5 МБ')
+  }
+  selectedImageFile.value = file
+  imagePreviewUrl.value = URL.createObjectURL(file)
+  newMailing.value.telegram_file_id = ''
+}
+
+function removeSelectedImage() {
+  selectedImageFile.value = null
+  imagePreviewUrl.value = ''
+  newMailing.value.telegram_file_id = ''
+  if (fileInputRef.value) fileInputRef.value.value = ''
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return '0 B'
+  const k = 1024
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(k))
+  return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`
+}
+
+async function fetchFileId() {
+  if (!selectedImageFile.value) {
+    return toast.error('Сначала выберите изображение')
+  }
+  const tgId = newMailing.value.tg_id_for_test?.trim()
+  if (!tgId) {
+    return toast.error('Укажите Telegram ID для тестовой отправки')
+  }
+
+  gettingFileId.value = true
+  try {
+    const fd = new FormData()
+    fd.append('image', selectedImageFile.value)
+    fd.append('tg_id_for_test', tgId)
+    fd.append('message_ru', newMailing.value.message_ru || 'Тестовая рассылка с изображением')
+    fd.append('message_kz', newMailing.value.message_kz || 'Суретпен тесттік хабарлама')
+    fd.append('organization_id', auth.currentOrgId)
+
+    const res = await api.post('/mailings/get_file_id/', fd)
+    newMailing.value.telegram_file_id = res.data.file_id
+    if (auth.user) {
+      auth.user.telegram_id = tgId
+    }
+    toast.success('Тестовое фото отправлено! File ID успешно получен.')
+  } catch (e) {
+    const msg = e.response?.data?.error || e.response?.data?.detail || 'Не удалось получить File ID через Telegram'
+    toast.error(msg)
+  } finally {
+    gettingFileId.value = false
+  }
+}
+
 // Insert cursor helper placeholder
 function insertPlaceholder() {
   const isRu = activeLangTab.value === 'ru'
@@ -431,17 +683,51 @@ async function createMailing() {
   if (!newMailing.value.message_ru.trim()) return toast.error('Заполните шаблон сообщения на русском')
   if (!newMailing.value.message_kz.trim()) return toast.error('Заполните шаблон сообщения на казахском')
 
+  if (newMailing.value.has_image) {
+    if (!selectedImageFile.value) {
+      return toast.error('Загрузите изображение для отправки с фото')
+    }
+    if (!newMailing.value.telegram_file_id) {
+      return toast.error('Для отправки с фото сначала получите File ID, нажав кнопку «Получить File ID»')
+    }
+    if (newMailing.value.message_ru.length > 1024) {
+      return toast.error('Подпись к фото на русском не должна превышать 1024 символа')
+    }
+    if (newMailing.value.message_kz.length > 1024) {
+      return toast.error('Подпись к фото на казахском не должна превышать 1024 символа')
+    }
+  }
+
   saving.value = true
   try {
-    await api.post('/mailings/', {
-      ...newMailing.value,
-      organization_id: auth.currentOrgId
-    })
+    const formData = new FormData()
+    formData.append('title', newMailing.value.title.trim())
+    formData.append('audience_type', newMailing.value.audience_type)
+    formData.append('scheduled_at', newMailing.value.scheduled_at)
+    formData.append('message_ru', newMailing.value.message_ru)
+    formData.append('message_kz', newMailing.value.message_kz)
+    formData.append('organization_id', auth.currentOrgId)
+    formData.append('has_image', newMailing.value.has_image ? 'true' : 'false')
+
+    if (newMailing.value.has_image) {
+      if (selectedImageFile.value) {
+        formData.append('image', selectedImageFile.value)
+      }
+      if (newMailing.value.tg_id_for_test) {
+        formData.append('tg_id_for_test', newMailing.value.tg_id_for_test.trim())
+      }
+      if (newMailing.value.telegram_file_id) {
+        formData.append('telegram_file_id', newMailing.value.telegram_file_id)
+      }
+    }
+
+    await api.post('/mailings/', formData)
     toast.success('Рассылка успешно запланирована')
     closeCreateModal()
     loadMailings()
   } catch (e) {
-    toast.error('Не удалось запланировать рассылку')
+    const errorMsg = e.response?.data?.message_ru?.[0] || e.response?.data?.error || 'Не удалось запланировать рассылку'
+    toast.error(errorMsg)
   } finally {
     saving.value = false
   }
@@ -450,7 +736,7 @@ async function createMailing() {
 // Test modal trigger
 function openTestModal(mailing) {
   activeTestMailing.value = mailing
-  testTelegramId.value = auth.user?.telegram_id || ''
+  testTelegramId.value = mailing?.tg_id_for_test || auth.user?.telegram_id || ''
   testModalOpen.value = true
 }
 
@@ -469,11 +755,20 @@ async function sendTestMailing() {
       })
     } else {
       // Testing unsaved mailing preview
-      await api.post(`/mailings/send_test_preview/`, {
-        telegram_id: testTelegramId.value.trim(),
-        message_ru: activeTestMailing.value.message_ru,
-        message_kz: activeTestMailing.value.message_kz
-      })
+      const fd = new FormData()
+      fd.append('telegram_id', testTelegramId.value.trim())
+      fd.append('message_ru', activeTestMailing.value.message_ru || '')
+      fd.append('message_kz', activeTestMailing.value.message_kz || '')
+      fd.append('organization_id', auth.currentOrgId)
+      if (activeTestMailing.value?.has_image) {
+        fd.append('has_image', 'true')
+        if (activeTestMailing.value?.telegram_file_id) {
+          fd.append('telegram_file_id', activeTestMailing.value.telegram_file_id)
+        } else if (selectedImageFile.value) {
+          fd.append('image', selectedImageFile.value)
+        }
+      }
+      await api.post(`/mailings/send_test_preview/`, fd)
     }
     toast.success('Тестовое сообщение успешно отправлено')
     if (auth.user) {
@@ -501,7 +796,13 @@ function openCreateModal() {
     scheduled_at: defaultDateTime,
     message_ru: '',
     message_kz: '',
+    has_image: false,
+    tg_id_for_test: auth.user?.telegram_id ? String(auth.user.telegram_id) : '',
+    telegram_file_id: '',
   }
+  selectedImageFile.value = null
+  imagePreviewUrl.value = ''
+  if (fileInputRef.value) fileInputRef.value.value = ''
   activeLangTab.value = 'ru'
   audienceCount.value = null
   createModalOpen.value = true
