@@ -389,6 +389,13 @@ def process_iiko_webhook(log_id):
                 ] if tma_link else None
                 
                 send_telegram_message(org.tg_bot_token, customer.telegram_id, text, inline_keyboard)
+
+            # Send WhatsApp WABA notification if configured
+            try:
+                from apps.core.services.waba_service import dispatch_waba_notification
+                dispatch_waba_notification(org, 'balance', actual_payload, recipient_phone=customer.phone if customer else None)
+            except Exception as waba_err:
+                logger.error(f"Failed to dispatch WABA balance notification: {waba_err}")
         else:
             # For non-wallet transactions (card changes, category updates, inclusion in program, simple push)
             text = None
@@ -416,6 +423,17 @@ def process_iiko_webhook(log_id):
                     text = f"🎉 Добро пожаловать в программу лояльности заведения {org.name}!"
             elif notification_type == 5 or log.event_type == 'SimplePush':
                 text = actual_payload.get('text')
+                # Send WhatsApp WABA notification if configured
+                try:
+                    from apps.core.services.waba_service import dispatch_waba_notification
+                    raw_text = str(actual_payload.get('text', ''))
+                    recipient_phone = customer.phone if customer else None
+                    if 'код подтверждения' in raw_text.lower() or 'код' in raw_text.lower():
+                        dispatch_waba_notification(org, 'auth_code', actual_payload, recipient_phone=recipient_phone)
+                    else:
+                        dispatch_waba_notification(org, 'push', actual_payload, recipient_phone=recipient_phone)
+                except Exception as waba_err:
+                    logger.error(f"Failed to dispatch WABA push/auth_code notification: {waba_err}")
 
             if text and customer.telegram_id and org.tg_bot_token:
                 tma_link = org.get_tma_link()

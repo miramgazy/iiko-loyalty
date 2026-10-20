@@ -155,6 +155,337 @@
         </div>
       </div>
 
+      <!-- TAB: WhatsApp WABA -->
+      <div v-show="activeTab === 'waba'" class="space-y-6">
+        <!-- Main settings box -->
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-5">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">💬</span>
+                <h2 class="text-lg font-bold text-white">Интеграция WhatsApp WABA</h2>
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  Cloud API
+                </span>
+              </div>
+              <p class="text-slate-400 text-sm mt-1">Отправка сервисных сообщений и кодов авторизации через официальный WhatsApp Business API</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" v-model="form.is_waba_enabled" class="sr-only peer">
+              <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+              <span class="ml-3 text-sm font-medium" :class="form.is_waba_enabled ? 'text-emerald-400' : 'text-slate-500'">
+                {{ form.is_waba_enabled ? 'Включено' : 'Выключено' }}
+              </span>
+            </label>
+          </div>
+
+          <!-- Webhook notification banner -->
+          <div class="bg-slate-800/60 rounded-xl p-4 border border-slate-700/60 flex items-start justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="text-indigo-400 font-semibold text-sm">🔗 Вебхук iikoCard / iiko Cloud:</span>
+                <span class="text-xs bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded border border-indigo-500/20">Единый URL</span>
+              </div>
+              <p class="text-xs text-slate-400">
+                Вставьте этот URL в настройках вебхуков в iikoCard / RMS. Все транзакции и коды подтверждения будут поступать сюда и автоматически отправляться в WhatsApp по настроенным правилам.
+              </p>
+              <div class="font-mono text-xs text-indigo-300 bg-slate-900/80 px-3 py-1.5 rounded-lg border border-slate-700 w-fit select-all">
+                {{ webhookUrl }}
+              </div>
+            </div>
+            <button @click="copyWebhookUrl" class="px-3 py-1.5 text-xs font-medium bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg transition-all shrink-0">
+              📋 Скопировать
+            </button>
+          </div>
+
+          <!-- Credentials inputs -->
+          <div class="space-y-4">
+            <div>
+              <label class="form-label">Meta Access Token (System User Permanent Token)</label>
+              <div class="relative">
+                <input v-model="form.waba_access_token" :type="showWabaToken ? 'text' : 'password'" class="form-input pr-12 font-mono text-xs" placeholder="EAAB..." />
+                <button type="button" @click="showWabaToken = !showWabaToken"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                  {{ showWabaToken ? '🙈' : '👁' }}
+                </button>
+              </div>
+              <p class="text-[11px] text-slate-500 mt-1">
+                Токен системного пользователя Meta Business Manager с правами <code>whatsapp_business_messaging</code> и <code>whatsapp_business_management</code>.
+              </p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">WhatsApp Business Account ID (WABA ID)</label>
+                <input v-model="form.waba_business_account_id" type="text" class="form-input font-mono text-sm" placeholder="например: 105938472910..." />
+                <p class="text-[11px] text-slate-500 mt-1">ID аккаунта для выгрузки шаблонов и телефонных номеров.</p>
+              </div>
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="form-label !mb-0">Phone Number ID</label>
+                  <button v-if="form.waba_access_token && form.waba_business_account_id"
+                    @click="fetchWabaPhoneNumbers" :disabled="loadingWabaNumbers"
+                    class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">
+                    <span v-if="loadingWabaNumbers" class="w-3 h-3 border border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin"></span>
+                    <span>{{ loadingWabaNumbers ? 'Загрузка...' : '⚡ Загрузить из Meta' }}</span>
+                  </button>
+                </div>
+                <div v-if="wabaPhoneNumbers.length > 0" class="space-y-1">
+                  <select v-model="form.waba_phone_number_id" class="form-input font-mono text-sm">
+                    <option value="">-- Выберите телефонный номер --</option>
+                    <option v-for="num in wabaPhoneNumbers" :key="num.id" :value="num.id">
+                      {{ num.display_phone_number }} ({{ num.verified_name || num.id }})
+                    </option>
+                  </select>
+                </div>
+                <input v-else v-model="form.waba_phone_number_id" type="text" class="form-input font-mono text-sm" placeholder="например: 525197927353331" />
+                <p class="text-[11px] text-slate-500 mt-1">Идентификатор телефонного номера Meta, с которого отправляются сообщения.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions toolbar -->
+          <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+            <div class="flex items-center gap-2">
+              <button @click="fetchWabaTemplates" :disabled="loadingWabaTemplates || !form.waba_access_token || !form.waba_business_account_id"
+                class="px-4 py-2 text-xs font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 disabled:opacity-50"
+                :class="loadingWabaTemplates ? 'bg-indigo-600/50 text-indigo-200' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md hover:shadow-indigo-500/20'">
+                <span v-if="loadingWabaTemplates" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                <span v-else>📥</span>
+                Выгрузить шаблоны из Meta
+              </button>
+
+              <button @click="openWabaTestModal" :disabled="!form.waba_access_token || !form.waba_phone_number_id"
+                class="px-4 py-2 text-xs font-semibold bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-xl transition-all border border-slate-700 disabled:opacity-50 flex items-center gap-2 shadow-sm">
+                <span>🧪</span>
+                Тестовая отправка
+              </button>
+            </div>
+
+            <SaveButton :saving="saving" @save="saveSettings" />
+          </div>
+        </div>
+
+        <!-- Available templates section -->
+        <div v-if="wabaTemplates.length > 0" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-white font-bold flex items-center gap-2">
+                <span>📑</span> Доступные шаблоны из Meta
+                <span class="text-xs font-normal text-slate-400">({{ wabaTemplates.length }} шт.)</span>
+              </h3>
+              <p class="text-slate-400 text-xs mt-0.5">Утвержденные шаблоны в WhatsApp Business Manager</p>
+            </div>
+            <input v-model="templateSearchQuery" type="text" class="form-input !w-64 !py-1.5 text-xs" placeholder="Поиск по названию шаблона..." />
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
+            <div v-for="tmpl in filteredTemplates" :key="tmpl.id || tmpl.name"
+              class="bg-slate-800/40 border border-slate-700/50 rounded-xl p-3.5 hover:border-slate-600 transition-all flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <span class="font-mono text-xs font-semibold text-white truncate max-w-[200px]" :title="tmpl.name">{{ tmpl.name }}</span>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[10px] px-2 py-0.5 rounded-full font-mono font-medium"
+                      :class="tmpl.status === 'APPROVED' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'">
+                      {{ tmpl.status }}
+                    </span>
+                    <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 uppercase">{{ tmpl.language }}</span>
+                  </div>
+                </div>
+                <p class="text-xs text-slate-400 line-clamp-2">
+                  {{ getTemplateBodyText(tmpl) || 'Шаблон без текста' }}
+                </p>
+              </div>
+              <div class="mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-500">
+                <span>{{ tmpl.category }}</span>
+                <button @click="openCreateRuleModalWithTemplate(tmpl)" class="text-indigo-400 hover:text-indigo-300 font-medium">
+                  + Создать правило
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trigger rules section -->
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-5">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-white font-bold flex items-center gap-2">
+                <span>⚡</span> Сценарии отправки сообщений (Правила)
+              </h3>
+              <p class="text-slate-400 text-xs mt-0.5">Настройка автоотправки при получении вебхука от iiko</p>
+            </div>
+            <button @click="openCreateRuleModal()" class="px-3.5 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all flex items-center gap-1.5 shadow-md hover:shadow-indigo-500/20">
+              <span>➕</span> Добавить правило
+            </button>
+          </div>
+
+          <!-- Quick preset cards -->
+          <div class="grid grid-cols-3 gap-4">
+            <!-- Auth Code Card -->
+            <div class="bg-slate-800/50 border rounded-xl p-4 transition-all"
+              :class="authCodeRule ? (authCodeRule.is_enabled ? 'border-emerald-500/30 bg-emerald-950/10' : 'border-slate-700') : 'border-slate-800'">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xl">🔐</span>
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                  :class="authCodeRule?.is_enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700 text-slate-400'">
+                  {{ authCodeRule?.is_enabled ? 'Включено' : (authCodeRule ? 'Отключено' : 'Не настроено') }}
+                </span>
+              </div>
+              <h4 class="text-white font-semibold text-sm">Код авторизации</h4>
+              <p class="text-xs text-slate-400 mt-1 line-clamp-1">
+                {{ authCodeRule ? `Шаблон: ${authCodeRule.template_name}` : 'Отправка OTP кода гостю' }}
+              </p>
+              <div class="mt-4 pt-3 border-t border-slate-750 flex items-center justify-between">
+                <button v-if="authCodeRule" @click="toggleRule(authCodeRule)" class="text-xs" :class="authCodeRule.is_enabled ? 'text-amber-400 hover:text-amber-300' : 'text-emerald-400 hover:text-emerald-300'">
+                  {{ authCodeRule.is_enabled ? 'Отключить' : 'Включить' }}
+                </button>
+                <button @click="authCodeRule ? openEditRuleModal(authCodeRule) : openCreateRuleModal('auth_code')"
+                  class="text-xs font-semibold text-indigo-400 hover:text-indigo-300 ml-auto">
+                  {{ authCodeRule ? '⚙ Настроить' : '+ Подключить' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Balance Change Card -->
+            <div class="bg-slate-800/50 border rounded-xl p-4 transition-all"
+              :class="balanceRule ? (balanceRule.is_enabled ? 'border-emerald-500/30 bg-emerald-950/10' : 'border-slate-700') : 'border-slate-800'">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xl">💳</span>
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                  :class="balanceRule?.is_enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700 text-slate-400'">
+                  {{ balanceRule?.is_enabled ? 'Включено' : (balanceRule ? 'Отключено' : 'Не настроено') }}
+                </span>
+              </div>
+              <h4 class="text-white font-semibold text-sm">Баланс кошелька</h4>
+              <p class="text-xs text-slate-400 mt-1 line-clamp-1">
+                {{ balanceRule ? `Шаблон: ${balanceRule.template_name}` : 'Пополнение и списание бонусов' }}
+              </p>
+              <div class="mt-4 pt-3 border-t border-slate-750 flex items-center justify-between">
+                <button v-if="balanceRule" @click="toggleRule(balanceRule)" class="text-xs" :class="balanceRule.is_enabled ? 'text-amber-400 hover:text-amber-300' : 'text-emerald-400 hover:text-emerald-300'">
+                  {{ balanceRule.is_enabled ? 'Отключить' : 'Включить' }}
+                </button>
+                <button @click="balanceRule ? openEditRuleModal(balanceRule) : openCreateRuleModal('balance')"
+                  class="text-xs font-semibold text-indigo-400 hover:text-indigo-300 ml-auto">
+                  {{ balanceRule ? '⚙ Настроить' : '+ Подключить' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- SimplePush Card -->
+            <div class="bg-slate-800/50 border rounded-xl p-4 transition-all"
+              :class="pushRule ? (pushRule.is_enabled ? 'border-emerald-500/30 bg-emerald-950/10' : 'border-slate-700') : 'border-slate-800'">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xl">📢</span>
+                <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                  :class="pushRule?.is_enabled ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-700 text-slate-400'">
+                  {{ pushRule?.is_enabled ? 'Включено' : (pushRule ? 'Отключено' : 'Не настроено') }}
+                </span>
+              </div>
+              <h4 class="text-white font-semibold text-sm">Информационный пуш</h4>
+              <p class="text-xs text-slate-400 mt-1 line-clamp-1">
+                {{ pushRule ? `Шаблон: ${pushRule.template_name}` : 'Общие пуш-сообщения из iiko' }}
+              </p>
+              <div class="mt-4 pt-3 border-t border-slate-750 flex items-center justify-between">
+                <button v-if="pushRule" @click="toggleRule(pushRule)" class="text-xs" :class="pushRule.is_enabled ? 'text-amber-400 hover:text-amber-300' : 'text-emerald-400 hover:text-emerald-300'">
+                  {{ pushRule.is_enabled ? 'Отключить' : 'Включить' }}
+                </button>
+                <button @click="pushRule ? openEditRuleModal(pushRule) : openCreateRuleModal('push')"
+                  class="text-xs font-semibold text-indigo-400 hover:text-indigo-300 ml-auto">
+                  {{ pushRule ? '⚙ Настроить' : '+ Подключить' }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rules list table if any custom rules or configured rules exist -->
+          <div v-if="wabaRules.length > 0" class="mt-4">
+            <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Все активные правила</h4>
+            <div class="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden bg-slate-850/30">
+              <div v-for="rule in wabaRules" :key="rule.id" class="p-3.5 flex items-center justify-between hover:bg-slate-800/40 transition-colors">
+                <div class="flex items-center gap-3">
+                  <span class="w-2.5 h-2.5 rounded-full" :class="rule.is_enabled ? 'bg-emerald-500' : 'bg-slate-600'"></span>
+                  <div>
+                    <span class="text-sm font-semibold text-white">{{ rule.name }}</span>
+                    <span class="ml-2 text-xs text-slate-400 font-mono">({{ rule.template_name }} | {{ rule.template_language }})</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <button @click="toggleRule(rule)" class="text-xs font-medium" :class="rule.is_enabled ? 'text-amber-400 hover:text-amber-300' : 'text-emerald-400 hover:text-emerald-300'">
+                    {{ rule.is_enabled ? 'Отключить' : 'Включить' }}
+                  </button>
+                  <button @click="openEditRuleModal(rule)" class="text-xs font-medium text-indigo-400 hover:text-indigo-300">
+                    Редактировать
+                  </button>
+                  <button @click="deleteRule(rule)" class="text-xs font-medium text-rose-400 hover:text-rose-300">
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Dispatch Logs section -->
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <h3 class="text-white font-bold flex items-center gap-2">
+                <span>📜</span> Логи отправки сообщений WABA
+              </h3>
+              <p class="text-slate-400 text-xs mt-0.5">История последних отправок через WhatsApp API</p>
+            </div>
+            <button @click="loadWabaLogs" :disabled="loadingWabaLogs" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-lg transition-all border border-slate-700 flex items-center gap-1.5">
+              <span v-if="loadingWabaLogs" class="w-3 h-3 border border-slate-400/30 border-t-slate-400 rounded-full animate-spin"></span>
+              <span>🔄 Обновить логи</span>
+            </button>
+          </div>
+
+          <div v-if="loadingWabaLogs" class="py-8 flex justify-center">
+            <div class="w-6 h-6 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+          </div>
+          <div v-else-if="wabaLogs.length === 0" class="text-center py-8 text-slate-500 text-xs">
+            Логи отправки сообщений пока отсутствуют
+          </div>
+          <div v-else class="overflow-x-auto border border-slate-800 rounded-xl">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="bg-slate-800/60 text-slate-400 border-b border-slate-700/60 font-semibold">
+                  <th class="py-2.5 px-4">Время</th>
+                  <th class="py-2.5 px-4">Телефон</th>
+                  <th class="py-2.5 px-4">Шаблон</th>
+                  <th class="py-2.5 px-4">Статус</th>
+                  <th class="py-2.5 px-4">Текст / Ошибка</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800">
+                <tr v-for="log in wabaLogs" :key="log.id" class="hover:bg-slate-800/30">
+                  <td class="py-2.5 px-4 font-mono text-slate-400 whitespace-nowrap">{{ formatLogDate(log.created_at) }}</td>
+                  <td class="py-2.5 px-4 font-mono font-medium text-white whitespace-nowrap">{{ log.phone }}</td>
+                  <td class="py-2.5 px-4 text-slate-300 font-mono">{{ log.template_name }}</td>
+                  <td class="py-2.5 px-4 whitespace-nowrap">
+                    <span v-if="log.status === 'SENT'" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      ✓ Отправлено
+                    </span>
+                    <span v-else-if="log.status === 'FAILED'" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                      ✕ Ошибка
+                    </span>
+                    <span v-else class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      В очереди
+                    </span>
+                  </td>
+                  <td class="py-2.5 px-4 text-slate-300 max-w-xs truncate" :title="log.error_message || log.rendered_text">
+                    <span v-if="log.status === 'FAILED'" class="text-rose-300 font-mono text-[11px]">{{ log.error_message }}</span>
+                    <span v-else class="text-slate-400 text-[11px]">{{ log.rendered_text || log.waba_message_id || 'OK' }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <!-- TAB: iiko Cloud API Integration -->
       <div v-show="activeTab === 'iiko'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-5">
         <div>
@@ -669,6 +1000,165 @@
         </form>
       </div>
     </div>
+
+    <!-- WABA Rule Modal (Mapping Constructor) -->
+    <div v-if="showRuleModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-950 border border-slate-800 rounded-3xl p-6 w-full max-w-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-4">
+          <h2 class="text-lg font-bold text-white flex items-center gap-2">
+            <span>⚙</span>
+            {{ ruleModalMode === 'create' ? 'Создать правило отправки WABA' : 'Редактировать правило отправки' }}
+          </h2>
+          <button @click="showRuleModal = false" class="text-slate-500 hover:text-white text-lg">✕</button>
+        </div>
+
+        <form @submit.prevent="saveRule" class="space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="form-label">Название правила</label>
+              <input v-model="ruleForm.name" type="text" class="form-input" placeholder="например: Код подтверждения" required />
+            </div>
+            <div>
+              <label class="form-label">Событие вебхука iiko</label>
+              <select v-model="ruleForm.event_type" class="form-input" required>
+                <option value="auth_code">🔐 Код авторизации (проверочный код)</option>
+                <option value="balance">💳 Изменение баланса кошелька</option>
+                <option value="push">📢 Информационный пуш (SimplePush)</option>
+                <option value="custom">⚙ Пользовательское событие</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="form-label">Шаблон Meta WhatsApp</label>
+            <select v-model="ruleForm.template_name" @change="onTemplateSelected" class="form-input" required>
+              <option value="" disabled>-- Выберите утвержденный шаблон --</option>
+              <option v-for="t in approvedTemplates" :key="t.name + t.language" :value="t.name">
+                {{ t.name }} ({{ t.language }}) - {{ t.category }}
+              </option>
+            </select>
+            <p v-if="approvedTemplates.length === 0" class="text-[11px] text-amber-400 mt-1">
+              ⚠️ Шаблоны еще не загружены. Сначала нажмите кнопку «Выгрузить шаблоны из Meta» во вкладке WABA.
+            </p>
+          </div>
+
+          <!-- Template WhatsApp Preview Bubble -->
+          <div v-if="selectedTemplateObj" class="bg-emerald-950/20 border border-emerald-800/40 rounded-xl p-4 space-y-2">
+            <span class="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider">Предпросмотр сообщения WhatsApp:</span>
+            <div class="bg-[#128C7E]/20 border border-[#128C7E]/40 rounded-lg p-3 text-white text-xs space-y-1 font-sans">
+              <div v-if="getTemplateHeaderText(selectedTemplateObj)" class="font-bold text-emerald-200">
+                {{ getTemplateHeaderText(selectedTemplateObj) }}
+              </div>
+              <div class="whitespace-pre-wrap leading-relaxed text-slate-200">
+                {{ getTemplateBodyText(selectedTemplateObj) }}
+              </div>
+              <div v-if="getTemplateButtons(selectedTemplateObj).length > 0" class="pt-2 border-t border-emerald-700/30 flex gap-2">
+                <span v-for="btn in getTemplateButtons(selectedTemplateObj)" :key="btn.index" class="bg-emerald-600/30 border border-emerald-500/30 px-3 py-1 rounded text-[11px] text-emerald-300">
+                  🔗 {{ btn.text }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Parameter Mapping Section -->
+          <div v-if="selectedTemplateObj" class="border border-slate-800 rounded-xl p-4 bg-slate-900/50 space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <h3 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <span>🔄</span> Подстановка параметров из вебхука iiko
+              </h3>
+              <span class="text-[11px] text-slate-400">Выберите, какие данные подставлять в переменные шаблона</span>
+            </div>
+
+            <!-- Header Parameters -->
+            <div v-if="ruleForm.parameter_mappings.header?.length > 0" class="space-y-2">
+              <span class="text-xs font-semibold text-indigo-300">Заголовок (Header):</span>
+              <div v-for="h in ruleForm.parameter_mappings.header" :key="h.param" class="grid grid-cols-[100px_1fr] items-center gap-2">
+                <span class="text-xs text-slate-400">Параметр {{ h.param }}:</span>
+                <select v-model="h.source" class="form-input !py-1 text-xs">
+                  <option v-for="opt in webhookSourceOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Body Parameters -->
+            <div v-if="ruleForm.parameter_mappings.body?.length > 0" class="space-y-2">
+              <span class="text-xs font-semibold text-indigo-300">Тело сообщения (Body):</span>
+              <div v-for="b in ruleForm.parameter_mappings.body" :key="b.param" class="grid grid-cols-[100px_1fr] items-center gap-2">
+                <span class="text-xs text-slate-400 font-mono">Переменная &#123;&#123;{{ b.param }}&#125;&#125;:</span>
+                <div class="flex items-center gap-2">
+                  <select v-model="b.source" class="form-input !py-1 text-xs">
+                    <option v-for="opt in webhookSourceOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                  </select>
+                  <input v-if="b.source === 'static'" v-model="b.static_value" type="text" class="form-input !py-1 text-xs" placeholder="Текст..." />
+                </div>
+              </div>
+            </div>
+
+            <!-- Button Parameters -->
+            <div v-if="ruleForm.parameter_mappings.buttons?.length > 0" class="space-y-2">
+              <span class="text-xs font-semibold text-indigo-300">Кнопка со ссылкой (Button URL):</span>
+              <div v-for="btn in ruleForm.parameter_mappings.buttons" :key="btn.index" class="grid grid-cols-[100px_1fr] items-center gap-2">
+                <span class="text-xs text-slate-400">Кнопка {{ btn.index + 1 }}:</span>
+                <div class="flex items-center gap-2">
+                  <select v-model="btn.source" class="form-input !py-1 text-xs">
+                    <option v-for="opt in webhookSourceOptions" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+                  </select>
+                  <input v-if="btn.source === 'static'" v-model="btn.static_value" type="text" class="form-input !py-1 text-xs" placeholder="Значение..." />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-4 border-t border-slate-800">
+            <button type="button" @click="showRuleModal = false" class="px-4 py-2 text-xs font-medium text-slate-400 hover:text-white border border-slate-800 rounded-xl transition-all">
+              Отмена
+            </button>
+            <button type="submit" :disabled="savingRule" class="px-5 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all flex items-center gap-2 disabled:opacity-50">
+              <span v-if="savingRule" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+              <span>Сохранить сценарий</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- WABA Quick Test Modal -->
+    <div v-if="showWabaTestModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-950 border border-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <span>🧪</span> Тестовая отправка WhatsApp
+          </h2>
+          <button @click="showWabaTestModal = false" class="text-slate-500 hover:text-white">✕</button>
+        </div>
+
+        <form @submit.prevent="sendWabaTest" class="space-y-4">
+          <div>
+            <label class="form-label">Номер телефона получателя</label>
+            <input v-model="wabaTestPhone" type="text" class="form-input font-mono" placeholder="+77071234567" required />
+          </div>
+          <div>
+            <label class="form-label">Шаблон Meta</label>
+            <select v-model="wabaTestTemplate" class="form-input" required>
+              <option value="" disabled>-- Выберите шаблон --</option>
+              <option v-for="t in approvedTemplates" :key="t.name" :value="t.name">
+                {{ t.name }} ({{ t.language }})
+              </option>
+            </select>
+          </div>
+
+          <div class="flex gap-3 pt-2">
+            <button type="button" @click="showWabaTestModal = false" class="flex-1 py-2 text-xs font-medium text-slate-400 hover:text-white border border-slate-800 rounded-xl transition-all">
+              Отмена
+            </button>
+            <button type="submit" :disabled="sendingWabaTest" class="flex-1 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+              <span v-if="sendingWabaTest" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+              <span>Отправить</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -685,6 +1175,7 @@ const toast = useToastStore()
 const tabs = computed(() => {
   const list = [
     { id: 'general', label: 'Основные / Telegram' },
+    { id: 'waba', label: 'Настройка WABA' },
     { id: 'iiko', label: 'Интеграция iiko Cloud API' },
     { id: 'iiko_server', label: 'Интеграция iiko Server API' },
   ]
@@ -806,6 +1297,10 @@ const walletForm = ref({
 const form = ref({
   name: '', slug: '', address: '',
   tg_bot_token: '', tg_bot_username: '', tma_name: '', tma_direct_link: '',
+  is_waba_enabled: false,
+  waba_access_token: '',
+  waba_business_account_id: '',
+  waba_phone_number_id: '',
   iiko_integration_type: 'iiko_transport',
   iiko_api_base_url: 'https://api-ru.iiko.services/api/1',
   iiko_api_login: '', iiko_app_id: '', iiko_client_secret: '', iiko_organization_id: '', iiko_loyalty_program_id: '',
@@ -993,6 +1488,7 @@ async function load() {
     if (form.value.is_analytics_enabled) {
       await loadPresets()
     }
+    await loadWabaData()
   } catch {
     toast.error('Не удалось загрузить настройки')
   } finally {
@@ -1010,6 +1506,10 @@ async function saveSettings() {
       tg_bot_username: form.value.tg_bot_username,
       tma_name: form.value.tma_name,
       tma_direct_link: form.value.tma_direct_link || null,
+      is_waba_enabled: form.value.is_waba_enabled,
+      waba_access_token: form.value.waba_access_token || undefined,
+      waba_business_account_id: form.value.waba_business_account_id || null,
+      waba_phone_number_id: form.value.waba_phone_number_id || null,
       iiko_integration_type: form.value.iiko_integration_type,
       iiko_api_base_url: form.value.iiko_api_base_url,
       iiko_api_login: form.value.iiko_api_login || undefined,
@@ -1253,10 +1753,384 @@ async function deleteProgram() {
   }
 }
 
+// --- WhatsApp WABA Integration Logic ---
+const showWabaToken = ref(false)
+const loadingWabaTemplates = ref(false)
+const wabaTemplates = ref([])
+const templateSearchQuery = ref('')
+const loadingWabaNumbers = ref(false)
+const wabaPhoneNumbers = ref([])
+
+const wabaRules = ref([])
+const loadingWabaRules = ref(false)
+const wabaLogs = ref([])
+const loadingWabaLogs = ref(false)
+
+const showRuleModal = ref(false)
+const ruleModalMode = ref('create')
+const savingRule = ref(false)
+const ruleForm = ref({
+  id: null,
+  name: '',
+  event_type: 'auth_code',
+  is_enabled: true,
+  template_name: '',
+  template_language: 'ru',
+  parameter_mappings: {
+    header: [],
+    body: [],
+    buttons: []
+  }
+})
+
+const showWabaTestModal = ref(false)
+const wabaTestPhone = ref('')
+const wabaTestTemplate = ref('')
+const sendingWabaTest = ref(false)
+
+const webhookSourceOptions = [
+  { value: 'auth_code', label: '🔑 Код авторизации (только цифры из текста)' },
+  { value: 'sum', label: '💰 Сумма операции (body.sum)' },
+  { value: 'sum_abs', label: '💰 Сумма операции без знака (-) (Math.abs)' },
+  { value: 'balance', label: '💳 Текущий баланс (body.balance)' },
+  { value: 'balance_text_smart', label: '✨ Умный текст баланса (Пополнен/Списан на X тенге)' },
+  { value: 'phone', label: '📱 Номер телефона (body.phone)' },
+  { value: 'restaurant_name', label: '🏢 Название ресторана (organization.name)' },
+  { value: 'text', label: '📄 Полный текст сообщения (body.text)' },
+  { value: 'text_line_1', label: '1️⃣ Первая строка текста' },
+  { value: 'text_line_2', label: '2️⃣ Вторая строка текста' },
+  { value: 'static', label: '✏️ Свой постоянный текст...' },
+]
+
+const authCodeRule = computed(() => wabaRules.value.find(r => r.event_type === 'auth_code'))
+const balanceRule = computed(() => wabaRules.value.find(r => r.event_type === 'balance'))
+const pushRule = computed(() => wabaRules.value.find(r => r.event_type === 'push'))
+
+const approvedTemplates = computed(() => {
+  return wabaTemplates.value.filter(t => t.status === 'APPROVED' || !t.status)
+})
+
+const filteredTemplates = computed(() => {
+  if (!templateSearchQuery.value.trim()) return wabaTemplates.value
+  const q = templateSearchQuery.value.toLowerCase()
+  return wabaTemplates.value.filter(t => 
+    (t.name && t.name.toLowerCase().includes(q)) ||
+    (t.category && t.category.toLowerCase().includes(q))
+  )
+})
+
+const selectedTemplateObj = computed(() => {
+  if (!ruleForm.value.template_name) return null
+  return wabaTemplates.value.find(t => t.name === ruleForm.value.template_name) || null
+})
+
+function getTemplateBodyText(template) {
+  if (!template || !template.components) return ''
+  const bodyComp = template.components.find(c => c.type === 'BODY')
+  return bodyComp?.text || ''
+}
+
+function getTemplateHeaderText(template) {
+  if (!template || !template.components) return ''
+  const headerComp = template.components.find(c => c.type === 'HEADER')
+  return headerComp?.text || ''
+}
+
+function getTemplateButtons(template) {
+  if (!template || !template.components) return []
+  const btnComp = template.components.find(c => c.type === 'BUTTONS')
+  if (!btnComp || !btnComp.buttons) return []
+  return btnComp.buttons.map((b, idx) => ({
+    index: idx,
+    type: b.type,
+    text: b.text,
+    url: b.url,
+    hasVariable: b.url && b.url.includes('{{1}}')
+  }))
+}
+
+function getTemplateBodyVars(template) {
+  if (!template || !template.components) return []
+  const bodyComp = template.components.find(c => c.type === 'BODY')
+  if (!bodyComp || !bodyComp.text) return []
+  const matches = bodyComp.text.match(/\{\{(\d+)\}\}/g) || []
+  const uniqueIndexes = [...new Set(matches.map(m => m.replace(/[{}]/g, '')))]
+  return uniqueIndexes.sort((a, b) => Number(a) - Number(b))
+}
+
+function getTemplateHeaderVars(template) {
+  if (!template || !template.components) return []
+  const headerComp = template.components.find(c => c.type === 'HEADER')
+  if (!headerComp || headerComp.format !== 'TEXT' || !headerComp.text) return []
+  const matches = headerComp.text.match(/\{\{(\d+)\}\}/g) || []
+  return matches.map(m => m.replace(/[{}]/g, ''))
+}
+
+function onTemplateSelected() {
+  const t = selectedTemplateObj.value
+  if (!t) return
+  ruleForm.value.template_language = t.language || 'ru'
+  
+  const headerVars = getTemplateHeaderVars(t)
+  const bodyVars = getTemplateBodyVars(t)
+  const buttons = getTemplateButtons(t).filter(b => b.hasVariable)
+  
+  const currentMappings = ruleForm.value.parameter_mappings || {}
+  
+  const header = headerVars.map(v => {
+    const existing = (currentMappings.header || []).find(h => h.param === v)
+    return existing || { param: v, source: 'restaurant_name', static_value: '' }
+  })
+  
+  const body = bodyVars.map(v => {
+    const existing = (currentMappings.body || []).find(b => b.param === v)
+    let defaultSource = 'text'
+    if (ruleForm.value.event_type === 'auth_code' && v === '1') defaultSource = 'auth_code'
+    else if (ruleForm.value.event_type === 'balance' && v === '1') defaultSource = 'balance_text_smart'
+    else if (ruleForm.value.event_type === 'balance' && v === '2') defaultSource = 'balance'
+    return existing || { param: v, source: defaultSource, static_value: '' }
+  })
+  
+  const btnMappings = buttons.map(b => {
+    const existing = (currentMappings.buttons || []).find(btn => btn.index === b.index)
+    let defaultSource = ruleForm.value.event_type === 'auth_code' ? 'auth_code' : 'static'
+    return existing || { index: b.index, sub_type: 'url', source: defaultSource, static_value: '' }
+  })
+  
+  ruleForm.value.parameter_mappings = { header, body, buttons: btnMappings }
+}
+
+async function fetchWabaTemplates() {
+  if (!form.value.waba_access_token || !form.value.waba_business_account_id) {
+    toast.error('Сначала укажите и сохраните Access Token и Business Account ID')
+    return
+  }
+  loadingWabaTemplates.value = true
+  try {
+    const res = await api.get(`/core/organizations/${auth.currentOrgId}/waba/templates/`)
+    wabaTemplates.value = res.data.templates || []
+    toast.success(`Успешно загружено ${wabaTemplates.value.length} шаблонов из Meta`)
+  } catch (e) {
+    toast.error(e.response?.data?.error || 'Не удалось загрузить шаблоны из Meta')
+  } finally {
+    loadingWabaTemplates.value = false
+  }
+}
+
+async function fetchWabaPhoneNumbers() {
+  if (!form.value.waba_access_token || !form.value.waba_business_account_id) {
+    toast.error('Сначала укажите и сохраните Access Token и Business Account ID')
+    return
+  }
+  loadingWabaNumbers.value = true
+  try {
+    const res = await api.get(`/core/organizations/${auth.currentOrgId}/waba/phone-numbers/`)
+    wabaPhoneNumbers.value = res.data.phone_numbers || []
+    if (wabaPhoneNumbers.value.length > 0 && !form.value.waba_phone_number_id) {
+      form.value.waba_phone_number_id = wabaPhoneNumbers.value[0].id
+    }
+    toast.success(`Найдено ${wabaPhoneNumbers.value.length} телефонных номеров`)
+  } catch (e) {
+    toast.error(e.response?.data?.error || 'Не удалось загрузить телефонные номера из Meta')
+  } finally {
+    loadingWabaNumbers.value = false
+  }
+}
+
+async function loadWabaRules() {
+  loadingWabaRules.value = true
+  try {
+    const res = await api.get(`/core/organizations/${auth.currentOrgId}/waba/rules/`)
+    wabaRules.value = res.data || []
+  } catch {
+    console.error('Failed to load WABA rules')
+  } finally {
+    loadingWabaRules.value = false
+  }
+}
+
+async function loadWabaLogs() {
+  loadingWabaLogs.value = true
+  try {
+    const res = await api.get(`/core/organizations/${auth.currentOrgId}/waba/logs/`)
+    wabaLogs.value = res.data.logs || []
+  } catch {
+    console.error('Failed to load WABA logs')
+  } finally {
+    loadingWabaLogs.value = false
+  }
+}
+
+async function loadWabaData() {
+  await Promise.all([loadWabaRules(), loadWabaLogs()])
+}
+
+function openCreateRuleModal(presetType = null) {
+  ruleModalMode.value = 'create'
+  let ruleName = 'Новое правило WABA'
+  let eventType = 'custom'
+  if (presetType === 'auth_code') {
+    ruleName = 'Отправка кода авторизации'
+    eventType = 'auth_code'
+  } else if (presetType === 'balance') {
+    ruleName = 'Уведомление об изменении баланса'
+    eventType = 'balance'
+  } else if (presetType === 'push') {
+    ruleName = 'Информационный пуш'
+    eventType = 'push'
+  }
+
+  let firstTmpl = approvedTemplates.value[0]?.name || ''
+  let firstLang = approvedTemplates.value[0]?.language || 'ru'
+
+  ruleForm.value = {
+    id: null,
+    name: ruleName,
+    event_type: eventType,
+    is_enabled: true,
+    template_name: firstTmpl,
+    template_language: firstLang,
+    parameter_mappings: { header: [], body: [], buttons: [] }
+  }
+
+  if (firstTmpl) {
+    onTemplateSelected()
+  }
+
+  showRuleModal.value = true
+}
+
+function openCreateRuleModalWithTemplate(template) {
+  ruleModalMode.value = 'create'
+  ruleForm.value = {
+    id: null,
+    name: `Сценарий: ${template.name}`,
+    event_type: 'custom',
+    is_enabled: true,
+    template_name: template.name,
+    template_language: template.language || 'ru',
+    parameter_mappings: { header: [], body: [], buttons: [] }
+  }
+  onTemplateSelected()
+  showRuleModal.value = true
+}
+
+function openEditRuleModal(rule) {
+  ruleModalMode.value = 'edit'
+  ruleForm.value = {
+    id: rule.id,
+    name: rule.name,
+    event_type: rule.event_type,
+    is_enabled: rule.is_enabled,
+    template_name: rule.template_name,
+    template_language: rule.template_language || 'ru',
+    parameter_mappings: JSON.parse(JSON.stringify(rule.parameter_mappings || { header: [], body: [], buttons: [] }))
+  }
+  showRuleModal.value = true
+}
+
+async function saveRule() {
+  if (!ruleForm.value.template_name) {
+    toast.error('Выберите шаблон Meta')
+    return
+  }
+  savingRule.value = true
+  try {
+    const payload = {
+      name: ruleForm.value.name,
+      event_type: ruleForm.value.event_type,
+      is_enabled: ruleForm.value.is_enabled,
+      template_name: ruleForm.value.template_name,
+      template_language: ruleForm.value.template_language,
+      parameter_mappings: ruleForm.value.parameter_mappings
+    }
+
+    if (ruleModalMode.value === 'create') {
+      await api.post(`/core/organizations/${auth.currentOrgId}/waba/rules/`, payload)
+      toast.success('Правило отправки успешно создано')
+    } else {
+      await api.patch(`/core/organizations/${auth.currentOrgId}/waba/rules/${ruleForm.value.id}/`, payload)
+      toast.success('Правило отправки успешно обновлено')
+    }
+    showRuleModal.value = false
+    await loadWabaRules()
+  } catch (e) {
+    toast.error(e.response?.data?.error || 'Не удалось сохранить правило')
+  } finally {
+    savingRule.value = false
+  }
+}
+
+async function toggleRule(rule) {
+  try {
+    await api.patch(`/core/organizations/${auth.currentOrgId}/waba/rules/${rule.id}/`, {
+      is_enabled: !rule.is_enabled
+    })
+    rule.is_enabled = !rule.is_enabled
+    toast.success(`Правило "${rule.name}" ${rule.is_enabled ? 'включено' : 'отключено'}`)
+  } catch {
+    toast.error('Ошибка изменения статуса правила')
+  }
+}
+
+async function deleteRule(rule) {
+  if (!confirm(`Удалить правило "${rule.name}"?`)) return
+  try {
+    await api.delete(`/core/organizations/${auth.currentOrgId}/waba/rules/${rule.id}/`)
+    toast.success('Правило удалено')
+    await loadWabaRules()
+  } catch {
+    toast.error('Не удалось удалить правило')
+  }
+}
+
+function openWabaTestModal() {
+  wabaTestPhone.value = ''
+  wabaTestTemplate.value = approvedTemplates.value[0]?.name || ''
+  showWabaTestModal.value = true
+}
+
+async function sendWabaTest() {
+  if (!wabaTestPhone.value.trim()) {
+    toast.error('Укажите номер телефона')
+    return
+  }
+  if (!wabaTestTemplate.value) {
+    toast.error('Выберите шаблон')
+    return
+  }
+  sendingWabaTest.value = true
+  try {
+    const res = await api.post(`/core/organizations/${auth.currentOrgId}/waba/send-test/`, {
+      phone: wabaTestPhone.value.trim(),
+      template_name: wabaTestTemplate.value
+    })
+    toast.success(res.data.message || 'Тестовое сообщение отправлено!')
+    showWabaTestModal.value = false
+    await loadWabaLogs()
+  } catch (e) {
+    toast.error(e.response?.data?.error || 'Ошибка отправки тестового сообщения')
+  } finally {
+    sendingWabaTest.value = false
+  }
+}
+
+function formatLogDate(dateStr) {
+  if (!dateStr) return ''
+  try {
+    const d = new Date(dateStr)
+    return d.toLocaleString('ru-RU', { hour12: false })
+  } catch {
+    return dateStr
+  }
+}
+
 // Watch activeTab to load list lazily
 watch(activeTab, (newTab) => {
   if (newTab === 'loyalty_programs') {
     fetchPrograms()
+  } else if (newTab === 'waba') {
+    loadWabaData()
   }
 })
 

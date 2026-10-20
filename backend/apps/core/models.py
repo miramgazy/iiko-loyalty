@@ -65,6 +65,12 @@ class Organization(models.Model):
     whatsapp_link = models.URLField("Ссылка на WhatsApp", blank=True, null=True)
     tma_direct_link = models.URLField("Прямая ссылка на TMA", blank=True, null=True)
 
+    # WhatsApp Business API (WABA) интеграция
+    is_waba_enabled = models.BooleanField("Включена отправка через WhatsApp (WABA)", default=False)
+    waba_access_token = EncryptedCharField("WABA Access Token (System User)", max_length=1024, blank=True, null=True)
+    waba_business_account_id = models.CharField("WABA Business Account ID", max_length=100, blank=True, null=True)
+    waba_phone_number_id = models.CharField("WABA Phone Number ID", max_length=100, blank=True, null=True)
+
     # Модули (переключатели)
     is_loyalty_enabled = models.BooleanField("Включена система лояльности", default=True)
     is_analytics_enabled = models.BooleanField("Включена аналитика и закупки", default=False)
@@ -148,8 +154,71 @@ class AlertLog(models.Model):
         verbose_name_plural = "Логи оповещений"
         ordering = ['-created_at']
 
+class WabaTriggerRule(models.Model):
+    EVENT_AUTH_CODE = 'auth_code'
+    EVENT_BALANCE_CHANGE = 'balance'
+    EVENT_SIMPLE_PUSH = 'push'
+    EVENT_CUSTOM = 'custom'
+
+    EVENT_CHOICES = (
+        (EVENT_AUTH_CODE, 'Отправка кода авторизации'),
+        (EVENT_BALANCE_CHANGE, 'Изменение баланса кошелька'),
+        (EVENT_SIMPLE_PUSH, 'Информационное push-уведомление'),
+        (EVENT_CUSTOM, 'Пользовательское событие'),
+    )
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='waba_rules')
+    name = models.CharField("Название правила", max_length=150)
+    event_type = models.CharField("Тип события iiko", max_length=50, choices=EVENT_CHOICES, default=EVENT_AUTH_CODE)
+    is_enabled = models.BooleanField("Включено", default=True)
+
+    template_name = models.CharField("Имя шаблона Meta", max_length=150)
+    template_language = models.CharField("Язык шаблона", max_length=10, default='ru')
+    parameter_mappings = models.JSONField("Маппинг параметров", default=dict, blank=True)
+
+    created_at = models.DateTimeField("Создано", auto_now_add=True)
+    updated_at = models.DateTimeField("Обновлено", auto_now=True)
+
+    class Meta:
+        verbose_name = "Правило отправки WABA"
+        verbose_name_plural = "Правила отправки WABA"
+        ordering = ['id']
+
     def __str__(self):
-        return f"{self.organization.name} - {self.alert_type} ({self.created_at})"
+        return f"{self.name} ({self.get_event_type_display()}) - {self.organization.name}"
+
+
+class WabaMessageLog(models.Model):
+    STATUS_SENT = 'SENT'
+    STATUS_FAILED = 'FAILED'
+    STATUS_PENDING = 'PENDING'
+
+    STATUS_CHOICES = (
+        (STATUS_PENDING, 'В очереди / Отправляется'),
+        (STATUS_SENT, 'Успешно отправлено'),
+        (STATUS_FAILED, 'Ошибка отправки'),
+    )
+
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='waba_message_logs')
+    rule = models.ForeignKey(WabaTriggerRule, on_delete=models.SET_NULL, null=True, blank=True, related_name='logs')
+    phone = models.CharField("Номер телефона", max_length=30, db_index=True)
+    message_type = models.CharField("Тип сообщения", max_length=50, default='custom')
+    template_name = models.CharField("Имя шаблона Meta", max_length=150)
+    language = models.CharField("Язык", max_length=10, default='ru')
+    parameters = models.JSONField("Переданные параметры", default=dict, blank=True)
+    rendered_text = models.TextField("Сформированный текст сообщения", blank=True)
+    waba_message_id = models.CharField("ID сообщения Meta", max_length=255, null=True, blank=True, db_index=True)
+    status = models.CharField("Статус", max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    error_message = models.TextField("Текст ошибки", null=True, blank=True)
+    created_at = models.DateTimeField("Дата и время", auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "Лог отправки WABA"
+        verbose_name_plural = "Логи отправки WABA"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.phone} - {self.template_name} ({self.status}) [{self.created_at.strftime('%Y-%m-%d %H:%M')}]"
 
 
 from django.db.models.signals import post_save

@@ -62,6 +62,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'slug', 'address',
             'tg_bot_token', 'tg_bot_username', 'tma_name', 'tma_direct_link',
+            'is_waba_enabled', 'waba_access_token', 'waba_business_account_id', 'waba_phone_number_id',
             'iiko_integration_type', 'iiko_api_base_url', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_organization_id', 'iiko_loyalty_program_id',
             'is_iiko_webhook_password_enabled', 'iiko_webhook_password',
             'iiko_server_url', 'iiko_server_login', 'iiko_server_password',
@@ -75,7 +76,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         # Mask sensitive keys
-        for field in ['llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
+        for field in ['waba_access_token', 'llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
             if getattr(instance, field, None):
                 data[field] = '••••••••'
             else:
@@ -84,12 +85,36 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # Prevent overwriting with masked placeholders
-        for field in ['llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
+        for field in ['waba_access_token', 'llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
             if field in validated_data:
                 val = validated_data[field]
                 if val == '••••••••':
                     validated_data.pop(field)
         return super().update(instance, validated_data)
+
+
+from apps.core.models import WabaTriggerRule, WabaMessageLog
+
+class WabaTriggerRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WabaTriggerRule
+        fields = [
+            'id', 'name', 'event_type', 'is_enabled',
+            'template_name', 'template_language', 'parameter_mappings',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class WabaMessageLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WabaMessageLog
+        fields = [
+            'id', 'phone', 'message_type', 'template_name', 'language',
+            'parameters', 'rendered_text', 'waba_message_id', 'status',
+            'error_message', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
 
 from apps.core.models import Employee
 

@@ -340,3 +340,140 @@ class OrganizationTestIikoServerConnectionView(APIView):
         except Exception as e:
             return Response({"error": f"Ошибка авторизации на сервере iiko: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
 
+
+from apps.core.models import WabaTriggerRule, WabaMessageLog
+from apps.core.serializers import WabaTriggerRuleSerializer, WabaMessageLogSerializer
+from apps.core.services.waba_service import WabaService
+
+class OrganizationWabaTemplatesView(APIView):
+    """
+    Fetch approved WABA message templates directly from Meta Graph API.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+
+    def get(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        if not org.waba_access_token or not org.waba_business_account_id:
+            return Response(
+                {"error": "WABA Access Token и Business Account ID должны быть заполнены и сохранены."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        service = WabaService(org)
+        try:
+            templates = service.fetch_templates()
+            return Response({"templates": templates})
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class OrganizationWabaPhoneNumbersView(APIView):
+    """
+    Fetch registered phone numbers associated with the WABA account.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+
+    def get(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        if not org.waba_access_token or not org.waba_business_account_id:
+            return Response(
+                {"error": "WABA Access Token и Business Account ID должны быть заполнены и сохранены."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        service = WabaService(org)
+        try:
+            numbers = service.fetch_phone_numbers()
+            return Response({"phone_numbers": numbers})
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class OrganizationWabaRulesViewSet(viewsets.ModelViewSet):
+    """
+    Manage trigger rules for automatic WABA notifications.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+    serializer_class = WabaTriggerRuleSerializer
+
+    def get_queryset(self):
+        org_id = self.kwargs.get('organization_id')
+        return WabaTriggerRule.objects.filter(organization_id=org_id).order_by('id')
+
+    def perform_create(self, serializer):
+        org_id = self.kwargs.get('organization_id')
+        org = get_object_or_404(Organization, id=org_id)
+        serializer.save(organization=org)
+
+
+class OrganizationWabaSendTestView(APIView):
+    """
+    Send a test message using a configured rule or template and mappings.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+
+    def post(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        if not org.waba_access_token or not org.waba_phone_number_id:
+            return Response(
+                {"error": "Укажите и сохраните WABA Access Token и Phone Number ID перед тестированием."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        phone = request.data.get('phone')
+        if not phone:
+            return Response({"error": "Укажите номер телефона для тестовой отправки"}, status=status.HTTP_400_BAD_REQUEST)
+
+        template_name = request.data.get('template_name')
+        if not template_name:
+            return Response({"error": "Укажите имя шаблона"}, status=status.HTTP_400_BAD_REQUEST)
+
+        language_code = request.data.get('template_language', 'ru')
+        parameter_mappings = request.data.get('parameter_mappings', {})
+        sample_data = request.data.get('sample_data', {})
+
+        mock_payload = {
+            "phone": phone,
+            "text": sample_data.get('text', "Ваш проверочный код: 4921"),
+            "sum": sample_data.get('sum', 500),
+            "balance": sample_data.get('balance', 1500),
+        }
+
+        service = WabaService(org)
+        components, rendered_text = service.build_components(parameter_mappings, mock_payload)
+
+        res = service.send_template_message(
+            to_phone=phone,
+            template_name=template_name,
+            language_code=language_code,
+            components=components,
+            message_type='test',
+            rendered_text=rendered_text
+        )
+
+        if res.get('success'):
+            return Response({
+                "status": "success",
+                "message": "Тестовое сообщение успешно отправлено!",
+                "message_id": res.get('message_id'),
+                "rendered_text": rendered_text
+            })
+        else:
+            return Response({
+                "error": res.get('error', 'Неизвестная ошибка при отправке'),
+                "rendered_text": rendered_text
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class OrganizationWabaLogsView(APIView):
+    """
+    View dispatch logs for WABA messages of an organization.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+
+    def get(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        limit = min(int(request.query_params.get('limit', 50)), 200)
+        logs = WabaMessageLog.objects.filter(organization=org).order_by('-created_at')[:limit]
+        serializer = WabaMessageLogSerializer(logs, many=True)
+        return Response({"logs": serializer.data})
+
+

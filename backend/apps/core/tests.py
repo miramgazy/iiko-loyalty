@@ -406,5 +406,90 @@ class CoreViewsTests(TestCase):
         self.assertEqual(res.data['status'], 'success')
         self.assertIn('token_prefix', res.data)
 
+    def test_waba_rules_and_mapping(self, mock_post):
+        # 1. Update organization settings with WABA credentials
+        self.organization.is_waba_enabled = True
+        self.organization.waba_access_token = "EAABtest_token_123"
+        self.organization.waba_business_account_id = "waba_acc_111"
+        self.organization.waba_phone_number_id = "phone_id_222"
+        self.organization.save()
+
+        # 2. Test WabaService parameter resolution
+        from apps.core.services.waba_service import WabaService
+        service = WabaService(self.organization)
+
+        payload = {
+            "phone": "+7 (777) 123-45-67",
+            "text": "Ваш проверочный код: 8391",
+            "sum": 250.0,
+            "balance": 1500.0
+        }
+
+        self.assertEqual(service.resolve_value("auth_code", "", payload), "8391")
+        self.assertEqual(service.resolve_value("sum", "", payload), "250.0")
+        self.assertEqual(service.resolve_value("balance", "", payload), "1500.0")
+        self.assertEqual(service.resolve_value("restaurant_name", "", payload), self.organization.name)
+        self.assertIn("пополнен на: 250.0", service.resolve_value("balance_text_smart", "", payload))
+
+        # Test negative balance text
+        negative_payload = {"sum": -100.0, "balance": 1400.0}
+        self.assertIn("списан: 100.0", service.resolve_value("balance_text_smart", "", negative_payload))
+
+        # 3. Test building components
+        mappings = {
+            "header": [{"param": "1", "source": "restaurant_name"}],
+            "body": [{"param": "1", "source": "auth_code"}],
+            "buttons": [{"index": "0", "source": "auth_code"}]
+        }
+        components, rendered_text = service.build_components(mappings, payload)
+        self.assertEqual(len(components), 3)
+        self.assertEqual(components[0]["type"], "header")
+        self.assertEqual(components[0]["parameters"][0]["text"], self.organization.name)
+        self.assertEqual(components[1]["type"], "body")
+        self.assertEqual(components[1]["parameters"][0]["text"], "8391")
+        self.assertEqual(components[2]["type"], "button")
+        self.assertEqual(components[2]["parameters"][0]["text"], "8391")
+
+        # 4. Test API CRUD for WabaTriggerRule
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.get_token(self.org_manager)}')
+        create_res = self.client.post(f'/api/core/organizations/{self.organization.id}/waba/rules/', {
+            "name": "Код авторизации",
+            "event_type": "auth_code",
+            "is_enabled": True,
+            "template_name": "verification_code",
+            "template_language": "ru",
+            "parameter_mappings": mappings
+        }, format='json')
+        self.assertEqual(create_res.status_code, 201)
+        rule_id = create_res.data['id']
+
+        list_res = self.client.get(f'/api/core/organizations/{self.organization.id}/waba/rules/')
+        self.assertEqual(list_res.status_code, 200)
+        self.assertEqual(len(list_res.data), 1)
+
+        # 5. Test Mock sending
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "messages": [{"id": "wamid.test_message_123"}]
+        }
+        with patch('apps.core.services.waba_service.requests.post', return_value=mock_response):
+            send_res = service.send_template_message(
+                to_phone="+77771234567",
+                template_name="verification_code",
+                language_code="ru",
+                components=components,
+                rendered_text=rendered_text
+            )
+            self.assertTrue(send_res["success"])
+            self.assertEqual(send_res["message_id"], "wamid.test_message_123")
+
+        # 6. Test Logs endpoint
+        logs_res = self.client.get(f'/api/core/organizations/{self.organization.id}/waba/logs/')
+        self.assertEqual(logs_res.status_code, 200)
+        self.assertEqual(len(logs_res.data["logs"]), 1)
+        self.assertEqual(logs_res.data["logs"][0]["waba_message_id"], "wamid.test_message_123")
+
+
 
 

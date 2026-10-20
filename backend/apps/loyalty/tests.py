@@ -491,3 +491,122 @@ class OwnerDashboardTests(TestCase):
         self.assertEqual(res.status_code, 403)
 
 
+@override_settings(CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})
+class WabaWebhookIntegrationTests(TestCase):
+    def setUp(self):
+        from django.core.cache import cache
+        try:
+            cache.clear()
+        except Exception:
+            pass
+        self.organization = Organization.objects.create(
+            name="Pizza Place WABA",
+            slug="pizza-place-waba",
+            is_waba_enabled=True,
+            waba_access_token="EAABtest_token_123",
+            waba_business_account_id="waba_acc_111",
+            waba_phone_number_id="phone_id_222",
+            iiko_organization_id="03bf0000-6bec-ac1f-afb6-08deb71576ad"
+        )
+
+    @patch('apps.loyalty.tasks.sync_customer_to_iiko.delay')
+    @patch('apps.core.services.waba_service.requests.post')
+    def test_waba_webhook_dispatch_integration(self, mock_waba_post, mock_sync_delay):
+        from apps.core.models import WabaTriggerRule, WabaMessageLog
+        from apps.loyalty.models import IikoWebhookLog
+        from apps.loyalty.tasks import process_iiko_webhook
+        from unittest.mock import MagicMock
+
+        # Mock WABA Meta API response
+        mock_meta_res = MagicMock()
+        mock_meta_res.status_code = 200
+        mock_meta_res.json.return_value = {"messages": [{"id": "wamid.webhook_test_msg_123"}]}
+        mock_waba_post.return_value = mock_meta_res
+
+        # 1. Setup rules for auth_code and balance
+        rule_auth = WabaTriggerRule.objects.create(
+            organization=self.organization,
+            name="Код авторизации",
+            event_type="auth_code",
+            is_enabled=True,
+            template_name="verification_code",
+            template_language="ru",
+            parameter_mappings={
+                "body": [{"param": "1", "source": "auth_code"}],
+                "buttons": [{"index": "0", "source": "auth_code"}]
+            }
+        )
+
+        rule_bal = WabaTriggerRule.objects.create(
+            organization=self.organization,
+            name="Изменение баланса",
+            event_type="balance",
+            is_enabled=True,
+            template_name="balance_notice",
+            template_language="ru",
+            parameter_mappings={
+                "header": [{"param": "1", "source": "restaurant_name"}],
+                "body": [{"param": "1", "source": "balance_text_smart"}]
+            }
+        )
+
+        # 2. Create customer
+        customer = Customer.objects.create(
+            organization=self.organization,
+            iiko_customer_id="11111111-1111-1111-1111-111111111111",
+            phone="+77071234567"
+        )
+
+        # 3. Trigger Auth Code webhook
+        log_auth = IikoWebhookLog.objects.create(
+            organization_id=self.organization.iiko_organization_id,
+            event_type='SimplePush',
+            payload={
+                "organizationId": self.organization.iiko_organization_id,
+                "customerId": "11111111-1111-1111-1111-111111111111",
+                "notificationType": 5,
+                "text": "Код подтверждения: 852963"
+            },
+            status='PENDING'
+        )
+
+        process_iiko_webhook(log_auth.id)
+        log_auth.refresh_from_db()
+        self.assertEqual(log_auth.status, 'SUCCESS')
+
+        # Check WabaMessageLog created for auth_code
+        waba_auth_log = WabaMessageLog.objects.filter(rule=rule_auth).first()
+        self.assertIsNotNone(waba_auth_log)
+        self.assertEqual(waba_auth_log.status, WabaMessageLog.STATUS_SENT)
+        self.assertEqual(waba_auth_log.phone, "+77071234567")
+        self.assertEqual(waba_auth_log.waba_message_id, "wamid.webhook_test_msg_123")
+        self.assertIn("852963", waba_auth_log.rendered_text)
+
+        # 4. Trigger Balance update webhook
+        log_bal = IikoWebhookLog.objects.create(
+            organization_id=self.organization.iiko_organization_id,
+            event_type='RefillWallet',
+            payload={
+                "organizationId": self.organization.iiko_organization_id,
+                "customerId": "11111111-1111-1111-1111-111111111111",
+                "notificationType": 1,
+                "sum": 300.0,
+                "balance": 1800.0
+            },
+            status='PENDING'
+        )
+
+        process_iiko_webhook(log_bal.id)
+        log_bal.refresh_from_db()
+        self.assertEqual(log_bal.status, 'SUCCESS')
+
+        # Check WabaMessageLog created for balance
+        waba_bal_log = WabaMessageLog.objects.filter(rule=rule_bal).first()
+        self.assertIsNotNone(waba_bal_log)
+        self.assertEqual(waba_bal_log.status, WabaMessageLog.STATUS_SENT)
+        self.assertEqual(waba_bal_log.phone, "+77071234567")
+        self.assertIn("пополнен на: 300.0", waba_bal_log.rendered_text)
+
+
+
+
