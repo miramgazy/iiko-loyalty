@@ -434,61 +434,59 @@
           </div>
         </div>
 
-        <!-- Dispatch Logs section -->
+        <!-- Dispatch Logs overview & launcher -->
         <div class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-4">
-          <div class="flex items-center justify-between">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 class="text-white font-bold flex items-center gap-2">
-                <span>📜</span> Логи отправки сообщений WABA
-              </h3>
-              <p class="text-slate-400 text-xs mt-0.5">История последних отправок через WhatsApp API</p>
+              <div class="flex items-center gap-2.5">
+                <h3 class="text-white font-bold flex items-center gap-2">
+                  <span>📜</span> Логи отправки сообщений WABA
+                </h3>
+                <span v-if="wabaLogsTotalCount > 0" class="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  {{ wabaLogsTotalCount }} событий
+                </span>
+              </div>
+              <p class="text-slate-400 text-xs mt-1">
+                Журнал последних 100 отправок, фильтрация по периоду и выгрузка отчётов в Excel
+              </p>
             </div>
-            <button @click="loadWabaLogs" :disabled="loadingWabaLogs" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-lg transition-all border border-slate-700 flex items-center gap-1.5">
-              <span v-if="loadingWabaLogs" class="w-3 h-3 border border-slate-400/30 border-t-slate-400 rounded-full animate-spin"></span>
-              <span>🔄 Обновить логи</span>
-            </button>
+            <div class="flex items-center gap-2">
+              <button @click="openWabaLogsModal" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-all shadow-md hover:shadow-indigo-500/20 flex items-center gap-2 cursor-pointer">
+                <span>📋</span>
+                <span>Открыть журнал логов (100 событий)</span>
+              </button>
+            </div>
           </div>
 
-          <div v-if="loadingWabaLogs" class="py-8 flex justify-center">
-            <div class="w-6 h-6 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+          <!-- Compact preview of recent logs -->
+          <div v-if="wabaLogs.length > 0" class="pt-3 border-t border-slate-800/80">
+            <div class="flex items-center justify-between text-xs text-slate-400 mb-2">
+              <span class="font-medium text-slate-400">Последние отправки:</span>
+              <button @click="openWabaLogsModal" class="text-indigo-400 hover:text-indigo-300 font-medium">Смотреть все →</button>
+            </div>
+            <div class="space-y-1.5">
+              <div v-for="log in wabaLogs.slice(0, 3)" :key="log.id" class="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-950/70 border border-slate-800/60 text-xs">
+                <div class="flex items-center gap-3">
+                  <span class="font-mono text-slate-400 text-[11px]">{{ formatLogDate(log.created_at) }}</span>
+                  <span class="font-mono font-medium text-white">{{ log.phone }}</span>
+                  <span class="text-slate-400 text-[11px] hidden sm:inline">({{ log.template_name }})</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span v-if="log.status === 'SENT'" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    ✓ Отправлено
+                  </span>
+                  <span v-else-if="log.status === 'FAILED'" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    ✕ Ошибка
+                  </span>
+                  <span v-else class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    В очереди
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div v-else-if="wabaLogs.length === 0" class="text-center py-8 text-slate-500 text-xs">
+          <div v-else class="py-3 text-center text-slate-500 text-xs">
             Логи отправки сообщений пока отсутствуют
-          </div>
-          <div v-else class="overflow-x-auto border border-slate-800 rounded-xl">
-            <table class="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr class="bg-slate-800/60 text-slate-400 border-b border-slate-700/60 font-semibold">
-                  <th class="py-2.5 px-4">Время</th>
-                  <th class="py-2.5 px-4">Телефон</th>
-                  <th class="py-2.5 px-4">Шаблон</th>
-                  <th class="py-2.5 px-4">Статус</th>
-                  <th class="py-2.5 px-4">Текст / Ошибка</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-800">
-                <tr v-for="log in wabaLogs" :key="log.id" class="hover:bg-slate-800/30">
-                  <td class="py-2.5 px-4 font-mono text-slate-400 whitespace-nowrap">{{ formatLogDate(log.created_at) }}</td>
-                  <td class="py-2.5 px-4 font-mono font-medium text-white whitespace-nowrap">{{ log.phone }}</td>
-                  <td class="py-2.5 px-4 text-slate-300 font-mono">{{ log.template_name }}</td>
-                  <td class="py-2.5 px-4 whitespace-nowrap">
-                    <span v-if="log.status === 'SENT'" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      ✓ Отправлено
-                    </span>
-                    <span v-else-if="log.status === 'FAILED'" class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                      ✕ Ошибка
-                    </span>
-                    <span v-else class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                      В очереди
-                    </span>
-                  </td>
-                  <td class="py-2.5 px-4 text-slate-300 max-w-xs truncate" :title="log.error_message || log.rendered_text">
-                    <span v-if="log.status === 'FAILED'" class="text-rose-300 font-mono text-[11px]">{{ log.error_message }}</span>
-                    <span v-else class="text-slate-400 text-[11px]">{{ log.rendered_text || log.waba_message_id || 'OK' }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
           </div>
         </div>
       </div>
@@ -1166,6 +1164,150 @@
         </form>
       </div>
     </div>
+
+    <!-- WABA Dispatch Logs Modal (with Date Range & Excel Export) -->
+    <div v-if="showWabaLogsModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
+      <div class="bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+        
+        <!-- Modal Header -->
+        <div class="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/70">
+          <div>
+            <h2 class="text-base md:text-lg font-bold text-white flex items-center gap-2">
+              <span>📜</span> Журнал отправки сообщений WABA
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">
+              История отправки сообщений, коды подтверждения и уведомления через WhatsApp
+            </p>
+          </div>
+          <button @click="showWabaLogsModal = false" class="text-slate-400 hover:text-white p-2 text-sm transition-colors rounded-lg hover:bg-slate-800 cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <!-- Filter & Export Controls Bar -->
+        <div class="p-4 bg-slate-900/40 border-b border-slate-800 flex flex-wrap items-end justify-between gap-3">
+          <div class="flex flex-wrap items-end gap-3 flex-1 min-w-[280px]">
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-400 mb-1">С даты:</label>
+              <input type="date" v-model="wabaLogFilters.startDate" class="form-input !py-1.5 !px-2.5 text-xs font-mono bg-slate-900 text-white rounded-lg border-slate-700" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-400 mb-1">По дату:</label>
+              <input type="date" v-model="wabaLogFilters.endDate" class="form-input !py-1.5 !px-2.5 text-xs font-mono bg-slate-900 text-white rounded-lg border-slate-700" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-slate-400 mb-1">Статус:</label>
+              <select v-model="wabaLogFilters.status" class="form-input !py-1.5 !px-2.5 text-xs bg-slate-900 text-white rounded-lg border-slate-700">
+                <option value="">Все статусы</option>
+                <option value="SENT">✓ Отправлено</option>
+                <option value="FAILED">✕ Ошибка</option>
+                <option value="PENDING">⏳ В очереди</option>
+              </select>
+            </div>
+            <div class="flex-1 min-w-[160px]">
+              <label class="block text-[11px] font-semibold text-slate-400 mb-1">Поиск:</label>
+              <input type="text" v-model="wabaLogFilters.search" placeholder="Телефон, шаблон, текст..." class="form-input !py-1.5 !px-2.5 text-xs bg-slate-900 text-white rounded-lg border-slate-700" @keyup.enter="loadWabaLogsFiltered" />
+            </div>
+            <button @click="loadWabaLogsFiltered" :disabled="loadingWabaLogs" class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer">
+              <span v-if="loadingWabaLogs" class="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+              <span>🔍 Применить</span>
+            </button>
+            <button v-if="wabaLogFilters.startDate || wabaLogFilters.endDate || wabaLogFilters.status || wabaLogFilters.search" @click="resetWabaLogFilters" class="px-2.5 py-1.5 text-slate-400 hover:text-white text-xs transition-colors cursor-pointer">
+              Сброс
+            </button>
+          </div>
+
+          <!-- Export Excel Button -->
+          <div>
+            <button @click="exportWabaLogsExcel" :disabled="exportingWabaLogs" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl transition-all shadow-md hover:shadow-emerald-500/20 flex items-center gap-2 disabled:opacity-50 cursor-pointer">
+              <span v-if="exportingWabaLogs" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+              <span v-else>📥</span>
+              <span>Выгрузить в Excel (.xlsx)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Table Body (Scrollable) -->
+        <div class="flex-1 overflow-y-auto p-4">
+          <div v-if="loadingWabaLogs" class="py-16 flex flex-col items-center justify-center gap-2">
+            <div class="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+            <span class="text-xs text-slate-400">Загрузка журнала...</span>
+          </div>
+          <div v-else-if="wabaLogs.length === 0" class="py-16 text-center text-slate-500">
+            <span class="text-3xl block mb-2">📭</span>
+            <p class="text-sm font-medium">Событий за указанный период не найдено</p>
+            <p class="text-xs text-slate-600 mt-1">Попробуйте изменить параметры фильтра или сбросить даты</p>
+          </div>
+          <div v-else class="overflow-x-auto border border-slate-800 rounded-xl">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="bg-slate-900 text-slate-400 border-b border-slate-800 font-semibold sticky top-0 z-10">
+                  <th class="py-3 px-4">Время</th>
+                  <th class="py-3 px-4">Телефон</th>
+                  <th class="py-3 px-4">Событие</th>
+                  <th class="py-3 px-4">Шаблон Meta</th>
+                  <th class="py-3 px-4">Статус</th>
+                  <th class="py-3 px-4">WABA Message ID</th>
+                  <th class="py-3 px-4">Содержимое / Ошибка</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/70">
+                <tr v-for="log in wabaLogs" :key="log.id" class="hover:bg-slate-900/50 transition-colors">
+                  <td class="py-3 px-4 font-mono text-slate-400 whitespace-nowrap">{{ formatLogDate(log.created_at) }}</td>
+                  <td class="py-3 px-4 font-mono font-medium text-white whitespace-nowrap">{{ log.phone }}</td>
+                  <td class="py-3 px-4 whitespace-nowrap">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-medium"
+                      :class="{
+                        'bg-blue-500/10 text-blue-400 border border-blue-500/20': log.message_type === 'auth_code',
+                        'bg-amber-500/10 text-amber-400 border border-amber-500/20': log.message_type === 'balance',
+                        'bg-purple-500/10 text-purple-400 border border-purple-500/20': log.message_type === 'push',
+                        'bg-slate-800 text-slate-300': !['auth_code','balance','push'].includes(log.message_type)
+                      }">
+                      {{ formatEventType(log.message_type) }}
+                    </span>
+                  </td>
+                  <td class="py-3 px-4 text-slate-300 font-mono">{{ log.template_name }}</td>
+                  <td class="py-3 px-4 whitespace-nowrap">
+                    <span v-if="log.status === 'SENT'" class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 w-fit">
+                      <span>✓</span> Отправлено
+                    </span>
+                    <span v-else-if="log.status === 'FAILED'" class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center gap-1 w-fit">
+                      <span>✕</span> Ошибка
+                    </span>
+                    <span v-else class="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1 w-fit">
+                      <span>⏳</span> В очереди
+                    </span>
+                  </td>
+                  <td class="py-3 px-4 font-mono text-[11px] text-slate-400 max-w-[140px] truncate" :title="log.waba_message_id">
+                    {{ log.waba_message_id || '—' }}
+                  </td>
+                  <td class="py-3 px-4 text-slate-300 max-w-sm">
+                    <div v-if="log.status === 'FAILED'" class="text-rose-400 font-mono text-[11px] break-words">
+                      {{ log.error_message }}
+                    </div>
+                    <div v-else class="text-slate-300 text-[11px] break-words line-clamp-2" :title="log.rendered_text">
+                      {{ log.rendered_text || '—' }}
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="p-4 bg-slate-900/60 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+          <div>
+            Показано событий: <span class="text-white font-medium">{{ wabaLogs.length }}</span>
+            <span v-if="wabaLogsTotalCount"> из <span class="text-white font-medium">{{ wabaLogsTotalCount }}</span></span>
+          </div>
+          <button @click="showWabaLogsModal = false" class="px-4 py-2 bg-slate-800 hover:bg-slate-750 text-white rounded-xl text-xs font-semibold transition-colors cursor-pointer">
+            Закрыть
+          </button>
+        </div>
+
+      </div>
+    </div>
   </div>
 </template>
 
@@ -1772,6 +1914,15 @@ const wabaRules = ref([])
 const loadingWabaRules = ref(false)
 const wabaLogs = ref([])
 const loadingWabaLogs = ref(false)
+const showWabaLogsModal = ref(false)
+const exportingWabaLogs = ref(false)
+const wabaLogsTotalCount = ref(0)
+const wabaLogFilters = ref({
+  startDate: '',
+  endDate: '',
+  status: '',
+  search: ''
+})
 
 const showRuleModal = ref(false)
 const ruleModalMode = ref('create')
@@ -1962,13 +2113,98 @@ async function loadWabaRules() {
 async function loadWabaLogs() {
   loadingWabaLogs.value = true
   try {
-    const res = await api.get(`/core/organizations/${auth.currentOrgId}/waba/logs/`)
+    const res = await api.get(`/core/organizations/${auth.currentOrgId}/waba/logs/`, {
+      params: { limit: 100 }
+    })
     wabaLogs.value = res.data.logs || []
+    wabaLogsTotalCount.value = res.data.total_count || wabaLogs.value.length
   } catch {
     console.error('Failed to load WABA logs')
   } finally {
     loadingWabaLogs.value = false
   }
+}
+
+function openWabaLogsModal() {
+  showWabaLogsModal.value = true
+  loadWabaLogsFiltered()
+}
+
+function resetWabaLogFilters() {
+  wabaLogFilters.value = {
+    startDate: '',
+    endDate: '',
+    status: '',
+    search: ''
+  }
+  loadWabaLogsFiltered()
+}
+
+async function loadWabaLogsFiltered() {
+  loadingWabaLogs.value = true
+  try {
+    const params = {
+      limit: 100,
+      start_date: wabaLogFilters.value.startDate || undefined,
+      end_date: wabaLogFilters.value.endDate || undefined,
+      status: wabaLogFilters.value.status || undefined,
+      search: wabaLogFilters.value.search?.trim() || undefined
+    }
+    const res = await api.get(`/core/organizations/${auth.currentOrgId}/waba/logs/`, { params })
+    wabaLogs.value = res.data.logs || []
+    wabaLogsTotalCount.value = res.data.total_count || wabaLogs.value.length
+  } catch (e) {
+    console.error('Failed to load WABA logs:', e)
+    toast.error('Не удалось загрузить журнал сообщений')
+  } finally {
+    loadingWabaLogs.value = false
+  }
+}
+
+async function exportWabaLogsExcel() {
+  exportingWabaLogs.value = true
+  try {
+    const params = {
+      export: 'excel',
+      start_date: wabaLogFilters.value.startDate || undefined,
+      end_date: wabaLogFilters.value.endDate || undefined,
+      status: wabaLogFilters.value.status || undefined,
+      search: wabaLogFilters.value.search?.trim() || undefined
+    }
+    const res = await api.get(`/core/organizations/${auth.currentOrgId}/waba/logs/`, {
+      params,
+      responseType: 'blob'
+    })
+    const blob = new Blob([res.data], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const startStr = wabaLogFilters.value.startDate || 'all'
+    const endStr = wabaLogFilters.value.endDate || new Date().toISOString().slice(0, 10)
+    a.download = `waba_logs_${auth.currentOrgId}_${startStr}_to_${endStr}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toast.success('Отчёт Excel успешно выгружен')
+  } catch (e) {
+    console.error('Failed to export WABA logs:', e)
+    toast.error('Не удалось выгрузить журнал в Excel')
+  } finally {
+    exportingWabaLogs.value = false
+  }
+}
+
+function formatEventType(type) {
+  const map = {
+    auth_code: 'Код авторизации',
+    balance: 'Баланс кошелька',
+    push: 'Пуш-уведомление',
+    custom: 'Пользовательский'
+  }
+  return map[type] || type || 'Событие'
 }
 
 async function loadWabaData() {

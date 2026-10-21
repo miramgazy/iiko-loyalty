@@ -465,15 +465,147 @@ class OrganizationWabaSendTestView(APIView):
 
 class OrganizationWabaLogsView(APIView):
     """
-    View dispatch logs for WABA messages of an organization.
+    View dispatch logs for WABA messages of an organization with filtering and Excel export.
     """
     permission_classes = [permissions.IsAuthenticated, IsOrgManager]
 
     def get(self, request, organization_id, *args, **kwargs):
         org = get_object_or_404(Organization, id=organization_id)
-        limit = min(int(request.query_params.get('limit', 50)), 200)
-        logs = WabaMessageLog.objects.filter(organization=org).order_by('-created_at')[:limit]
+        qs = WabaMessageLog.objects.filter(organization=org)
+
+        # 1. Date filters
+        start_date_str = request.query_params.get('start_date')
+        if start_date_str:
+            try:
+                from datetime import datetime
+                sd = datetime.strptime(start_date_str[:10], '%Y-%m-%d')
+                qs = qs.filter(created_at__gte=sd)
+            except ValueError:
+                pass
+
+        end_date_str = request.query_params.get('end_date')
+        if end_date_str:
+            try:
+                from datetime import datetime, time
+                ed = datetime.strptime(end_date_str[:10], '%Y-%m-%d')
+                ed_end = datetime.combine(ed.date(), time.max)
+                qs = qs.filter(created_at__lte=ed_end)
+            except ValueError:
+                pass
+
+        # 2. Status filter
+        status_filter = request.query_params.get('status')
+        if status_filter and status_filter in ['SENT', 'FAILED', 'PENDING']:
+            qs = qs.filter(status=status_filter)
+
+        # 3. Search query
+        search_query = request.query_params.get('search', '').strip()
+        if search_query:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(phone__icontains=search_query) |
+                Q(template_name__icontains=search_query) |
+                Q(rendered_text__icontains=search_query) |
+                Q(waba_message_id__icontains=search_query) |
+                Q(error_message__icontains=search_query)
+            )
+
+        qs = qs.order_by('-created_at')
+
+        # 4. Check if export is requested
+        export_format = request.query_params.get('export')
+        if export_format in ['excel', 'xlsx']:
+            import io
+            import openpyxl
+            from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+            from openpyxl.utils import get_column_letter
+            from django.http import HttpResponse
+
+            export_qs = qs[:10000]
+
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "WABA Logs"
+
+            headers = [
+                "ID", "Дата и время", "Телефон", "Событие", 
+                "Шаблон", "Язык", "Статус", "WABA Message ID", 
+                "Текст сообщения", "Текст ошибки"
+            ]
+            ws.append(headers)
+
+            header_fill = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
+            header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+
+            for col_idx in range(1, len(headers) + 1):
+                cell = ws.cell(row=1, column=col_idx)
+                cell.fill = header_fill
+                cell.font = header_font
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+
+            event_labels = {
+                'auth_code': 'Код авторизации',
+                'balance': 'Баланс кошелька',
+                'push': 'Информационный пуш',
+                'custom': 'Пользовательский'
+            }
+
+            status_labels = {
+                'SENT': 'Отправлено',
+                'FAILED': 'Ошибка',
+                'PENDING': 'В очереди'
+            }
+
+            for row_idx, item in enumerate(export_qs, start=2):
+                created_str = item.created_at.strftime('%Y-%m-%d %H:%M:%S') if item.created_at else ''
+                status_display = status_labels.get(item.status, item.status)
+                event_display = event_labels.get(item.message_type, item.message_type)
+
+                ws.append([
+                    item.id,
+                    created_str,
+                    item.phone or '',
+                    event_display,
+                    item.template_name or '',
+                    item.language or '',
+                    status_display,
+                    item.waba_message_id or '',
+                    item.rendered_text or '',
+                    item.error_message or ''
+                ])
+
+                status_cell = ws.cell(row=row_idx, column=7)
+                if item.status == 'SENT':
+                    status_cell.font = Font(color="166534", bold=True)
+                elif item.status == 'FAILED':
+                    status_cell.font = Font(color="991B1B", bold=True)
+
+            for col in ws.columns:
+                max_len = max(len(str(cell.value or '')) for cell in col)
+                col_letter = get_column_letter(col[0].column)
+                ws.column_dimensions[col_letter].width = min(max(max_len + 3, 10), 60)
+
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+
+            start_label = start_date_str or 'all'
+            end_label = end_date_str or 'now'
+            filename = f"waba_logs_{org.slug}_{start_label}_to_{end_label}.xlsx"
+            response = HttpResponse(
+                output.getvalue(),
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            )
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return response
+
+        limit = min(int(request.query_params.get('limit', 100)), 500)
+        logs = qs[:limit]
         serializer = WabaMessageLogSerializer(logs, many=True)
-        return Response({"logs": serializer.data})
+        return Response({
+            "logs": serializer.data,
+            "total_count": qs.count()
+        })
+
 
 

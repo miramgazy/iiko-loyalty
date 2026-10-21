@@ -489,6 +489,13 @@ class CoreViewsTests(TestCase):
         self.assertEqual(logs_res.status_code, 200)
         self.assertEqual(len(logs_res.data["logs"]), 1)
         self.assertEqual(logs_res.data["logs"][0]["waba_message_id"], "wamid.test_message_123")
+        self.assertEqual(logs_res.data["total_count"], 1)
+
+        # 7. Test Excel export endpoint
+        excel_res = self.client.get(f'/api/core/organizations/{self.organization.id}/waba/logs/?export=excel')
+        self.assertEqual(excel_res.status_code, 200)
+        self.assertEqual(excel_res['Content-Type'], 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        self.assertTrue(len(excel_res.content) > 100)
 
 
 
