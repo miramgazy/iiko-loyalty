@@ -1038,6 +1038,9 @@
             <label class="form-label">Шаблон Meta WhatsApp</label>
             <select v-model="ruleForm.template_name" @change="onTemplateSelected" class="form-input" required>
               <option value="" disabled>-- Выберите утвержденный шаблон --</option>
+              <option v-if="ruleForm.template_name && !approvedTemplates.some(t => t.name === ruleForm.template_name)" :value="ruleForm.template_name">
+                {{ ruleForm.template_name }} (текущий в сценарии)
+              </option>
               <option v-for="t in approvedTemplates" :key="t.name + t.language" :value="t.name">
                 {{ t.name }} ({{ t.language }}) - {{ t.category }}
               </option>
@@ -1637,7 +1640,9 @@ async function load() {
     if (form.value.is_analytics_enabled) {
       await loadPresets()
     }
-    await loadWabaData()
+    if (activeTab.value === 'waba') {
+      await loadWabaData()
+    }
   } catch {
     toast.error('Не удалось загрузить настройки')
   } finally {
@@ -2068,9 +2073,6 @@ async function fetchWabaTemplates() {
     const res = await api.get(`/core/organizations/${auth.currentOrgId}/waba/templates/`)
     wabaTemplates.value = res.data.templates || []
     toast.success(`Успешно загружено ${wabaTemplates.value.length} шаблонов из Meta`)
-    if (wabaPhoneNumbers.value.length === 0) {
-      await fetchWabaPhoneNumbers()
-    }
   } catch (e) {
     toast.error(e.response?.data?.error || 'Не удалось загрузить шаблоны из Meta')
   } finally {
@@ -2209,9 +2211,6 @@ function formatEventType(type) {
 
 async function loadWabaData() {
   await Promise.all([loadWabaRules(), loadWabaLogs()])
-  if (form.value.waba_access_token && form.value.waba_business_account_id) {
-    fetchWabaPhoneNumbers()
-  }
 }
 
 function openCreateRuleModal(presetType = null) {
