@@ -184,6 +184,19 @@ class WabaService:
         if not self.phone_number_id:
             raise ValueError("WABA Phone Number ID не настроен")
 
+        clean_pn_id = str(self.phone_number_id).strip()
+        if self.business_account_id and clean_pn_id == str(self.business_account_id).strip():
+            raise ValueError(
+                "В поле Phone Number ID указан ID бизнес-аккаунта (WABA ID)! "
+                "Для отправки требуется цифровой Phone Number ID конкретного номера (например, 525197927353331). "
+                "Нажмите '⚡ Загрузить из Meta' рядом с полем Phone Number ID."
+            )
+        if clean_pn_id.startswith('+'):
+            raise ValueError(
+                f"В поле Phone Number ID указан телефон '{clean_pn_id}', а требуется цифровой Phone Number ID от Meta (например, 525197927353331). "
+                "Нажмите '⚡ Загрузить из Meta' рядом с полем Phone Number ID."
+            )
+
         # Format recipient phone: extract only digits
         clean_phone = re.sub(r'\D', '', to_phone)
         if clean_phone.startswith('8') and len(clean_phone) == 11:
@@ -204,7 +217,7 @@ class WabaService:
             status=WabaMessageLog.STATUS_PENDING
         )
 
-        url = f"{GRAPH_API_BASE_URL}/{self.phone_number_id}/messages"
+        url = f"{GRAPH_API_BASE_URL}/{clean_pn_id}/messages"
         payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
@@ -232,7 +245,17 @@ class WabaService:
                 return {"success": True, "message_id": msg_id, "log_id": log.id}
             else:
                 err_detail = data.get("error", {})
-                error_msg = f"Meta Error {err_detail.get('code')}: {err_detail.get('message')}"
+                code = err_detail.get('code')
+                raw_msg = err_detail.get('message', '')
+                if code == 12:
+                    error_msg = (
+                        "Ошибка Meta (#12): Неверно указан Phone Number ID. "
+                        "В поле Phone Number ID указан ID бизнес-аккаунта или сам номер телефона, а должен быть "
+                        "числовой Phone Number ID из Meta (например, 525197927353331). "
+                        "Нажмите кнопку '⚡ Загрузить из Meta' рядом с полем Phone Number ID в настройках заведения."
+                    )
+                else:
+                    error_msg = f"Meta Error {code}: {raw_msg}"
                 log.status = WabaMessageLog.STATUS_FAILED
                 log.error_message = error_msg
                 log.save(update_fields=['status', 'error_message'])

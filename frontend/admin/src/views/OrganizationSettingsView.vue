@@ -224,8 +224,9 @@
                 <div class="flex items-center justify-between mb-1">
                   <label class="form-label !mb-0">Phone Number ID</label>
                   <button v-if="form.waba_access_token && form.waba_business_account_id"
+                    type="button"
                     @click="fetchWabaPhoneNumbers" :disabled="loadingWabaNumbers"
-                    class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1">
+                    class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1 font-semibold">
                     <span v-if="loadingWabaNumbers" class="w-3 h-3 border border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin"></span>
                     <span>{{ loadingWabaNumbers ? 'Загрузка...' : '⚡ Загрузить из Meta' }}</span>
                   </button>
@@ -234,12 +235,18 @@
                   <select v-model="form.waba_phone_number_id" class="form-input font-mono text-sm">
                     <option value="">-- Выберите телефонный номер --</option>
                     <option v-for="num in wabaPhoneNumbers" :key="num.id" :value="num.id">
-                      {{ num.display_phone_number }} ({{ num.verified_name || num.id }})
+                      {{ num.display_phone_number }} (ID: {{ num.id }}{{ num.verified_name ? ' - ' + num.verified_name : '' }})
                     </option>
                   </select>
                 </div>
                 <input v-else v-model="form.waba_phone_number_id" type="text" class="form-input font-mono text-sm" placeholder="например: 525197927353331" />
-                <p class="text-[11px] text-slate-500 mt-1">Идентификатор телефонного номера Meta, с которого отправляются сообщения.</p>
+                <p v-if="form.waba_phone_number_id && form.waba_business_account_id && form.waba_phone_number_id === form.waba_business_account_id" class="text-[11px] text-amber-400 mt-1 flex items-center gap-1 font-semibold">
+                  ⚠️ Внимание: Phone Number ID не должен совпадать с Business Account ID! Нажмите «⚡ Загрузить из Meta».
+                </p>
+                <p v-else-if="form.waba_phone_number_id && (form.waba_phone_number_id.startsWith('+') || form.waba_phone_number_id.length <= 12)" class="text-[11px] text-amber-400 mt-1 flex items-center gap-1 font-semibold">
+                  ⚠️ Внимание: Здесь нужен не сам телефонный номер, а цифровой ID номера из Meta (например, 525197927353331). Нажмите «⚡ Загрузить из Meta».
+                </p>
+                <p v-else class="text-[11px] text-slate-500 mt-1">Идентификатор телефонного номера Meta (15-значный цифровой ID), с которого отправляются сообщения.</p>
               </div>
             </div>
           </div>
@@ -1910,6 +1917,9 @@ async function fetchWabaTemplates() {
     const res = await api.get(`/core/organizations/${auth.currentOrgId}/waba/templates/`)
     wabaTemplates.value = res.data.templates || []
     toast.success(`Успешно загружено ${wabaTemplates.value.length} шаблонов из Meta`)
+    if (wabaPhoneNumbers.value.length === 0) {
+      await fetchWabaPhoneNumbers()
+    }
   } catch (e) {
     toast.error(e.response?.data?.error || 'Не удалось загрузить шаблоны из Meta')
   } finally {
@@ -1963,6 +1973,9 @@ async function loadWabaLogs() {
 
 async function loadWabaData() {
   await Promise.all([loadWabaRules(), loadWabaLogs()])
+  if (form.value.waba_access_token && form.value.waba_business_account_id) {
+    fetchWabaPhoneNumbers()
+  }
 }
 
 function openCreateRuleModal(presetType = null) {
@@ -2097,6 +2110,14 @@ async function sendWabaTest() {
   }
   if (!wabaTestTemplate.value) {
     toast.error('Выберите шаблон')
+    return
+  }
+  if (form.value.waba_phone_number_id && form.value.waba_business_account_id && form.value.waba_phone_number_id === form.value.waba_business_account_id) {
+    toast.error('В настройках Phone Number ID совпадает с Business Account ID! Нажмите «⚡ Загрузить из Meta» рядом с полем Phone Number ID.')
+    return
+  }
+  if (form.value.waba_phone_number_id && (form.value.waba_phone_number_id.startsWith('+') || form.value.waba_phone_number_id.length <= 12)) {
+    toast.error('В настройках в поле Phone Number ID указан телефонный номер, а требуется числовой Phone Number ID из Meta. Нажмите «⚡ Загрузить из Meta».')
     return
   }
   sendingWabaTest.value = true
