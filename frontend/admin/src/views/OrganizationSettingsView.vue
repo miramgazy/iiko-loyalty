@@ -517,11 +517,12 @@
           <input id="input-iiko-client-secret" v-model="form.iiko_client_secret" type="password" class="form-input" placeholder="••••••••••" />
         </div>
         <div>
-          <label class="form-label">iiko Organization ID</label>
+          <label class="form-label">iiko Organization ID (uocId)</label>
           <input id="input-iiko-org-id" v-model="form.iiko_organization_id" type="text" class="form-input font-mono text-sm"
             placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
             pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
             title="UUID формат" />
+          <p class="text-[11px] text-slate-400 mt-1">Для вебхуков iikoCard укажите <b>uocId</b> сети из вебхука.</p>
         </div>
         <div>
           <label class="form-label">iiko Loyalty Program ID</label>

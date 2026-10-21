@@ -274,23 +274,18 @@ def process_iiko_webhook(log_id):
                 log.save()
                 return
 
-        org_id_str = actual_payload.get('organizationId')
         uoc_id_str = actual_payload.get('uocId')
         customer_id_str = actual_payload.get('customerId')
         balance = actual_payload.get('balance', 0)
         change_amount = actual_payload.get('sum', 0)
         
         org = None
-        for lookup_id in [org_id_str, uoc_id_str]:
-            if not lookup_id:
-                continue
-            org = Organization.objects.filter(iiko_organization_id=lookup_id, is_active=True).first()
-            if org:
-                break
+        if uoc_id_str:
+            org = Organization.objects.filter(iiko_organization_id=uoc_id_str, is_active=True).first()
 
         if not org:
             log.status = 'FAILED'
-            log.error_message = f"Organization not found: organizationId={org_id_str}, uocId={uoc_id_str}"
+            log.error_message = f"Organization not found for uocId: '{uoc_id_str}'"
             log.save()
             return
 

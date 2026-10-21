@@ -95,20 +95,20 @@ class LoyaltyTests(TestCase):
         payload = {
             'transactionId': 'test-tx-123',
             'customerId': '03bf0000-6bec-ac1f-4a7b-08deb71de88a',
-            'organizationId': '03bf0000-6bec-ac1f-afb6-08deb71576ad',
+            'uocId': '03bf0000-6bec-ac1f-afb6-08deb71576ad',
             'balance': 100,
             'sum': 10
         }
         
         log1 = IikoWebhookLog.objects.create(
-            organization_id=payload['organizationId'],
+            organization_id=payload['uocId'],
             event_type='RefillWallet',
             payload=payload,
             status='PENDING'
         )
         
         log2 = IikoWebhookLog.objects.create(
-            organization_id=payload['organizationId'],
+            organization_id=payload['uocId'],
             event_type='RefillWallet',
             payload=payload,
             status='PENDING'
@@ -162,7 +162,7 @@ class LoyaltyTests(TestCase):
             event_type='InclusionInProgram',
             payload={
                 'customerId': '03bf0000-6bec-ac1f-4a7b-08deb71de88a',
-                'organizationId': '03bf0000-6bec-ac1f-afb6-08deb71576ad',
+                'uocId': '03bf0000-6bec-ac1f-afb6-08deb71576ad',
                 'notificationType': 4
             },
             status='PENDING'
@@ -188,7 +188,7 @@ class LoyaltyTests(TestCase):
             event_type='MagnetCardChanged',
             payload={
                 'customerId': '03bf0000-6bec-ac1f-4a7b-08deb71de88a',
-                'organizationId': '03bf0000-6bec-ac1f-afb6-08deb71576ad',
+                'uocId': '03bf0000-6bec-ac1f-afb6-08deb71576ad',
                 'notificationType': 3,
                 'number': '999888777'
             },
@@ -217,7 +217,7 @@ class LoyaltyTests(TestCase):
             event_type='SimplePush',
             payload={
                 'customerId': '03bf0000-6bec-ac1f-4a7b-08deb71de88a',
-                'organizationId': '03bf0000-6bec-ac1f-afb6-08deb71576ad',
+                'uocId': '03bf0000-6bec-ac1f-afb6-08deb71576ad',
                 'notificationType': 5,
                 'text': 'Hello from iiko push!'
             },
@@ -311,7 +311,7 @@ class LoyaltyTests(TestCase):
             event_type='RefillWallet',
             payload={
                 'customerId': str(customer.iiko_customer_id),
-                'organizationId': '03bf0000-6bec-ac1f-afb6-08deb71576ad',
+                'uocId': '03bf0000-6bec-ac1f-afb6-08deb71576ad',
                 'walletId': "11111111-2222-3333-4444-555555555555",
                 'balance': 200.0, # changed from 120 to 200
                 'sum': 80.0,
@@ -562,7 +562,7 @@ class WabaWebhookIntegrationTests(TestCase):
             organization_id=self.organization.iiko_organization_id,
             event_type='SimplePush',
             payload={
-                "organizationId": self.organization.iiko_organization_id,
+                "uocId": self.organization.iiko_organization_id,
                 "customerId": "11111111-1111-1111-1111-111111111111",
                 "notificationType": 5,
                 "text": "Код подтверждения: 852963"
@@ -587,7 +587,7 @@ class WabaWebhookIntegrationTests(TestCase):
             organization_id=self.organization.iiko_organization_id,
             event_type='RefillWallet',
             payload={
-                "organizationId": self.organization.iiko_organization_id,
+                "uocId": self.organization.iiko_organization_id,
                 "customerId": "11111111-1111-1111-1111-111111111111",
                 "notificationType": 1,
                 "sum": 300.0,
@@ -606,6 +606,38 @@ class WabaWebhookIntegrationTests(TestCase):
         self.assertEqual(waba_bal_log.status, WabaMessageLog.STATUS_SENT)
         self.assertEqual(waba_bal_log.phone, "+77071234567")
         self.assertIn("пополнен на: 300.0", waba_bal_log.rendered_text)
+
+    @patch('apps.loyalty.tasks.process_iiko_webhook.delay')
+    def test_iikocard_webhook_matches_uoc_id(self, mock_task_delay):
+        """
+        Verify that incoming webhook from iikoCard matches organization by uocId,
+        even when organizationId has a different value (terminal/POS id).
+        """
+        webhook_data = [{
+            "headers": {},
+            "body": {
+                "organizationId": "03650000-6bec-ac1f-ae4c-08db0063cbee",
+                "uocId": str(self.organization.iiko_organization_id),
+                "notificationType": 5,
+                "customerId": "f8990000-6beb-ac1f-23ea-08ddaa9558ce",
+                "phone": "+77759041722",
+                "transactionType": "SimplePush",
+                "text": "Тестовое push сообщение для клиента",
+                "subscriptionPassword": None
+            }
+        }]
+
+        url = "/api/loyalty/iiko/webhook/"
+        response = self.client.post(url, data=webhook_data, format='json')
+        self.assertEqual(response.status_code, 200)
+
+        from apps.loyalty.models import IikoWebhookLog
+        log = IikoWebhookLog.objects.filter(organization_id=self.organization.iiko_organization_id).order_by('-id').first()
+        self.assertIsNotNone(log)
+        self.assertEqual(log.status, 'PENDING')
+        self.assertIsNone(log.error_message)
+        mock_task_delay.assert_called_once_with(log.id)
+
 
 
 

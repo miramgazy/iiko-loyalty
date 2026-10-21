@@ -598,16 +598,14 @@ class IikoWebhookView(APIView):
         for payload in payloads:
             actual_payload = payload.get('body', payload) if isinstance(payload, dict) else payload
             
-            # Extract organization ID and uoc ID
-            org_id_str = None
+            # Extract uoc ID
             uoc_id_str = None
             if isinstance(actual_payload, dict):
-                org_id_str = actual_payload.get('organizationId')
                 uoc_id_str = actual_payload.get('uocId')
 
             # Create log right away to capture the request
             log = IikoWebhookLog.objects.create(
-                organization_id=org_id_str or uoc_id_str or None,
+                organization_id=uoc_id_str or None,
                 event_type=actual_payload.get('transactionType', 'Unknown') if isinstance(actual_payload, dict) else 'Unknown',
                 payload=payload,
                 status='FAILED'
@@ -631,24 +629,20 @@ class IikoWebhookView(APIView):
                 log.save()
                 continue
 
-            if not org_id_str and not uoc_id_str:
-                log.error_message = "Missing organizationId and uocId in payload"
+            if not uoc_id_str:
+                log.error_message = "Missing uocId in payload"
                 log.save()
                 continue
 
-            # Try to lookup organization by organizationId first, then uocId
+            # Lookup organization by uocId
             org = None
-            for lookup_id in [org_id_str, uoc_id_str]:
-                if not lookup_id:
-                    continue
-                try:
-                    org = Organization.objects.get(iiko_organization_id=lookup_id, is_active=True)
-                    break
-                except Exception:
-                    continue
+            try:
+                org = Organization.objects.get(iiko_organization_id=uoc_id_str, is_active=True)
+            except Exception:
+                pass
 
             if not org:
-                log.error_message = f"Organization not found for organizationId: '{org_id_str}' or uocId: '{uoc_id_str}'"
+                log.error_message = f"Organization not found for uocId: '{uoc_id_str}'"
                 log.save()
                 continue
 
