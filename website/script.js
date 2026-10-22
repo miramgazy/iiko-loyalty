@@ -34,70 +34,85 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 2. Interactive Digital Pass Switcher (Google Wallet vs Apple Wallet)
+  // 2. Interactive Digital Pass Switcher (Google Wallet vs Apple Wallet vs Telegram Mini App)
   const switchBtns = document.querySelectorAll('.card-switch-btn');
-  const digitalCard = document.getElementById('digital-card');
+  const phoneMockup = document.getElementById('phone-mockup');
   const walletBadgeText = document.getElementById('wallet-badge-text');
-  const heroBanner = document.getElementById('card-hero-banner');
+  const screenImgs = {
+    google: document.getElementById('img-google'),
+    apple: document.getElementById('img-apple'),
+    tma: document.getElementById('img-tma')
+  };
 
-  if (switchBtns.length && digitalCard) {
+  const badgeLabels = {
+    google: '🤖 Google Wallet Pass • Android',
+    apple: '🍎 Apple Wallet PassKit • iOS',
+    tma: '✈️ Telegram Mini App • Все платформы'
+  };
+
+  const modes = ['google', 'apple', 'tma'];
+  let currentModeIndex = 0;
+
+  function setMode(mode) {
+    // 1. Update buttons
+    switchBtns.forEach(btn => {
+      const isActive = btn.dataset.mode === mode;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+
+    // 2. Update images
+    Object.keys(screenImgs).forEach(key => {
+      if (screenImgs[key]) {
+        screenImgs[key].classList.toggle('active', key === mode);
+      }
+    });
+
+    // 3. Update Phone Mockup Glow & Theme Class
+    if (phoneMockup) {
+      phoneMockup.classList.remove('mode-google', 'mode-apple', 'mode-tma');
+      phoneMockup.classList.add(`mode-${mode}`);
+    }
+
+    // 4. Update Badge Pill Text
+    if (walletBadgeText && badgeLabels[mode]) {
+      walletBadgeText.textContent = badgeLabels[mode];
+    }
+
+    currentModeIndex = modes.indexOf(mode);
+  }
+
+  if (switchBtns.length) {
     switchBtns.forEach(btn => {
       btn.addEventListener('click', () => {
-        switchBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
         const mode = btn.dataset.mode;
-        if (mode === 'google') {
-          digitalCard.style.background = 'linear-gradient(145deg, #18192E 0%, #0F101E 100%)';
-          digitalCard.style.borderColor = 'rgba(99, 102, 241, 0.3)';
-          if (walletBadgeText) walletBadgeText.textContent = 'Google Wallet Pass';
-          if (heroBanner) heroBanner.style.display = 'flex';
-        } else if (mode === 'apple') {
-          digitalCard.style.background = 'linear-gradient(145deg, #111116 0%, #0A0A0E 100%)';
-          digitalCard.style.borderColor = 'rgba(255, 255, 255, 0.2)';
-          if (walletBadgeText) walletBadgeText.textContent = 'Apple Wallet PassKit';
-          if (heroBanner) heroBanner.style.display = 'flex';
-        }
+        if (mode) setMode(mode);
       });
     });
   }
 
-  // 3. Dynamic Points Counting Effect on Hover
-  const pointsEl = document.getElementById('card-points-val');
-  if (pointsEl) {
-    let hovered = false;
-    digitalCard?.addEventListener('mouseenter', () => {
-      if (!hovered) {
-        hovered = true;
-        let count = 0;
-        const target = 1450;
-        const step = () => {
-          count += 50;
-          if (count <= target) {
-            pointsEl.textContent = count.toLocaleString('ru-RU');
-            requestAnimationFrame(step);
-          } else {
-            pointsEl.textContent = '1 450';
-          }
-        };
-        step();
-      }
+  // Click on phone mockup to quickly cycle through cards
+  if (phoneMockup) {
+    phoneMockup.addEventListener('click', (e) => {
+      // Avoid conflict if clicked something else inside
+      const nextIndex = (currentModeIndex + 1) % modes.length;
+      setMode(modes[nextIndex]);
     });
   }
 
-  // 4. Subtle 3D Card Tilt Effect
-  if (digitalCard && window.innerWidth > 992) {
-    digitalCard.addEventListener('mousemove', (e) => {
-      const rect = digitalCard.getBoundingClientRect();
+  // 3. Subtle 3D Phone Tilt Effect on Desktop
+  if (phoneMockup && window.innerWidth > 992) {
+    phoneMockup.addEventListener('mousemove', (e) => {
+      const rect = phoneMockup.getBoundingClientRect();
       const x = e.clientX - rect.left - rect.width / 2;
       const y = e.clientY - rect.top - rect.height / 2;
-      const rotateX = -(y / 20).toFixed(2);
-      const rotateY = (x / 20).toFixed(2);
-      digitalCard.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-4px)`;
+      const rotateX = -(y / 25).toFixed(2);
+      const rotateY = (x / 25).toFixed(2);
+      phoneMockup.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateY(-6px)`;
     });
 
-    digitalCard.addEventListener('mouseleave', () => {
-      digitalCard.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0)';
+    phoneMockup.addEventListener('mouseleave', () => {
+      phoneMockup.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(0)';
     });
   }
 });
