@@ -155,7 +155,7 @@ def sync_customer_to_iiko(self, customer_id, push=False):
 
             if update_fields:
                 customer.save(update_fields=list(set(update_fields)))
-                if 'loyalty_balance' in update_fields and customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
+                if ('loyalty_balance' in update_fields or 'iiko_card_number' in update_fields) and customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
                     update_google_wallet_pass_task.delay(customer.id)
 
     except Exception as exc:

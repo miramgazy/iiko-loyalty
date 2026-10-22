@@ -131,17 +131,33 @@ class GoogleWalletService:
             customer.google_wallet_object_id = object_id
             customer.save(update_fields=['google_wallet_object_id'])
 
-        if not customer.wallet_barcode:
-            customer.save()
-            
-        barcode_value = customer.wallet_barcode or customer.iiko_card_number or str(customer.id)
+        # Ensure customer has an iiko_card_number
+        if not customer.iiko_card_number:
+            from apps.loyalty.utils import generate_unique_card_number
+            customer.iiko_card_number = generate_unique_card_number(org)
+            customer.save(update_fields=['iiko_card_number'])
+
+            # Send to iiko if customer is already created in iiko
+            if customer.iiko_customer_id:
+                try:
+                    from apps.loyalty.services import IikoLoyaltyService
+                    iiko_svc = IikoLoyaltyService(org)
+                    iiko_svc.add_virtual_card(customer.iiko_customer_id, str(customer.iiko_card_number))
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Could not push card to iiko synchronously: {e}")
+            elif customer.phone:
+                from apps.loyalty.tasks import sync_customer_to_iiko
+                sync_customer_to_iiko.delay(customer.id, push=True)
+
+        barcode_value = str(customer.iiko_card_number or customer.wallet_barcode or customer.id)
 
         # Build LoyaltyObject
         loyalty_object = {
             "id": object_id,
             "classId": class_id,
             "state": "ACTIVE",
-            "accountId": str(customer.id),
+            "accountId": barcode_value,
             "accountName": f"{customer.first_name} {customer.last_name}".strip() or "Гость",
             "barcode": {
                 "type": "QR_CODE",
@@ -216,6 +232,16 @@ class GoogleWalletService:
                 }
             ]
         }
+
+        # Sync barcode to iiko_card_number if available
+        if customer.iiko_card_number:
+            card_num = str(customer.iiko_card_number)
+            patch_payload["accountId"] = card_num
+            patch_payload["barcode"] = {
+                "type": "QR_CODE",
+                "value": card_num,
+                "alternateText": card_num
+            }
 
         try:
             token = self.get_access_token()
