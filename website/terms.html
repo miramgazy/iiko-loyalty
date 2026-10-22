@@ -13,19 +13,24 @@
 <body>
 
   <!-- Navigation -->
-  <nav class="navbar">
+  <nav class="navbar" id="navbar">
     <div class="container nav-container">
-      <a href="index.html" class="nav-logo">
+      <a href="index.html" class="nav-logo" id="nav-brand">
         <div class="nav-logo-icon">M</div>
         <span>MadiTech</span>
       </a>
-      <ul class="nav-links">
+      <ul class="nav-links" id="nav-links">
         <li><a href="index.html" class="nav-link">Главная</a></li>
         <li><a href="index.html#features" class="nav-link">Возможности</a></li>
-        <li><a href="privacy.html" class="nav-link">Конфиденциальность</a></li>
+        <li><a href="index.html#wallets" class="nav-link">Электронные кошельки</a></li>
+        <li><a href="privacy.html" class="nav-link">Политика</a></li>
+        <li><a href="terms.html" class="nav-link" style="color: var(--primary-light); font-weight: 700;">Условия использования</a></li>
         <li><a href="index.html#contacts" class="nav-link">Контакты</a></li>
       </ul>
-      <a href="tel:+77779285899" class="btn btn-secondary">Поддержка: +7 777 9285899</a>
+      <div style="display: flex; align-items: center; gap: 1rem;">
+        <a href="tel:+77779285899" class="btn btn-secondary">Поддержка: +7 777 9285899</a>
+        <button class="mobile-toggle" id="mobile-toggle" aria-label="Открыть меню">☰</button>
+      </div>
     </div>
   </nav>
 
@@ -95,9 +100,11 @@
       <div style="display: flex; gap: 1.5rem;">
         <a href="index.html">На главную</a>
         <a href="privacy.html">Политика конфиденциальности</a>
+        <a href="terms.html" style="color: var(--primary-light);">Условия использования</a>
       </div>
     </div>
   </footer>
 
+  <script src="script.js"></script>
 </body>
 </html>

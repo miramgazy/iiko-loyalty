@@ -85,6 +85,7 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - media_data:/app/media:ro
       - static_data:/usr/share/nginx/html/static:ro
+      - ./website:/usr/share/nginx/html/website:ro
     depends_on:
       - backend
 
