@@ -555,6 +555,9 @@ async function addToGoogleWallet() {
   try {
     const res = await api.get('/loyalty/customer/wallet/google/')
     if (res.data?.url) {
+      if (res.data?.card_number && auth.customer) {
+        auth.customer.iiko_card_number = res.data.card_number
+      }
       triggerHaptic('notification', 'success')
       const url = res.data.url
       const tg = window.Telegram?.WebApp

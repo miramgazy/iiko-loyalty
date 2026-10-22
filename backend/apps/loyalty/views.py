@@ -580,7 +580,11 @@ class CustomerGoogleWalletLinkView(APIView):
             service = GoogleWalletService()
             balance_str = str(int(customer.loyalty_balance)) if customer.loyalty_balance == int(customer.loyalty_balance) else str(customer.loyalty_balance)
             url = service.generate_google_wallet_link(customer, f"{balance_str} баллов")
-            return Response({"url": url})
+            customer.refresh_from_db()
+            return Response({
+                "url": url,
+                "card_number": customer.iiko_card_number
+            })
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
