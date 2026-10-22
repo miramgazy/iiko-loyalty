@@ -500,7 +500,7 @@ const isCopied = ref(false)
 
 function copyId() {
   if (isCopied.value) return
-  const idToCopy = auth.customer?.iiko_customer_id || auth.customer?.phone || ''
+  const idToCopy = auth.customer?.iiko_card_number || auth.customer?.iiko_customer_id || auth.customer?.phone || ''
   if (!idToCopy) return
   
   navigator.clipboard.writeText(idToCopy).then(() => {
