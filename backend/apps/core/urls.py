@@ -2,6 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from apps.core.views import (
     SuperAdminOrganizationViewSet, OrganizationSettingsView, OrganizationLogoUploadView, OrganizationBannerUploadView,
+    OrganizationWalletLogoUploadView,
     OrganizationGoogleWalletSettingsView, OrganizationWebhookStatusView, OrganizationSendTestMessageView,
     OrganizationTestIikoConnectionView, OrganizationTestIikoServerConnectionView, TmaEmployeeViewSet,
     OrganizationWabaTemplatesView, OrganizationWabaPhoneNumbersView, OrganizationWabaSendTestView,
@@ -18,6 +19,7 @@ urlpatterns = [
     # Organization Manager endpoints
     path('organizations/<int:organization_id>/settings/', OrganizationSettingsView.as_view(), name='org_settings'),
     path('organizations/<int:organization_id>/upload-logo/', OrganizationLogoUploadView.as_view(), name='org_logo_upload'),
+    path('organizations/<int:organization_id>/upload-wallet-logo/', OrganizationWalletLogoUploadView.as_view(), name='org_wallet_logo_upload'),
     path('organizations/<int:organization_id>/upload-banner/', OrganizationBannerUploadView.as_view(), name='org_banner_upload'),
     path('organizations/<int:organization_id>/google-wallet-class/', OrganizationGoogleWalletSettingsView.as_view(), name='org_google_wallet_class'),
     path('organizations/<int:organization_id>/webhook-status/', OrganizationWebhookStatusView.as_view(), name='org_webhook_status'),

@@ -129,6 +129,38 @@ class OrganizationBannerUploadView(APIView):
             "banner_url": banner_url
         }, status=status.HTTP_200_OK)
 
+class OrganizationWalletLogoUploadView(APIView):
+    """
+    View for OrgManager to upload organization Google Wallet logo image.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        logo_file = request.FILES.get('logo') or request.FILES.get('image')
+        if not logo_file:
+            return Response({"error": "No image file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        ext = os.path.splitext(logo_file.name)[1].lower()
+        if ext not in ['.jpg', '.jpeg', '.png', '.webp']:
+            return Response({"error": "Invalid image format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        filename = f"logos/wallet_logo_{org.slug}{ext}"
+        path = default_storage.save(filename, ContentFile(logo_file.read()))
+        
+        logo_url = f"/media/{path}"
+        
+        settings_dict = org.google_wallet_settings or {}
+        settings_dict['logo_url'] = logo_url
+        org.google_wallet_settings = settings_dict
+        org.save(update_fields=['google_wallet_settings'])
+
+        return Response({
+            "status": "success",
+            "logo_url": logo_url
+        }, status=status.HTTP_200_OK)
+
 class OrganizationGoogleWalletSettingsView(APIView):
     """
     View for OrgManager to get and setup Google Wallet class.

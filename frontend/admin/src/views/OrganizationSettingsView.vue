@@ -784,10 +784,33 @@
             <input v-model="walletForm.issuer_name" type="text" class="form-input" placeholder="Например: ООО Ромашка" />
           </div>
         </div>
+        <!-- Logo -->
         <div>
-          <label class="form-label">Ссылка на логотип (Logo URL)</label>
-          <input v-model="walletForm.logo_url" type="url" class="form-input" placeholder="https://..." />
-          <p class="text-xs text-slate-500 mt-1">Квадратное фото (PNG), мин. 660×660 px. Отображается в круглом бейдже вверху карты. Если пусто, используется логотип из вкладки Брендинг.</p>
+          <label class="form-label">Логотип карты (Logo)</label>
+          <div class="flex items-center gap-3 mb-2">
+            <input v-model="walletForm.logo_url" type="text" class="form-input flex-1" placeholder="https://... или загрузите файл с компьютера" />
+            <label class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center gap-2 whitespace-nowrap">
+              <span v-if="uploadingWalletLogo" class="w-4 h-4 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin"></span>
+              <span v-else>📁</span>
+              {{ uploadingWalletLogo ? 'Загрузка...' : 'Загрузить PNG' }}
+              <input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" @change="uploadWalletLogo" :disabled="uploadingWalletLogo" />
+            </label>
+          </div>
+          <p class="text-xs text-slate-500">
+            Квадратное фото (PNG), мин. 660×660 px. В Google Wallet отображается в круглом бейдже вверху карты. Если не задано, берется логотип из вкладки Брендинг.
+          </p>
+          <div v-if="walletLogoPreview || walletForm.logo_url" class="mt-3 flex items-center gap-4 p-3 bg-slate-950/60 rounded-xl border border-slate-800 w-fit">
+            <div class="relative w-16 h-16 rounded-full overflow-hidden border-2 border-indigo-500/40 bg-slate-900 flex items-center justify-center shadow-lg">
+              <img :src="walletLogoPreview || walletForm.logo_url" alt="Logo preview" class="w-full h-full object-cover" />
+            </div>
+            <div class="flex flex-col">
+              <span class="text-xs text-slate-300 font-medium">Круглый бейдж Google Wallet</span>
+              <span class="text-[10px] text-slate-500">Так логотип будет выглядеть на карте</span>
+              <button type="button" @click="walletForm.logo_url = ''; walletLogoPreview = null" class="mt-1 text-xs text-rose-400 hover:text-rose-300 text-left bg-transparent border-none cursor-pointer p-0">
+                ✕ Очистить логотип
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Banner / Hero Image -->
@@ -1488,6 +1511,8 @@ async function sendTestMessage() {
 }
 
 const syncingWallet = ref(false)
+const uploadingWalletLogo = ref(false)
+const walletLogoPreview = ref(null)
 const uploadingBanner = ref(false)
 const bannerPreview = ref(null)
 const walletForm = ref({
@@ -1697,6 +1722,11 @@ async function load() {
       hero_image_url: gwSettings.hero_image_url || '',
       hex_background_color: gwSettings.hex_background_color || (res.data.branding?.design_color || '#1e1b4b'),
     }
+    if (walletForm.value.logo_url) {
+      walletLogoPreview.value = walletForm.value.logo_url.startsWith('http') 
+        ? walletForm.value.logo_url 
+        : window.location.origin + walletForm.value.logo_url
+    }
     if (walletForm.value.hero_image_url) {
       bannerPreview.value = walletForm.value.hero_image_url.startsWith('http') 
         ? walletForm.value.hero_image_url 
@@ -1867,6 +1897,26 @@ async function toggleGoogleWallet() {
   } catch (e) {
     form.value.is_google_wallet_enabled = !form.value.is_google_wallet_enabled
     toast.error('Не удалось изменить статус Google Wallet')
+  }
+}
+
+async function uploadWalletLogo(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  walletLogoPreview.value = URL.createObjectURL(file)
+  uploadingWalletLogo.value = true
+  try {
+    const fd = new FormData()
+    fd.append('logo', file)
+    const res = await api.post(`/core/organizations/${auth.currentOrgId}/upload-wallet-logo/`, fd)
+    walletForm.value.logo_url = res.data.logo_url
+    walletLogoPreview.value = res.data.logo_url.startsWith('http') ? res.data.logo_url : window.location.origin + res.data.logo_url
+    toast.success('Логотип карты загружен')
+  } catch {
+    toast.error('Ошибка загрузки логотипа')
+    walletLogoPreview.value = null
+  } finally {
+    uploadingWalletLogo.value = false
   }
 }
 
