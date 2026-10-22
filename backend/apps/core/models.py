@@ -60,6 +60,7 @@ class Organization(models.Model):
     is_google_wallet_enabled = models.BooleanField("Включена интеграция с Google Wallet", default=False)
     google_issuer_id = models.CharField("Google Issuer ID", max_length=50, null=True, blank=True)
     google_loyalty_class_id = models.CharField("Google Loyalty Class ID", max_length=100, null=True, blank=True)
+    google_wallet_settings = models.JSONField("Настройки Google Wallet", default=dict, blank=True)
 
     # Социальные сети
     instagram_link = models.URLField("Ссылка на Instagram", blank=True, null=True)

@@ -772,21 +772,47 @@
         <div>
           <label class="form-label">Google Issuer ID</label>
           <input v-model="walletForm.issuer_id" type="text" class="form-input" placeholder="Например: 3388000000000000000" />
-          <p class="text-xs text-slate-500 mt-1">Необходим для генерации карт лояльности</p>
+          <p class="text-xs text-slate-500 mt-1">Идентификатор эмитента из Google Pay & Wallet Console</p>
         </div>
-        <div>
-          <label class="form-label">Название программы (Loyalty Class)</label>
-          <input v-model="walletForm.class_name" type="text" class="form-input" placeholder="Например: Ресторан Ромашка" />
-        </div>
-        <div>
-          <label class="form-label">Имя издателя (Issuer Name)</label>
-          <input v-model="walletForm.issuer_name" type="text" class="form-input" placeholder="Например: ООО Ромашка" />
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="form-label">Название программы (Loyalty Class)</label>
+            <input v-model="walletForm.class_name" type="text" class="form-input" placeholder="Например: Ресторан Ромашка" />
+          </div>
+          <div>
+            <label class="form-label">Имя издателя (Issuer Name)</label>
+            <input v-model="walletForm.issuer_name" type="text" class="form-input" placeholder="Например: ООО Ромашка" />
+          </div>
         </div>
         <div>
           <label class="form-label">Ссылка на логотип (Logo URL)</label>
           <input v-model="walletForm.logo_url" type="url" class="form-input" placeholder="https://..." />
-          <p class="text-xs text-slate-500 mt-1">Если пусто, используется логотип из вкладки Брендинг. Загрузите логотип в интернет, Google не принимает localhost.</p>
+          <p class="text-xs text-slate-500 mt-1">Квадратное фото (PNG), мин. 660×660 px. Отображается в круглом бейдже вверху карты. Если пусто, используется логотип из вкладки Брендинг.</p>
         </div>
+
+        <!-- Banner / Hero Image -->
+        <div>
+          <label class="form-label">Баннер / Фото для украшения карты (Hero Image)</label>
+          <div class="flex items-center gap-3 mb-2">
+            <input v-model="walletForm.hero_image_url" type="text" class="form-input flex-1" placeholder="https://... или загрузите файл с компьютера" />
+            <label class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center gap-2 whitespace-nowrap">
+              <span v-if="uploadingBanner" class="w-4 h-4 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin"></span>
+              <span v-else>📁</span>
+              {{ uploadingBanner ? 'Загрузка...' : 'Загрузить PNG/JPG' }}
+              <input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" @change="uploadBanner" :disabled="uploadingBanner" />
+            </label>
+          </div>
+          <p class="text-xs text-slate-500">
+            Широкий баннер по центру карты прямо над балансом (рекомендуется PNG или JPG, 1032 × 336 px, соотношение 3:1). Украшает карту фото интерьера, блюд или паттерном бренда.
+          </p>
+          <div v-if="bannerPreview || walletForm.hero_image_url" class="mt-3 relative rounded-xl overflow-hidden border border-slate-700 bg-slate-950 max-w-md h-28 flex items-center justify-center">
+            <img :src="bannerPreview || walletForm.hero_image_url" alt="Hero banner preview" class="w-full h-full object-cover" />
+            <button type="button" @click="walletForm.hero_image_url = ''; bannerPreview = null" class="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full p-1 text-xs transition-colors">
+              ✕
+            </button>
+          </div>
+        </div>
+
         <div>
           <label class="form-label">Цвет фона карты (HEX)</label>
           <div class="flex items-center gap-4">
@@ -1462,11 +1488,14 @@ async function sendTestMessage() {
 }
 
 const syncingWallet = ref(false)
+const uploadingBanner = ref(false)
+const bannerPreview = ref(null)
 const walletForm = ref({
   issuer_id: '',
   class_name: '',
   issuer_name: '',
   logo_url: '',
+  hero_image_url: '',
   hex_background_color: '#000000'
 })
 
@@ -1658,7 +1687,21 @@ async function load() {
   try {
     const res = await api.get(`/core/organizations/${auth.currentOrgId}/settings/`)
     form.value = { ...form.value, ...res.data }
-    walletForm.value.issuer_id = res.data.google_issuer_id || ''
+    
+    const gwSettings = res.data.google_wallet_settings || {}
+    walletForm.value = {
+      issuer_id: gwSettings.issuer_id || res.data.google_issuer_id || '',
+      class_name: gwSettings.class_name || res.data.name || '',
+      issuer_name: gwSettings.issuer_name || res.data.name || '',
+      logo_url: gwSettings.logo_url || (res.data.branding?.logo_url ? (res.data.branding.logo_url.startsWith('http') ? res.data.branding.logo_url : window.location.origin + res.data.branding.logo_url) : ''),
+      hero_image_url: gwSettings.hero_image_url || '',
+      hex_background_color: gwSettings.hex_background_color || (res.data.branding?.design_color || '#1e1b4b'),
+    }
+    if (walletForm.value.hero_image_url) {
+      bannerPreview.value = walletForm.value.hero_image_url.startsWith('http') 
+        ? walletForm.value.hero_image_url 
+        : window.location.origin + walletForm.value.hero_image_url
+    }
     
     initLlmModelFields()
     
@@ -1686,6 +1729,15 @@ async function saveSettings() {
       tma_name: form.value.tma_name,
       tma_direct_link: form.value.tma_direct_link || null,
       is_google_wallet_enabled: form.value.is_google_wallet_enabled,
+      google_issuer_id: walletForm.value.issuer_id || null,
+      google_wallet_settings: {
+        issuer_id: walletForm.value.issuer_id,
+        class_name: walletForm.value.class_name,
+        issuer_name: walletForm.value.issuer_name,
+        logo_url: walletForm.value.logo_url,
+        hero_image_url: walletForm.value.hero_image_url,
+        hex_background_color: walletForm.value.hex_background_color,
+      },
       is_waba_enabled: form.value.is_waba_enabled,
       waba_access_token: form.value.waba_access_token || undefined,
       waba_business_account_id: form.value.waba_business_account_id || null,
@@ -1818,22 +1870,42 @@ async function toggleGoogleWallet() {
   }
 }
 
+async function uploadBanner(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  bannerPreview.value = URL.createObjectURL(file)
+  uploadingBanner.value = true
+  try {
+    const fd = new FormData()
+    fd.append('banner', file)
+    const res = await api.post(`/core/organizations/${auth.currentOrgId}/upload-banner/`, fd)
+    walletForm.value.hero_image_url = res.data.banner_url
+    bannerPreview.value = res.data.banner_url.startsWith('http') ? res.data.banner_url : window.location.origin + res.data.banner_url
+    toast.success('Баннер карты загружен')
+  } catch {
+    toast.error('Ошибка загрузки баннера')
+    bannerPreview.value = null
+  } finally {
+    uploadingBanner.value = false
+  }
+}
+
 async function syncWalletClass() {
   syncingWallet.value = true
   try {
-    await api.patch(`/core/organizations/${auth.currentOrgId}/settings/`, {
-      is_google_wallet_enabled: form.value.is_google_wallet_enabled,
-      google_issuer_id: walletForm.value.issuer_id || null,
-    })
+    const logoUrlResolved = walletForm.value.logo_url || (form.value.branding?.logo_url ? (form.value.branding.logo_url.startsWith('http') ? form.value.branding.logo_url : window.location.origin + form.value.branding.logo_url) : '')
+    const heroUrlResolved = walletForm.value.hero_image_url ? (walletForm.value.hero_image_url.startsWith('http') ? walletForm.value.hero_image_url : window.location.origin + walletForm.value.hero_image_url) : ''
+
     const data = {
       issuer_id: walletForm.value.issuer_id,
       class_name: walletForm.value.class_name || form.value.name,
       issuer_name: walletForm.value.issuer_name || form.value.name,
       hex_background_color: walletForm.value.hex_background_color || brandColor.value,
-      logo_url: walletForm.value.logo_url || (form.value.branding?.logo_url ? window.location.origin + form.value.branding.logo_url : '')
+      logo_url: logoUrlResolved,
+      hero_image_url: heroUrlResolved,
     }
     await api.post(`/core/organizations/${auth.currentOrgId}/google-wallet-class/`, data)
-    toast.success('Настройки Google Wallet синхронизированы')
+    toast.success('Настройки Google Wallet сохранены и синхронизированы')
   } catch (e) {
     const msg = e.response?.data?.error || 'Ошибка синхронизации'
     toast.error(msg)

@@ -73,17 +73,27 @@ class GoogleWalletService:
             "hexBackgroundColor": class_data.get('hex_background_color', '#000000'),
         }
         
-        if class_data.get('logo_url'):
+        logo_url = class_data.get('logo_url')
+        if logo_url:
+            if logo_url.startswith('/'):
+                from django.conf import settings
+                domain = getattr(settings, 'WEBHOOK_DOMAIN', '').rstrip('/')
+                logo_url = f"{domain}{logo_url}"
             payload["programLogo"] = {
                 "sourceUri": {
-                    "uri": class_data.get('logo_url')
+                    "uri": logo_url
                 }
             }
 
-        if class_data.get('hero_image_url'):
+        hero_image_url = class_data.get('hero_image_url')
+        if hero_image_url:
+            if hero_image_url.startswith('/'):
+                from django.conf import settings
+                domain = getattr(settings, 'WEBHOOK_DOMAIN', '').rstrip('/')
+                hero_image_url = f"{domain}{hero_image_url}"
             payload["heroImage"] = {
                 "sourceUri": {
-                    "uri": class_data.get('hero_image_url')
+                    "uri": hero_image_url
                 }
             }
 

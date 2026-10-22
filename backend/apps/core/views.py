@@ -96,21 +96,83 @@ class OrganizationLogoUploadView(APIView):
             "logo_url": logo_url
         }, status=status.HTTP_200_OK)
 
-class OrganizationGoogleWalletSettingsView(APIView):
+class OrganizationBannerUploadView(APIView):
     """
-    View for OrgManager to setup Google Wallet class.
+    View for OrgManager to upload organization Google Wallet hero image (banner).
     """
     permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        banner_file = request.FILES.get('banner') or request.FILES.get('image')
+        if not banner_file:
+            return Response({"error": "No image file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        ext = os.path.splitext(banner_file.name)[1].lower()
+        if ext not in ['.jpg', '.jpeg', '.png', '.webp']:
+            return Response({"error": "Invalid image format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        filename = f"banners/banner_{org.slug}{ext}"
+        path = default_storage.save(filename, ContentFile(banner_file.read()))
+        
+        banner_url = f"/media/{path}"
+        
+        # Save to google_wallet_settings
+        settings_dict = org.google_wallet_settings or {}
+        settings_dict['hero_image_url'] = banner_url
+        org.google_wallet_settings = settings_dict
+        org.save(update_fields=['google_wallet_settings'])
+
+        return Response({
+            "status": "success",
+            "banner_url": banner_url
+        }, status=status.HTTP_200_OK)
+
+class OrganizationGoogleWalletSettingsView(APIView):
+    """
+    View for OrgManager to get and setup Google Wallet class.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+
+    def get(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        return Response({
+            "is_google_wallet_enabled": org.is_google_wallet_enabled,
+            "google_issuer_id": org.google_issuer_id,
+            "google_loyalty_class_id": org.google_loyalty_class_id,
+            "google_wallet_settings": org.google_wallet_settings or {},
+        }, status=status.HTTP_200_OK)
 
     def post(self, request, organization_id, *args, **kwargs):
         org = get_object_or_404(Organization, id=organization_id)
         
-        # Save issuer ID if provided
+        # Extract and persist all configuration fields first
         issuer_id = request.data.get('issuer_id')
-        if issuer_id:
-            org.google_issuer_id = issuer_id
-            org.save(update_fields=['google_issuer_id'])
-            
+        class_name = request.data.get('class_name')
+        issuer_name = request.data.get('issuer_name')
+        logo_url = request.data.get('logo_url')
+        hero_image_url = request.data.get('hero_image_url')
+        hex_background_color = request.data.get('hex_background_color')
+        
+        settings_dict = org.google_wallet_settings or {}
+        if issuer_id is not None:
+            settings_dict['issuer_id'] = str(issuer_id).strip()
+            org.google_issuer_id = str(issuer_id).strip()
+        if class_name is not None:
+            settings_dict['class_name'] = str(class_name).strip()
+        if issuer_name is not None:
+            settings_dict['issuer_name'] = str(issuer_name).strip()
+        if logo_url is not None:
+            settings_dict['logo_url'] = str(logo_url).strip()
+        if hero_image_url is not None:
+            settings_dict['hero_image_url'] = str(hero_image_url).strip()
+        if hex_background_color is not None:
+            settings_dict['hex_background_color'] = str(hex_background_color).strip()
+
+        org.google_wallet_settings = settings_dict
+        org.save(update_fields=['google_issuer_id', 'google_wallet_settings'])
+
         if not org.google_issuer_id:
             return Response({"error": "Google Issuer ID is required"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -120,10 +182,15 @@ class OrganizationGoogleWalletSettingsView(APIView):
             return Response({
                 "status": "success",
                 "class_id": org.google_loyalty_class_id,
-                "google_response": result
+                "google_response": result,
+                "google_wallet_settings": org.google_wallet_settings
             })
         except Exception as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({
+                "error": str(e),
+                "saved_locally": True,
+                "google_wallet_settings": org.google_wallet_settings
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class OrganizationWebhookStatusView(APIView):
     """
