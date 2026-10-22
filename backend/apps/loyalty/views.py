@@ -110,6 +110,7 @@ class TmaAuthView(APIView):
                 "slug": org.slug,
                 "name": org.name,
                 "branding": org.branding,
+                "is_google_wallet_enabled": org.is_google_wallet_enabled,
                 "instagram_link": org.instagram_link,
                 "whatsapp_link": org.whatsapp_link
             },
@@ -572,6 +573,9 @@ class CustomerGoogleWalletLinkView(APIView):
         if not customer.is_onboarded:
             return Response({"error": "Вам необходимо подтвердить номер телефона"}, status=status.HTTP_400_BAD_REQUEST)
             
+        if not customer.organization.is_google_wallet_enabled:
+            return Response({"error": "Интеграция с Google Wallet отключена для этого заведения"}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             service = GoogleWalletService()
             balance_str = str(int(customer.loyalty_balance)) if customer.loyalty_balance == int(customer.loyalty_balance) else str(customer.loyalty_balance)

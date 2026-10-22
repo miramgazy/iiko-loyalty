@@ -114,9 +114,15 @@ class GoogleWalletService:
         return res.json()
 
     def generate_google_wallet_link(self, customer: Customer, current_balance: str) -> str:
+        import time
         org = customer.organization
         if not org.google_issuer_id or not org.google_loyalty_class_id:
             raise ValueError("Organization is not fully configured for Google Wallet")
+
+        # Normalize class_id: ensure it has issuer_id prefix
+        class_id = org.google_loyalty_class_id.strip()
+        if not class_id.startswith(f"{org.google_issuer_id}."):
+            class_id = f"{org.google_issuer_id}.{class_id}"
 
         # Object ID format: issuer_id.object_suffix
         object_id = customer.google_wallet_object_id
@@ -124,18 +130,21 @@ class GoogleWalletService:
             object_id = f"{org.google_issuer_id}.cust_{customer.id}"
             customer.google_wallet_object_id = object_id
             customer.save(update_fields=['google_wallet_object_id'])
+
+        if not customer.wallet_barcode:
+            customer.save()
             
-        barcode_value = customer.wallet_barcode
+        barcode_value = customer.wallet_barcode or customer.iiko_card_number or str(customer.id)
 
         # Build LoyaltyObject
         loyalty_object = {
             "id": object_id,
-            "classId": org.google_loyalty_class_id,
+            "classId": class_id,
             "state": "ACTIVE",
             "accountId": str(customer.id),
             "accountName": f"{customer.first_name} {customer.last_name}".strip() or "Гость",
             "barcode": {
-                "type": "qrCode",
+                "type": "QR_CODE",
                 "value": barcode_value,
                 "alternateText": barcode_value
             },
@@ -153,6 +162,7 @@ class GoogleWalletService:
             "iss": self.client_email,
             "aud": "google",
             "typ": "savetowallet",
+            "iat": int(time.time()),
             "origins": [],
             "payload": {
                 "loyaltyObjects": [loyalty_object]

@@ -66,7 +66,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
             'iiko_integration_type', 'iiko_api_base_url', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_organization_id', 'iiko_loyalty_program_id',
             'is_iiko_webhook_password_enabled', 'iiko_webhook_password',
             'iiko_server_url', 'iiko_server_login', 'iiko_server_password',
-            'google_issuer_id', 'google_loyalty_class_id',
+            'is_google_wallet_enabled', 'google_issuer_id', 'google_loyalty_class_id',
             'branding', 'instagram_link', 'whatsapp_link',
             'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled',
             'llm_provider', 'llm_model_name', 'llm_api_key', 'llm_system_prompt'

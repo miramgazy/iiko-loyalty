@@ -98,6 +98,44 @@
         </div>
       </div>
 
+      <!-- Google Wallet Action Button (shown only when enabled in organization settings) -->
+      <div v-if="isGoogleWalletEnabled" class="w-full">
+        <button
+          @click="addToGoogleWallet"
+          :disabled="isGoogleWalletLoading"
+          class="w-full h-[52px] rounded-2xl bg-[#111113] hover:bg-[#18181b] active:scale-[0.98] border border-white/10 shadow-lg flex items-center justify-center gap-3 px-4 text-white font-semibold transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed group relative overflow-hidden"
+          style="box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);"
+        >
+          <!-- Subtle shine sweep effect on hover -->
+          <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 pointer-events-none"></div>
+
+          <!-- Spinner or Google Wallet Content -->
+          <div v-if="isGoogleWalletLoading" class="flex items-center gap-2.5">
+            <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            <span class="text-xs font-semibold text-zinc-300">{{ t('loading') }}</span>
+          </div>
+          <template v-else>
+            <!-- Google 4-Color Logo -->
+            <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span class="text-xs font-bold tracking-wide">
+              {{ t('addToGoogleWallet') }}
+            </span>
+          </template>
+        </button>
+
+        <!-- Wallet error message if any -->
+        <Transition name="fade">
+          <div v-if="walletError" class="mt-2 text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-center animate-[scaleIn_0.2s_ease-out]">
+            {{ walletError }}
+          </div>
+        </Transition>
+      </div>
+
       <!-- Wallets Section (shown only when there are multiple wallets) -->
       <div v-if="wallets.length > 1" class="flex flex-col gap-3">
         <span class="text-[10px] tracking-[0.12em] uppercase text-[color:var(--muted)] font-extrabold px-1">
@@ -486,6 +524,57 @@ function toggleQrZoom(visible) {
     triggerHaptic('impact', 'medium')
   } else {
     triggerHaptic('impact', 'light')
+  }
+}
+
+// Google Wallet handling
+const isGoogleWalletEnabled = computed(() => {
+  if (!auth.organization?.is_google_wallet_enabled) return false
+
+  // Check Telegram WebApp platform first
+  const tgPlatform = window.Telegram?.WebApp?.platform?.toLowerCase()
+  if (tgPlatform === 'android') return true
+  if (tgPlatform === 'ios') return false
+
+  // Fallback to User-Agent detection (strictly Android, excluding iOS/iPad)
+  const ua = navigator.userAgent || ''
+  const isIos = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  if (isIos) return false
+
+  return /android/i.test(ua)
+})
+const isGoogleWalletLoading = ref(false)
+const walletError = ref('')
+
+async function addToGoogleWallet() {
+  if (isGoogleWalletLoading.value) return
+  isGoogleWalletLoading.value = true
+  walletError.value = ''
+  triggerHaptic('impact', 'medium')
+
+  try {
+    const res = await api.get('/loyalty/customer/wallet/google/')
+    if (res.data?.url) {
+      triggerHaptic('notification', 'success')
+      const url = res.data.url
+      const tg = window.Telegram?.WebApp
+      if (tg && typeof tg.openLink === 'function') {
+        tg.openLink(url)
+      } else {
+        window.open(url, '_blank')
+      }
+    } else {
+      throw new Error('Не удалось получить ссылку для Google Wallet')
+    }
+  } catch (e) {
+    triggerHaptic('notification', 'error')
+    walletError.value = e.response?.data?.error || e.message || 'Ошибка генерации ссылки Google Wallet'
+    console.error('Google Wallet error:', e)
+    setTimeout(() => {
+      walletError.value = ''
+    }, 5000)
+  } finally {
+    isGoogleWalletLoading.value = false
   }
 }
 

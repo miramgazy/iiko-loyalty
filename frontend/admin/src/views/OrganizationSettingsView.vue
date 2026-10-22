@@ -746,6 +746,29 @@
 
       <!-- TAB: Google Wallet -->
       <div v-show="activeTab === 'wallet'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
+        <!-- Toggle header -->
+        <div class="flex items-center justify-between pb-6 border-b border-slate-800">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">💳</span>
+              <h2 class="text-lg font-bold text-white">Интеграция с Google Wallet</h2>
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                Google Pay Passes
+              </span>
+            </div>
+            <p class="text-slate-400 text-sm mt-1">
+              Отображение кнопки добавления карты лояльности в кошелек Google Wallet для гостей в Telegram Mini App
+            </p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" v-model="form.is_google_wallet_enabled" @change="toggleGoogleWallet" class="sr-only peer">
+            <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+            <span class="ml-3 text-sm font-medium" :class="form.is_google_wallet_enabled ? 'text-emerald-400' : 'text-slate-500'">
+              {{ form.is_google_wallet_enabled ? 'Включено' : 'Выключено' }}
+            </span>
+          </label>
+        </div>
+
         <div>
           <label class="form-label">Google Issuer ID</label>
           <input v-model="walletForm.issuer_id" type="text" class="form-input" placeholder="Например: 3388000000000000000" />
@@ -1450,6 +1473,7 @@ const walletForm = ref({
 const form = ref({
   name: '', slug: '', address: '',
   tg_bot_token: '', tg_bot_username: '', tma_name: '', tma_direct_link: '',
+  is_google_wallet_enabled: false,
   is_waba_enabled: false,
   waba_access_token: '',
   waba_business_account_id: '',
@@ -1661,6 +1685,7 @@ async function saveSettings() {
       tg_bot_username: form.value.tg_bot_username,
       tma_name: form.value.tma_name,
       tma_direct_link: form.value.tma_direct_link || null,
+      is_google_wallet_enabled: form.value.is_google_wallet_enabled,
       is_waba_enabled: form.value.is_waba_enabled,
       waba_access_token: form.value.waba_access_token || undefined,
       waba_business_account_id: form.value.waba_business_account_id || null,
@@ -1781,9 +1806,25 @@ async function uploadLogo(event) {
   }
 }
 
+async function toggleGoogleWallet() {
+  try {
+    await api.patch(`/core/organizations/${auth.currentOrgId}/settings/`, {
+      is_google_wallet_enabled: form.value.is_google_wallet_enabled
+    })
+    toast.success(form.value.is_google_wallet_enabled ? 'Google Wallet включен в TMA' : 'Google Wallet отключен в TMA')
+  } catch (e) {
+    form.value.is_google_wallet_enabled = !form.value.is_google_wallet_enabled
+    toast.error('Не удалось изменить статус Google Wallet')
+  }
+}
+
 async function syncWalletClass() {
   syncingWallet.value = true
   try {
+    await api.patch(`/core/organizations/${auth.currentOrgId}/settings/`, {
+      is_google_wallet_enabled: form.value.is_google_wallet_enabled,
+      google_issuer_id: walletForm.value.issuer_id || null,
+    })
     const data = {
       issuer_id: walletForm.value.issuer_id,
       class_name: walletForm.value.class_name || form.value.name,

@@ -57,6 +57,7 @@ class Organization(models.Model):
     )
     
     # Google Wallet интеграция
+    is_google_wallet_enabled = models.BooleanField("Включена интеграция с Google Wallet", default=False)
     google_issuer_id = models.CharField("Google Issuer ID", max_length=50, null=True, blank=True)
     google_loyalty_class_id = models.CharField("Google Loyalty Class ID", max_length=100, null=True, blank=True)
 
