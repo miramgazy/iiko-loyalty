@@ -148,6 +148,12 @@ class GoogleWalletService:
                 "value": barcode_value,
                 "alternateText": barcode_value
             },
+            "loyaltyPoints": {
+                "label": "Бонусы",
+                "balance": {
+                    "string": current_balance
+                }
+            },
             "textModulesData": [
                 {
                     "id": "balance",
@@ -176,3 +182,60 @@ class GoogleWalletService:
             token = token.decode("utf-8")
 
         return f"https://pay.google.com/gp/v/save/{token}"
+
+    def update_customer_balance(self, customer: Customer, current_balance: str = None) -> bool:
+        """
+        Updates the loyalty points and balance on the user's active Google Wallet pass via PATCH API.
+        Returns True if successfully updated, False if pass not found or Google Wallet is not configured.
+        """
+        org = customer.organization
+        if not org.is_google_wallet_enabled or not org.google_issuer_id:
+            return False
+
+        object_id = customer.google_wallet_object_id
+        if not object_id:
+            return False
+
+        if current_balance is None:
+            balance_num = customer.loyalty_balance
+            balance_str = str(int(balance_num)) if balance_num == int(balance_num) else str(balance_num)
+            current_balance = f"{balance_str} баллов"
+
+        patch_payload = {
+            "loyaltyPoints": {
+                "label": "Бонусы",
+                "balance": {
+                    "string": current_balance
+                }
+            },
+            "textModulesData": [
+                {
+                    "id": "balance",
+                    "header": "Баланс бонусов",
+                    "body": current_balance
+                }
+            ]
+        }
+
+        try:
+            token = self.get_access_token()
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            }
+
+            patch_url = f"{self.base_url}/loyaltyObject/{object_id}"
+            resp = requests.patch(patch_url, headers=headers, json=patch_payload, timeout=10)
+            if resp.status_code == 200:
+                return True
+            elif resp.status_code == 404:
+                # The user generated the link but hasn't actually saved the pass into Google Wallet yet
+                return False
+            else:
+                resp.raise_for_status()
+                return True
+        except Exception as e:
+            # Log error without breaking caller execution
+            import logging
+            logging.getLogger(__name__).warning(f"Google Wallet PATCH balance failed for customer {customer.id}: {e}")
+            return False

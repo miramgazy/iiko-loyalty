@@ -155,10 +155,27 @@ def sync_customer_to_iiko(self, customer_id, push=False):
 
             if update_fields:
                 customer.save(update_fields=list(set(update_fields)))
+                if 'loyalty_balance' in update_fields and customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
+                    update_google_wallet_pass_task.delay(customer.id)
 
     except Exception as exc:
         logger.error(f"Error syncing customer {customer_id} to iiko: {exc}")
         raise self.retry(exc=exc, countdown=2 ** self.request.retries * 60)
+
+@app.task(bind=True, max_retries=2, default_retry_delay=15)
+def update_google_wallet_pass_task(self, customer_id):
+    """
+    Background task to update loyalty card balance in Google Wallet via PATCH API.
+    """
+    try:
+        customer = Customer.objects.filter(id=customer_id).select_related('organization').first()
+        if not customer or not customer.google_wallet_object_id or not customer.organization.is_google_wallet_enabled:
+            return
+        from apps.loyalty.google_wallet_service import GoogleWalletService
+        service = GoogleWalletService()
+        service.update_customer_balance(customer)
+    except Exception as exc:
+        logger.warning(f"Error updating Google Wallet pass for customer {customer_id}: {exc}")
 
 @app.task
 def sync_all_customers_points():
@@ -178,6 +195,8 @@ def sync_all_customers_points():
                     if customer.loyalty_balance != points:
                         customer.loyalty_balance = points
                         customer.save(update_fields=['loyalty_balance'])
+                        if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
+                            update_google_wallet_pass_task.delay(customer.id)
                 except Exception as e:
                     logger.error(f"Failed to sync points for customer {customer.id}: {e}")
         except Exception as e:
@@ -342,10 +361,14 @@ def process_iiko_webhook(log_id):
                 if customer.loyalty_balance != total_active_balance:
                     customer.loyalty_balance = total_active_balance
                     customer.save(update_fields=['loyalty_balance'])
+                    if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
+                        update_google_wallet_pass_task.delay(customer.id)
             else:
                 if customer.loyalty_balance != balance:
                     customer.loyalty_balance = balance
                     customer.save(update_fields=['loyalty_balance'])
+                    if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
+                        update_google_wallet_pass_task.delay(customer.id)
 
             # Notify via Websockets if user has active session
             try:
