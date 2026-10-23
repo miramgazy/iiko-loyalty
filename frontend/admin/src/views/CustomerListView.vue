@@ -192,89 +192,94 @@
         <div class="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
       </div>
       <div v-else>
-        <table class="w-full">
+        <div class="overflow-x-auto">
+          <table class="w-full min-w-[1240px] divide-y divide-slate-800 text-left border-collapse">
           <thead>
-            <tr class="border-b border-slate-800">
-              <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Клиент</th>
-              <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Телефон</th>
-              <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Баллы / Кошельки</th>
-              <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Тип карты</th>
-              <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Онбординг</th>
-              <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">iiko</th>
-              <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Рассылка</th>
-              <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Дата</th>
-              <th class="text-center px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Действие</th>
+            <tr class="border-b border-slate-800 bg-slate-900/60">
+              <th class="text-left px-5 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[240px] min-w-[220px]">Клиент</th>
+              <th class="text-left px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[160px] min-w-[150px] whitespace-nowrap">Телефон</th>
+              <th class="text-left px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[160px] min-w-[150px] whitespace-nowrap">Баллы / Кошельки</th>
+              <th class="text-left px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[150px] min-w-[140px] whitespace-nowrap">Тип карты</th>
+              <th class="text-left px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[140px] min-w-[130px] whitespace-nowrap">Онбординг</th>
+              <th class="text-left px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[170px] min-w-[160px]">iiko</th>
+              <th class="text-left px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[130px] min-w-[120px] whitespace-nowrap">Рассылка</th>
+              <th class="text-left px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[120px] min-w-[110px] whitespace-nowrap">Дата</th>
+              <th class="text-center px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[110px] min-w-[100px] whitespace-nowrap">Действие</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-800">
             <tr v-for="c in customers" :key="c.id" class="hover:bg-slate-800/50 transition-colors">
-              <td class="px-6 py-4">
+              <td class="px-5 py-4 w-[240px] min-w-[220px]">
                 <div class="flex items-center gap-3">
                   <div class="w-9 h-9 rounded-full bg-slate-700 flex items-center justify-center flex-shrink-0">
                     <span class="text-slate-300 text-xs font-bold">{{ initials(c) }}</span>
                   </div>
-                  <div>
-                    <p class="font-medium text-white text-sm">{{ c.first_name }} {{ c.last_name }}</p>
-                    <p class="text-slate-600 text-xs">TG: {{ c.telegram_id }}</p>
+                  <div class="min-w-0">
+                    <p class="font-medium text-white text-sm truncate" :title="`${c.first_name || ''} ${c.last_name || ''}`">
+                      {{ c.first_name || 'Без имени' }} {{ c.last_name || '' }}
+                    </p>
+                    <p class="text-slate-500 text-xs truncate">TG: {{ c.telegram_id || '—' }}</p>
                   </div>
                 </div>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-4 py-4 w-[160px] min-w-[150px] whitespace-nowrap">
                 <span v-if="c.phone" class="text-sm text-slate-300 font-mono">{{ c.phone }}</span>
-                <span v-else class="text-xs text-amber-600 bg-amber-900/30 border border-amber-800 px-2 py-0.5 rounded-full">Не подтверждён</span>
+                <span v-else class="text-xs text-amber-500 bg-amber-950/40 border border-amber-800/60 px-2 py-0.5 rounded-full">Не подтверждён</span>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-4 py-4 w-[160px] min-w-[150px]">
                 <!-- Total balance -->
-                <span class="text-sm font-semibold text-indigo-300">{{ c.loyalty_balance?.toLocaleString('ru-RU') || '0' }}</span>
-                <span class="text-slate-600 text-xs ml-1">pts</span>
+                <div class="whitespace-nowrap">
+                  <span class="text-sm font-semibold text-indigo-300">{{ c.loyalty_balance?.toLocaleString('ru-RU') || '0' }}</span>
+                  <span class="text-slate-500 text-xs ml-1">pts</span>
+                </div>
                 <!-- Individual wallets (if multi-wallet) -->
-                <div v-if="c.wallets && c.wallets.length > 1" class="flex flex-col gap-1 mt-2">
+                <div v-if="c.wallets && c.wallets.length > 1" class="flex flex-col gap-1 mt-1.5">
                   <div v-for="w in c.wallets" :key="w.wallet_id || w.id"
-                       class="flex items-center justify-between gap-2 text-xs px-2 py-1 rounded-lg border"
+                       class="flex items-center justify-between gap-2 text-[11px] px-2 py-0.5 rounded-lg border"
                        :class="w.wallet_type === 1
                          ? 'bg-amber-900/20 border-amber-800/40 text-amber-300'
                          : 'bg-indigo-900/20 border-indigo-800/40 text-indigo-300'">
-                    <span class="truncate max-w-[90px] font-medium" :title="w.name">{{ w.name || 'Кошелёк' }}</span>
+                    <span class="truncate max-w-[85px] font-medium" :title="w.name">{{ w.name || 'Кошелёк' }}</span>
                     <span class="font-bold whitespace-nowrap">{{ Number(w.balance).toLocaleString('ru-RU') }}</span>
                   </div>
                 </div>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-4 py-4 w-[150px] min-w-[140px] whitespace-nowrap">
                 <span v-if="c.wallet_type === 'google' || (!c.wallet_type && c.google_wallet_object_id)" 
-                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-sky-950/40 text-sky-400 border border-sky-800/60 font-medium whitespace-nowrap">
+                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-sky-950/40 text-sky-400 border border-sky-800/60 font-medium">
                   <span class="w-4 h-4 rounded-full bg-sky-500/20 flex items-center justify-center text-[10px] font-bold text-sky-300">G</span>
                   Google Wallet
                 </span>
                 <span v-else-if="c.wallet_type === 'apple'" 
-                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-zinc-800/80 text-zinc-200 border border-zinc-700 font-medium whitespace-nowrap">
+                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-zinc-800/80 text-zinc-200 border border-zinc-700 font-medium">
                   <span class="text-sm leading-none"></span>
                   Apple Wallet
                 </span>
                 <span v-else 
-                  class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800/60 text-slate-500 border border-slate-700/50 whitespace-nowrap">
+                  class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800/60 text-slate-500 border border-slate-700/50">
                   — Не выбрана
                 </span>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-4 py-4 w-[140px] min-w-[130px] whitespace-nowrap">
                 <span v-if="c.onboarding_source === 'web'" 
-                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-violet-950/60 text-violet-300 border border-violet-800/80 font-medium whitespace-nowrap">
+                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-violet-950/60 text-violet-300 border border-violet-800/80 font-medium">
                   <span class="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
                   🌐 Веб-сайт
                 </span>
                 <span v-else 
-                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-sky-950/60 text-sky-300 border border-sky-800/80 font-medium whitespace-nowrap">
+                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-sky-950/60 text-sky-300 border border-sky-800/80 font-medium">
                   <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
                   📱 Telegram
                 </span>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-4 py-4 w-[170px] min-w-[160px]">
                 <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full mb-1"
                   :class="c.iiko_customer_id
                     ? 'bg-emerald-900/50 text-emerald-400 border border-emerald-800'
                     : 'bg-slate-800 text-slate-500 border border-slate-700'">
                   {{ c.iiko_customer_id ? '✓ Синхр.' : '— Нет' }}
                 </span>
-                <div v-if="c.iiko_card_number" class="text-xs text-slate-400 mt-1 font-mono">
+                <div v-if="c.iiko_card_number" class="text-xs text-slate-400 mt-1 font-mono whitespace-nowrap">
                   💳 {{ c.iiko_card_number }}
                 </div>
                 <div v-if="c.iiko_categories?.length" class="flex flex-wrap gap-1 mt-1">
@@ -283,7 +288,7 @@
                   </span>
                 </div>
               </td>
-              <td class="px-6 py-4">
+              <td class="px-4 py-4 w-[130px] min-w-[120px] whitespace-nowrap">
                 <span v-if="c.is_bot_subscribed === true" class="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-950/50 text-emerald-400 border border-emerald-800/60">
                   ✓ Подписан
                 </span>
@@ -294,8 +299,8 @@
                   — Не решено
                 </span>
               </td>
-              <td class="px-6 py-4 text-xs text-slate-400">{{ formatDate(c.created_at) }}</td>
-              <td class="px-6 py-4 text-center">
+              <td class="px-4 py-4 text-xs text-slate-400 w-[120px] min-w-[110px] whitespace-nowrap">{{ formatDate(c.created_at) }}</td>
+              <td class="px-4 py-4 text-center w-[110px] min-w-[100px] whitespace-nowrap">
                 <div class="flex items-center justify-center gap-2">
                   <button
                     :id="'btn-sync-' + c.id"
@@ -355,6 +360,7 @@
             </tr>
           </tbody>
         </table>
+      </div>
 
         <!-- Pagination -->
         <div v-if="totalCount > 0" class="flex items-center justify-between px-6 py-4 border-t border-slate-800">

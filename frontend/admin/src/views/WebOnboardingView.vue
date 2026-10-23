@@ -843,7 +843,7 @@ async function handleAddWallet(walletType) {
   if (!customerData.value?.id) return
   loadingWallet.value = true
   walletMessage.value = ''
-  const fullPhone = `+7${cleanPhoneDigits.value}`
+  const fullPhone = customerData.value?.phone || `+7${cleanPhoneDigits.value}`
   try {
     const res = await axios.post(`/api/loyalty/public/onboarding/${slug.value}/wallet/`, {
       customer_id: customerData.value.id,
@@ -851,8 +851,14 @@ async function handleAddWallet(walletType) {
       wallet_type: walletType
     })
 
+    if (customerData.value) {
+      customerData.value.wallet_type = walletType
+    }
+
     if (walletType === 'google' && res.data.url) {
       window.location.href = res.data.url
+    } else if (walletType === 'google') {
+      walletMessage.value = lang.value === 'kz' ? 'Google Wallet картасы белгіленді!' : 'Карта Google Wallet успешно выбрана!'
     } else if (walletType === 'apple') {
       walletMessage.value = lang.value === 'kz' ? 'Apple Wallet картасы сәтті қосылды!' : 'Карта Apple Wallet успешно активирована!'
     }

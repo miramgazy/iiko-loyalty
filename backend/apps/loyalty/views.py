@@ -1113,44 +1113,56 @@ class WebOnboardingWalletView(APIView):
 
         customer_id = request.data.get('customer_id')
         raw_phone = request.data.get('phone', '')
-        clean_phone = normalize_phone(raw_phone)
+        clean_phone = normalize_phone(raw_phone) if raw_phone else ''
         wallet_type = request.data.get('wallet_type')
 
-        customer = Customer.objects.filter(id=customer_id, organization=org, phone=clean_phone).first()
+        customer = None
+        if customer_id:
+            customer = Customer.objects.filter(id=customer_id, organization=org).first()
+        if not customer and clean_phone:
+            customer = Customer.objects.filter(organization=org, phone=clean_phone).first()
+
         if not customer:
             return Response({"error": "Клиент не найден"}, status=status.HTTP_404_NOT_FOUND)
+
+        if not customer.iiko_card_number:
+            from apps.loyalty.utils import generate_unique_card_number
+            customer.iiko_card_number = generate_unique_card_number(org)
+            customer.save(update_fields=['iiko_card_number'])
 
         if wallet_type == 'google':
             if not org.is_google_wallet_enabled:
                 return Response({"error": "Google Wallet отключен заведением"}, status=status.HTTP_400_BAD_REQUEST)
 
-            from apps.loyalty.google_wallet_service import GoogleWalletService
+            # Record wallet_type='google'
+            if customer.wallet_type != 'google':
+                customer.wallet_type = 'google'
+                customer.save(update_fields=['wallet_type'])
+
+            url = None
             try:
+                from apps.loyalty.google_wallet_service import GoogleWalletService
                 service = GoogleWalletService()
                 balance_str = str(int(customer.loyalty_balance)) if customer.loyalty_balance == int(customer.loyalty_balance) else str(customer.loyalty_balance)
                 url = service.generate_google_wallet_link(customer, f"{balance_str} баллов")
-                if customer.wallet_type != 'google':
-                    customer.wallet_type = 'google'
-                    customer.save(update_fields=['wallet_type'])
-                return Response({
-                    "url": url,
-                    "card_number": customer.iiko_card_number
-                })
             except Exception as e:
-                logger.error(f"Error generating Google Wallet link for onboarding: {e}")
-                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+                logger.warning(f"Could not generate Google Wallet JWT link: {e}")
+
+            return Response({
+                "status": "success",
+                "wallet_type": "google",
+                "url": url,
+                "card_number": customer.iiko_card_number,
+                "message": "Google Wallet выбран для программы лояльности"
+            })
 
         elif wallet_type == 'apple':
             if not org.is_apple_wallet_enabled:
                 return Response({"error": "Apple Wallet отключен заведением"}, status=status.HTTP_400_BAD_REQUEST)
 
-            if not customer.iiko_card_number:
-                from apps.loyalty.utils import generate_unique_card_number
-                customer.iiko_card_number = generate_unique_card_number(org)
-
             if customer.wallet_type != 'apple':
                 customer.wallet_type = 'apple'
-                customer.save(update_fields=['wallet_type', 'iiko_card_number'])
+                customer.save(update_fields=['wallet_type'])
 
             return Response({
                 "status": "success",
