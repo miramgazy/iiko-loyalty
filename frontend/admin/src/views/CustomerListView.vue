@@ -199,6 +199,7 @@
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Телефон</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Баллы / Кошельки</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Тип карты</th>
+              <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Онбординг</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">iiko</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Рассылка</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Дата</th>
@@ -252,6 +253,18 @@
                 <span v-else 
                   class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800/60 text-slate-500 border border-slate-700/50 whitespace-nowrap">
                   — Не выбрана
+                </span>
+              </td>
+              <td class="px-6 py-4">
+                <span v-if="c.onboarding_source === 'web'" 
+                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-violet-950/60 text-violet-300 border border-violet-800/80 font-medium whitespace-nowrap">
+                  <span class="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
+                  🌐 Веб-сайт
+                </span>
+                <span v-else 
+                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-sky-950/60 text-sky-300 border border-sky-800/80 font-medium whitespace-nowrap">
+                  <span class="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+                  📱 Telegram
                 </span>
               </td>
               <td class="px-6 py-4">
@@ -336,7 +349,7 @@
               </td>
             </tr>
             <tr v-if="!customers.length">
-              <td colspan="8" class="px-6 py-12 text-center text-slate-500">
+              <td colspan="9" class="px-6 py-12 text-center text-slate-500">
                 {{ search || selectedWalletFilter ? 'Клиенты не найдены' : 'Нет клиентов' }}
               </td>
             </tr>

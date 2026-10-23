@@ -57,22 +57,46 @@ class SuperAdminOrganizationSerializer(serializers.ModelSerializer):
         return organization
 
 class OrganizationSettingsSerializer(serializers.ModelSerializer):
+    is_waba_configured = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = Organization
         fields = [
             'id', 'name', 'slug', 'address',
             'tg_bot_token', 'tg_bot_username', 'tma_name', 'tma_direct_link',
             'is_waba_enabled', 'waba_access_token', 'waba_business_account_id', 'waba_phone_number_id',
+            'is_waba_configured',
             'iiko_integration_type', 'iiko_api_base_url', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_organization_id', 'iiko_loyalty_program_id',
             'is_iiko_webhook_password_enabled', 'iiko_webhook_password',
             'iiko_server_url', 'iiko_server_login', 'iiko_server_password',
             'is_google_wallet_enabled', 'google_issuer_id', 'google_loyalty_class_id', 'google_wallet_settings',
             'is_apple_wallet_enabled', 'apple_pass_type_id', 'apple_team_id', 'apple_wallet_settings',
+            'is_web_onboarding_enabled', 'web_onboarding_settings',
             'branding', 'instagram_link', 'whatsapp_link',
             'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled',
             'llm_provider', 'llm_model_name', 'llm_api_key', 'llm_system_prompt'
         ]
-        read_only_fields = ['id', 'slug', 'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled']
+        read_only_fields = ['id', 'slug', 'is_waba_configured', 'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled']
+
+    def validate(self, attrs):
+        is_onboarding = attrs.get('is_web_onboarding_enabled')
+        if is_onboarding is None and self.instance:
+            is_onboarding = self.instance.is_web_onboarding_enabled
+
+        if is_onboarding:
+            is_waba_enabled = attrs.get('is_waba_enabled') if 'is_waba_enabled' in attrs else (self.instance.is_waba_enabled if self.instance else False)
+            waba_token = attrs.get('waba_access_token') if 'waba_access_token' in attrs else (self.instance.waba_access_token if self.instance else None)
+            waba_phone_id = attrs.get('waba_phone_number_id') if 'waba_phone_number_id' in attrs else (self.instance.waba_phone_number_id if self.instance else None)
+
+            if waba_token == '••••••••' and self.instance and self.instance.waba_access_token:
+                waba_token = self.instance.waba_access_token
+
+            if not (is_waba_enabled and waba_token and waba_phone_id):
+                raise serializers.ValidationError({
+                    'is_web_onboarding_enabled': 'Для включения страницы онбординга необходимо сначала настроить и включить WABA (WhatsApp Business API).'
+                })
+
+        return super().validate(attrs)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

@@ -129,6 +129,41 @@ class OrganizationBannerUploadView(APIView):
             "banner_url": banner_url
         }, status=status.HTTP_200_OK)
 
+class OrganizationOnboardingBannerUploadView(APIView):
+    """
+    View for OrgManager to upload organization Web Onboarding hero image (banner).
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        banner_file = request.FILES.get('banner') or request.FILES.get('image')
+        if not banner_file:
+            return Response({"error": "No image file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        ext = os.path.splitext(banner_file.name)[1].lower()
+        if ext not in ['.jpg', '.jpeg', '.png', '.webp']:
+            return Response({"error": "Invalid image format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Overwrite or create new banner file
+        filename = f"onboarding_banners/banner_{org.slug}{ext}"
+        if default_storage.exists(filename):
+            default_storage.delete(filename)
+        path = default_storage.save(filename, ContentFile(banner_file.read()))
+
+        banner_url = f"/media/{path}"
+
+        settings_dict = org.web_onboarding_settings or {}
+        settings_dict['banner_url'] = banner_url
+        org.web_onboarding_settings = settings_dict
+        org.save(update_fields=['web_onboarding_settings'])
+
+        return Response({
+            "status": "success",
+            "banner_url": banner_url
+        }, status=status.HTTP_200_OK)
+
 class OrganizationWalletLogoUploadView(APIView):
     """
     View for OrgManager to upload organization Google Wallet logo image.

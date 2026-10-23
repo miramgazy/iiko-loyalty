@@ -1,4 +1,5 @@
 import json
+import re
 import requests
 from django.shortcuts import get_object_or_404
 from django.db.models import Q, Count
@@ -11,7 +12,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.core.models import Organization
 from apps.core.utils import normalize_phone
-from apps.loyalty.models import Customer, IikoWebhookLog, LoyaltyProgram
+from apps.loyalty.models import Customer, IikoWebhookLog, LoyaltyProgram, OnboardingVerificationCode
 from apps.loyalty.serializers import CustomerSerializer, LoyaltyProgramSerializer
 from apps.loyalty.views_utils import validate_tg_init_data, get_tokens_for_customer
 from apps.accounts.permissions import IsOrgEmployee
@@ -816,4 +817,334 @@ class OwnerDashboardView(APIView):
             "telegram_users": telegram_users,
             "new_registrations_today": new_registrations_today
         })
+
+
+import datetime
+import logging
+logger = logging.getLogger(__name__)
+
+class WebOnboardingInfoView(APIView):
+    """
+    Public view providing branding and configuration for an organization's onboarding landing page.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, slug, *args, **kwargs):
+        org = Organization.objects.filter(slug=slug, is_active=True).first()
+        if not org:
+            return Response({"error": "Заведение не найдено"}, status=status.HTTP_404_NOT_FOUND)
+
+        if not org.is_web_onboarding_enabled:
+            return Response({
+                "error": "Страница онбординга отключена",
+                "is_web_onboarding_enabled": False
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        branding = org.branding or {}
+        onboarding_settings = org.web_onboarding_settings or {}
+        programs = LoyaltyProgram.objects.filter(organization=org).values(
+            'id', 'title', 'title_kz', 'description', 'description_kz'
+        )
+
+        return Response({
+            "organization_name": org.name,
+            "slug": org.slug,
+            "is_web_onboarding_enabled": org.is_web_onboarding_enabled,
+            "is_waba_configured": org.is_waba_configured,
+            "is_google_wallet_enabled": org.is_google_wallet_enabled,
+            "is_apple_wallet_enabled": org.is_apple_wallet_enabled,
+            "tma_link": org.get_tma_link(),
+            "branding": {
+                "logo_url": branding.get('logo_url', ''),
+                "design_color": branding.get('design_color', '#6366f1'),
+            },
+            "settings": {
+                "banner_url": onboarding_settings.get('banner_url', ''),
+                "accent_color": onboarding_settings.get('accent_color', '#6366f1'),
+                "title_kz": onboarding_settings.get('title_kz', 'Лоялдық картасын алыңыз'),
+                "title_ru": onboarding_settings.get('title_ru', 'Получите карту лояльности'),
+                "subtitle_kz": onboarding_settings.get('subtitle_kz', 'Тіркеліп, әрбір тапсырыстан бонустар жинаңыз!'),
+                "subtitle_ru": onboarding_settings.get('subtitle_ru', 'Зарегистрируйтесь и получайте бонусы с каждого заказа!'),
+                "welcome_bonus_kz": onboarding_settings.get('welcome_bonus_kz', ''),
+                "welcome_bonus_ru": onboarding_settings.get('welcome_bonus_ru', ''),
+            },
+            "loyalty_programs": list(programs),
+        })
+
+
+class WebOnboardingCheckPhoneView(APIView):
+    """
+    Public view to check if a phone number is already registered in the loyalty database.
+    If customer exists, returns their data directly so OTP can be skipped.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, slug, *args, **kwargs):
+        org = Organization.objects.filter(slug=slug, is_active=True).first()
+        if not org or not org.is_web_onboarding_enabled:
+            return Response({"error": "Страница онбординга недоступна"}, status=status.HTTP_404_NOT_FOUND)
+
+        raw_phone = request.data.get('phone', '')
+        clean_phone = normalize_phone(raw_phone)
+        digits = re.sub(r'\D', '', clean_phone)
+
+        if not digits or len(digits) < 11:
+            return Response({"error": "Введите корректный номер телефона"}, status=status.HTTP_400_BAD_REQUEST)
+
+        customer = Customer.objects.filter(organization=org, phone=clean_phone).first()
+        if customer:
+            return Response({
+                "exists": True,
+                "customer": {
+                    "id": customer.id,
+                    "first_name": customer.first_name,
+                    "last_name": customer.last_name,
+                    "phone": customer.phone,
+                    "balance": float(customer.loyalty_balance),
+                    "card_number": customer.iiko_card_number,
+                    "wallet_type": customer.wallet_type,
+                },
+                "message": "Клиент уже зарегистрирован"
+            })
+
+        return Response({
+            "exists": False
+        })
+
+
+class WebOnboardingSendOtpView(APIView):
+    """
+    Public view to send OTP via WhatsApp (WABA) for web onboarding.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, slug, *args, **kwargs):
+        org = Organization.objects.filter(slug=slug, is_active=True).first()
+        if not org or not org.is_web_onboarding_enabled:
+            return Response({"error": "Онбординг отключен заведением"}, status=status.HTTP_404_NOT_FOUND)
+
+        if not org.is_waba_configured:
+            return Response({
+                "error": "WhatsApp интеграция заведения не настроена. Обратитесь к администратору."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        raw_phone = request.data.get('phone', '')
+        clean_phone = normalize_phone(raw_phone)
+        digits = re.sub(r'\D', '', clean_phone)
+
+        if not digits or len(digits) < 11:
+            return Response({"error": "Введите корректный номер телефона"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Rate limit: 60 seconds
+        cutoff = timezone.now() - datetime.timedelta(seconds=60)
+        recent_code = OnboardingVerificationCode.objects.filter(
+            organization=org, phone=clean_phone, created_at__gte=cutoff
+        ).first()
+
+        if recent_code:
+            return Response({
+                "error": "Код уже отправлен. Подождите минуту перед повторным запросом.",
+                "timeout": 60
+            }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
+        # Generate 4-digit code
+        import random
+        code = f"{random.randint(1000, 9999)}"
+
+        OnboardingVerificationCode.objects.create(
+            organization=org,
+            phone=clean_phone,
+            code=code
+        )
+
+        # Dispatch via WABA
+        try:
+            from apps.core.services.waba_service import dispatch_waba_notification
+            dispatch_waba_notification(
+                org=org,
+                event_type='auth_code',
+                actual_payload={'phone': clean_phone, 'text': code, 'auth_code': code},
+                recipient_phone=clean_phone
+            )
+            logger.info(f"Onboarding OTP code sent to {clean_phone} for org {org.slug}")
+        except Exception as e:
+            logger.error(f"Error dispatching WABA OTP: {e}")
+
+        return Response({
+            "status": "sent",
+            "message": "Код отправлен на ваш WhatsApp",
+            "timeout": 60
+        })
+
+
+class WebOnboardingVerifyView(APIView):
+    """
+    Public view to verify OTP and complete registration for web onboarding.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, slug, *args, **kwargs):
+        org = Organization.objects.filter(slug=slug, is_active=True).first()
+        if not org or not org.is_web_onboarding_enabled:
+            return Response({"error": "Онбординг отключен заведением"}, status=status.HTTP_404_NOT_FOUND)
+
+        raw_phone = request.data.get('phone', '')
+        clean_phone = normalize_phone(raw_phone)
+        code = str(request.data.get('code', '')).strip()
+
+        if not clean_phone or not code:
+            return Response({"error": "Номер телефона и код обязательны"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Verify OTP
+        ten_mins_ago = timezone.now() - datetime.timedelta(minutes=10)
+        verification = OnboardingVerificationCode.objects.filter(
+            organization=org,
+            phone=clean_phone,
+            code=code,
+            is_used=False,
+            created_at__gte=ten_mins_ago
+        ).order_by('-created_at').first()
+
+        if not verification:
+            return Response({"error": "Неверный или просроченный код подтверждения"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Mark code used
+        verification.is_used = True
+        verification.save(update_fields=['is_used'])
+
+        # Validate name
+        first_name = str(request.data.get('first_name', '')).strip()
+        last_name = str(request.data.get('last_name', '')).strip()
+        birthday = request.data.get('birthday') or None
+
+        from apps.loyalty.utils import is_valid_name, generate_unique_card_number
+        if not is_valid_name(first_name, required=True):
+            return Response({
+                "error": "Имя не должно содержать цифр, точек, эмодзи или спецсимволов и должно состоять минимум из 2 букв."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if last_name and not is_valid_name(last_name, required=False):
+            return Response({
+                "error": "Фамилия не должна содержать цифр, точек, эмодзи или спецсимволов."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if birthday:
+            try:
+                datetime.datetime.strptime(str(birthday)[:10], '%Y-%m-%d')
+                birthday = str(birthday)[:10]
+            except ValueError:
+                birthday = None
+
+        customer, created = Customer.objects.get_or_create(
+            organization=org,
+            phone=clean_phone,
+            defaults={
+                'first_name': first_name,
+                'last_name': last_name,
+                'birthday': birthday,
+                'language': request.data.get('language') or 'kz',
+                'onboarding_source': 'web',
+                'iiko_card_number': generate_unique_card_number(org),
+            }
+        )
+
+        if not created:
+            updated_fields = []
+            if not customer.first_name and first_name:
+                customer.first_name = first_name
+                updated_fields.append('first_name')
+            if not customer.last_name and last_name:
+                customer.last_name = last_name
+                updated_fields.append('last_name')
+            if not customer.birthday and birthday:
+                customer.birthday = birthday
+                updated_fields.append('birthday')
+            if not customer.iiko_card_number:
+                customer.iiko_card_number = generate_unique_card_number(org)
+                updated_fields.append('iiko_card_number')
+            if updated_fields:
+                customer.save(update_fields=updated_fields)
+
+        # Trigger iiko sync
+        try:
+            from apps.loyalty.tasks import sync_customer_to_iiko
+            sync_customer_to_iiko.delay(customer.id, push=True)
+        except Exception as e:
+            logger.warning(f"Could not delay sync_customer_to_iiko: {e}")
+
+        return Response({
+            "status": "success",
+            "customer": {
+                "id": customer.id,
+                "first_name": customer.first_name,
+                "last_name": customer.last_name,
+                "phone": customer.phone,
+                "balance": float(customer.loyalty_balance),
+                "card_number": customer.iiko_card_number,
+                "wallet_type": customer.wallet_type,
+            }
+        })
+
+
+class WebOnboardingWalletView(APIView):
+    """
+    Public view to generate wallet link (Google) or activate wallet (Apple) for an onboarded customer.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, slug, *args, **kwargs):
+        org = Organization.objects.filter(slug=slug, is_active=True).first()
+        if not org or not org.is_web_onboarding_enabled:
+            return Response({"error": "Онбординг отключен"}, status=status.HTTP_404_NOT_FOUND)
+
+        customer_id = request.data.get('customer_id')
+        raw_phone = request.data.get('phone', '')
+        clean_phone = normalize_phone(raw_phone)
+        wallet_type = request.data.get('wallet_type')
+
+        customer = Customer.objects.filter(id=customer_id, organization=org, phone=clean_phone).first()
+        if not customer:
+            return Response({"error": "Клиент не найден"}, status=status.HTTP_404_NOT_FOUND)
+
+        if wallet_type == 'google':
+            if not org.is_google_wallet_enabled:
+                return Response({"error": "Google Wallet отключен заведением"}, status=status.HTTP_400_BAD_REQUEST)
+
+            from apps.loyalty.google_wallet_service import GoogleWalletService
+            try:
+                service = GoogleWalletService()
+                balance_str = str(int(customer.loyalty_balance)) if customer.loyalty_balance == int(customer.loyalty_balance) else str(customer.loyalty_balance)
+                url = service.generate_google_wallet_link(customer, f"{balance_str} баллов")
+                if customer.wallet_type != 'google':
+                    customer.wallet_type = 'google'
+                    customer.save(update_fields=['wallet_type'])
+                return Response({
+                    "url": url,
+                    "card_number": customer.iiko_card_number
+                })
+            except Exception as e:
+                logger.error(f"Error generating Google Wallet link for onboarding: {e}")
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        elif wallet_type == 'apple':
+            if not org.is_apple_wallet_enabled:
+                return Response({"error": "Apple Wallet отключен заведением"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if not customer.iiko_card_number:
+                from apps.loyalty.utils import generate_unique_card_number
+                customer.iiko_card_number = generate_unique_card_number(org)
+
+            if customer.wallet_type != 'apple':
+                customer.wallet_type = 'apple'
+                customer.save(update_fields=['wallet_type', 'iiko_card_number'])
+
+            return Response({
+                "status": "success",
+                "wallet_type": "apple",
+                "card_number": customer.iiko_card_number,
+                "message": "Apple Wallet выбран для программы лояльности"
+            })
+
+        return Response({"error": "Неизвестный тип кошелька"}, status=status.HTTP_400_BAD_REQUEST)
+
 

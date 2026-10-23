@@ -167,6 +167,7 @@ const settingsSubTabs = computed(() => {
   ]
   if (org?.is_loyalty_enabled) {
     list.push(
+      { id: 'onboarding', label: 'Страница онбординга', icon: '🚀' },
       { id: 'branding', label: 'Брендинг TMA', icon: '🎨' },
       { id: 'wallet', label: 'Google Wallet', icon: '🌐' },
       { id: 'apple_wallet', label: 'Apple Wallet', icon: '🍏' },

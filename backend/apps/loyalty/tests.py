@@ -640,6 +640,214 @@ class WabaWebhookIntegrationTests(TestCase):
         mock_task_delay.assert_called_once_with(log.id)
 
 
+class WebOnboardingTests(TestCase):
+    def setUp(self):
+        self.organization = Organization.objects.create(
+            name="Del Mar Resto",
+            slug="del-mar",
+            is_active=True,
+            is_loyalty_enabled=True,
+            is_web_onboarding_enabled=False,
+            is_google_wallet_enabled=True,
+            is_apple_wallet_enabled=True,
+            tg_bot_username="delmar_bot",
+            tma_name="app",
+            branding={"design_color": "#4f46e5", "logo_url": "/media/logos/delmar.png"},
+            web_onboarding_settings={
+                "title_kz": "Del Mar картасы",
+                "title_ru": "Карта Del Mar",
+                "welcome_bonus_kz": "500 бонус",
+                "welcome_bonus_ru": "500 бонусов"
+            }
+        )
+
+    def test_waba_validation_onboarding_toggle(self):
+        from apps.core.serializers import OrganizationSettingsSerializer
+        from rest_framework.exceptions import ValidationError
+
+        # 1. Organization without WABA configured
+        serializer = OrganizationSettingsSerializer(
+            instance=self.organization,
+            data={"is_web_onboarding_enabled": True},
+            partial=True
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("is_web_onboarding_enabled", serializer.errors)
+
+        # 2. Configure WABA credentials
+        self.organization.is_waba_enabled = True
+        self.organization.waba_access_token = "EAAB_test_token"
+        self.organization.waba_phone_number_id = "1029384756"
+        self.organization.save()
+
+        serializer = OrganizationSettingsSerializer(
+            instance=self.organization,
+            data={"is_web_onboarding_enabled": True},
+            partial=True
+        )
+        self.assertTrue(serializer.is_valid())
+        updated = serializer.save()
+        self.assertTrue(updated.is_web_onboarding_enabled)
+
+    def test_onboarding_info_endpoint(self):
+        # When disabled -> 403
+        res = self.client.get(f"/api/loyalty/public/onboarding/{self.organization.slug}/info/")
+        self.assertEqual(res.status_code, 403)
+
+        # Enable onboarding
+        self.organization.is_web_onboarding_enabled = True
+        self.organization.save()
+
+        res = self.client.get(f"/api/loyalty/public/onboarding/{self.organization.slug}/info/")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['organization_name'], "Del Mar Resto")
+        self.assertEqual(res.data['settings']['title_kz'], "Del Mar картасы")
+
+    def test_onboarding_check_phone_existing_skips_otp(self):
+        self.organization.is_web_onboarding_enabled = True
+        self.organization.save()
+
+        # Existing customer
+        Customer.objects.create(
+            organization=self.organization,
+            phone="+77071112233",
+            first_name="Марат",
+            last_name="Алиев",
+            loyalty_balance=1500.00,
+            iiko_card_number="7788990011"
+        )
+
+        res = self.client.post(
+            f"/api/loyalty/public/onboarding/{self.organization.slug}/check-phone/",
+            data={"phone": "+7 (707) 111-22-33"},
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.data['exists'])
+        self.assertEqual(res.data['customer']['first_name'], "Марат")
+        self.assertEqual(res.data['customer']['balance'], 1500.00)
+
+        # Non-existing phone
+        res_new = self.client.post(
+            f"/api/loyalty/public/onboarding/{self.organization.slug}/check-phone/",
+            data={"phone": "87079998877"},
+            content_type="application/json"
+        )
+        self.assertEqual(res_new.status_code, 200)
+        self.assertFalse(res_new.data['exists'])
+
+    @patch('apps.core.services.waba_service.dispatch_waba_notification')
+    def test_onboarding_send_otp_and_verify(self, mock_dispatch):
+        self.organization.is_web_onboarding_enabled = True
+        self.organization.is_waba_enabled = True
+        self.organization.waba_access_token = "EAAB_test_token"
+        self.organization.waba_phone_number_id = "1029384756"
+        self.organization.save()
+
+        phone = "+77075554433"
+
+        # 1. Send OTP
+        res_otp = self.client.post(
+            f"/api/loyalty/public/onboarding/{self.organization.slug}/send-otp/",
+            data={"phone": phone},
+            content_type="application/json"
+        )
+        self.assertEqual(res_otp.status_code, 200)
+        self.assertEqual(res_otp.data['status'], "sent")
+
+        from apps.loyalty.models import OnboardingVerificationCode
+        code_obj = OnboardingVerificationCode.objects.filter(organization=self.organization, phone=phone).first()
+        self.assertIsNotNone(code_obj)
+        self.assertFalse(code_obj.is_used)
+
+        # 2. Rate limit test (resending immediately should return 429)
+        res_limit = self.client.post(
+            f"/api/loyalty/public/onboarding/{self.organization.slug}/send-otp/",
+            data={"phone": phone},
+            content_type="application/json"
+        )
+        self.assertEqual(res_limit.status_code, 429)
+
+        # 3. Verify OTP with invalid code -> 400
+        res_bad = self.client.post(
+            f"/api/loyalty/public/onboarding/{self.organization.slug}/verify/",
+            data={"phone": phone, "code": "0000", "first_name": "Данияр"},
+            content_type="application/json"
+        )
+        self.assertEqual(res_bad.status_code, 400)
+
+        # 4. Verify OTP with valid code -> creates customer with onboarding_source='web'
+        res_ok = self.client.post(
+            f"/api/loyalty/public/onboarding/{self.organization.slug}/verify/",
+            data={
+                "phone": phone,
+                "code": code_obj.code,
+                "first_name": "Данияр",
+                "last_name": "Қайратов",
+                "language": "kz"
+            },
+            content_type="application/json"
+        )
+        self.assertEqual(res_ok.status_code, 200)
+        self.assertEqual(res_ok.data['status'], "success")
+
+        code_obj.refresh_from_db()
+        self.assertTrue(code_obj.is_used)
+
+        customer = Customer.objects.get(organization=self.organization, phone=phone)
+        self.assertEqual(customer.first_name, "Данияр")
+        self.assertEqual(customer.last_name, "Қайратов")
+        self.assertEqual(customer.onboarding_source, 'web')
+        self.assertIsNotNone(customer.iiko_card_number)
+
+    @patch('apps.loyalty.google_wallet_service.GoogleWalletService')
+    def test_onboarding_wallet_actions(self, mock_wallet_cls):
+        mock_service = MagicMock()
+        mock_service.generate_google_wallet_link.return_value = "https://pay.google.com/gp/v/save/test_jwt_link"
+        mock_wallet_cls.return_value = mock_service
+
+        self.organization.is_web_onboarding_enabled = True
+        self.organization.save()
+
+        customer = Customer.objects.create(
+            organization=self.organization,
+            phone="+77073332211",
+            first_name="Ерлан",
+            onboarding_source='web'
+        )
+
+        # 1. Google Wallet
+        res_g = self.client.post(
+            f"/api/loyalty/public/onboarding/{self.organization.slug}/wallet/",
+            data={
+                "customer_id": customer.id,
+                "phone": customer.phone,
+                "wallet_type": "google"
+            },
+            content_type="application/json"
+        )
+        self.assertEqual(res_g.status_code, 200)
+        self.assertIn("https://pay.google.com", res_g.data['url'])
+        customer.refresh_from_db()
+        self.assertEqual(customer.wallet_type, 'google')
+
+        # 2. Apple Wallet
+        res_a = self.client.post(
+            f"/api/loyalty/public/onboarding/{self.organization.slug}/wallet/",
+            data={
+                "customer_id": customer.id,
+                "phone": customer.phone,
+                "wallet_type": "apple"
+            },
+            content_type="application/json"
+        )
+        self.assertEqual(res_a.status_code, 200)
+        self.assertEqual(res_a.data['status'], "success")
+        customer.refresh_from_db()
+        self.assertEqual(customer.wallet_type, 'apple')
+
+
+
 
 
 

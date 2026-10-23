@@ -76,6 +76,12 @@ const routes = [
     meta: { requiresAuth: true, requiresOrgAdmin: true },
   },
   {
+    path: '/join/:slug',
+    name: 'web-onboarding',
+    component: () => import('@/views/WebOnboardingView.vue'),
+    meta: { public: true },
+  },
+  {
     path: '/',
     name: 'landing',
     component: () => import('@/views/LandingView.vue'),

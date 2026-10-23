@@ -35,6 +35,12 @@ class Customer(models.Model):
     )
     language = models.CharField("Язык", max_length=2, choices=LANGUAGE_CHOICES, default='ru')
 
+    ONBOARDING_SOURCE_CHOICES = (
+        ('telegram', 'Telegram'),
+        ('web', 'Веб-сайт'),
+    )
+    onboarding_source = models.CharField("Тип онбординга", max_length=20, choices=ONBOARDING_SOURCE_CHOICES, default='telegram')
+
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -140,3 +146,18 @@ class CustomerWallet(models.Model):
 
     def __str__(self):
         return f"{self.name}: {self.balance} ({self.customer.first_name})"
+
+class OnboardingVerificationCode(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='verification_codes')
+    phone = models.CharField("Номер телефона", max_length=20, db_index=True)
+    code = models.CharField("Код подтверждения", max_length=6)
+    is_used = models.BooleanField("Использован", default=False)
+    created_at = models.DateTimeField("Создан", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Код подтверждения онбординга"
+        verbose_name_plural = "Коды подтверждения онбординга"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.organization.name} - {self.phone}: {self.code} ({'Использован' if self.is_used else 'Активен'})"

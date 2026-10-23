@@ -661,6 +661,293 @@
         </div>
       </div>
 
+      <!-- TAB: Onboarding -->
+      <div v-show="activeTab === 'onboarding'" class="space-y-6">
+        <!-- Main header / toggle box -->
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-5">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">🚀</span>
+                <h2 class="text-lg font-bold text-white">Страница онбординга (Веб-регистрация)</h2>
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  Web / QR
+                </span>
+              </div>
+              <p class="text-slate-400 text-sm mt-1">
+                Публичная мобильная веб-страница регистрации гостей без Telegram с выпуском карт в Apple Wallet и Google Wallet
+              </p>
+            </div>
+            
+            <!-- Toggle with WABA check -->
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input
+                id="toggle-web-onboarding"
+                type="checkbox"
+                :checked="form.is_web_onboarding_enabled"
+                @click.prevent="toggleWebOnboarding"
+                class="sr-only peer"
+              >
+              <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+              <span class="ml-3 text-sm font-medium" :class="form.is_web_onboarding_enabled ? 'text-emerald-400' : 'text-slate-500'">
+                {{ form.is_web_onboarding_enabled ? 'Включено' : 'Выключено' }}
+              </span>
+            </label>
+          </div>
+
+          <!-- WABA Warning Banner (if not configured) -->
+          <div v-if="!isWabaConfigured" class="bg-amber-950/40 border border-amber-600/60 rounded-2xl p-5 flex items-start gap-4 shadow-lg shadow-amber-950/20">
+            <div class="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-400 text-xl shrink-0">
+              ⚠️
+            </div>
+            <div class="flex-1 space-y-1.5">
+              <h4 class="text-white font-semibold text-sm">Интеграция с WhatsApp (WABA) не настроена!</h4>
+              <p class="text-amber-200/90 text-xs leading-relaxed">
+                Для работы страницы онбординга обязательно требуется настроенный и включенный WhatsApp Business API (WABA).
+                Система отправляет проверочные коды регистрации гостям через WhatsApp.
+                Пока WABA не настроена, тумблер страницы онбординга не может быть включен.
+              </p>
+              <div class="pt-2">
+                <button
+                  type="button"
+                  @click="activeTab = 'waba'"
+                  class="inline-flex items-center gap-2 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all cursor-pointer"
+                >
+                  <span>💬</span> Перейти в настройки WABA →
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Status alert when enabled -->
+          <div v-else-if="form.is_web_onboarding_enabled" class="bg-emerald-950/40 border border-emerald-600/40 rounded-2xl p-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="text-emerald-400 text-xl">✓</span>
+              <div>
+                <p class="text-white text-sm font-medium">Страница онбординга активна и готова принимать гостей</p>
+                <p class="text-emerald-300/80 text-xs mt-0.5">WABA настроена для отправки OTP-кодов</p>
+              </div>
+            </div>
+            <a
+              :href="onboardingUrl"
+              target="_blank"
+              class="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
+            >
+              <span>↗</span> Открыть страницу
+            </a>
+          </div>
+
+          <!-- Link & QR Code Box -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
+            <!-- Link and details (2 cols) -->
+            <div class="lg:col-span-2 space-y-4">
+              <div>
+                <label class="form-label">Индивидуальная ссылка онбординга заведения</label>
+                <div class="flex items-center gap-2">
+                  <div class="relative flex-1">
+                    <input
+                      :value="onboardingUrl"
+                      type="text"
+                      readonly
+                      class="form-input font-mono text-xs pr-10 bg-slate-950 text-indigo-300 border-slate-700"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    @click="copyOnboardingUrl"
+                    class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap"
+                  >
+                    <span>📋</span> Скопировать
+                  </button>
+                  <a
+                    :href="onboardingUrl"
+                    target="_blank"
+                    class="px-4 py-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap"
+                  >
+                    <span>↗</span> Тест
+                  </a>
+                </div>
+                <p class="text-xs text-slate-500 mt-1.5">
+                  Slug заведения (<span class="font-mono text-indigo-400">{{ form.slug }}</span>) однозначно идентифицирует заведение в базе данных.
+                </p>
+              </div>
+
+              <!-- Banner upload -->
+              <div class="pt-2">
+                <label class="form-label">Баннер страницы онбординга (Шапка)</label>
+                <div class="flex items-start gap-5">
+                  <!-- Banner preview -->
+                  <div class="w-48 h-28 rounded-xl border border-slate-700 bg-slate-950 overflow-hidden relative flex items-center justify-center flex-shrink-0">
+                    <img
+                      v-if="form.web_onboarding_settings?.banner_url || onboardingBannerPreview"
+                      :src="onboardingBannerPreview || form.web_onboarding_settings?.banner_url"
+                      alt="Баннер онбординга"
+                      class="w-full h-full object-cover"
+                    />
+                    <div v-else class="text-slate-600 text-xs text-center p-2">
+                      <span class="text-xl block mb-1">🖼</span>
+                      Баннер не загружен
+                    </div>
+                  </div>
+
+                  <!-- Upload controls -->
+                  <div class="space-y-2">
+                    <label class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-md">
+                      <span v-if="uploadingOnboardingBanner" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                      <span v-else>📤</span>
+                      {{ form.web_onboarding_settings?.banner_url ? 'Заменить баннер' : 'Загрузить баннер' }}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        class="hidden"
+                        @change="uploadOnboardingBanner"
+                        :disabled="uploadingOnboardingBanner"
+                      />
+                    </label>
+                    <p class="text-[11px] text-slate-400 leading-relaxed">
+                      Рекомендуемый размер: 1200×600 px (2:1). Форматы: PNG, JPG, WebP. Отображается в верхней части экрана смартфона.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Accent color -->
+              <div class="pt-2">
+                <label class="form-label">Акцентный цвет кнопок и элементов</label>
+                <div class="flex items-center gap-3">
+                  <input
+                    type="color"
+                    v-model="onboardingAccentColor"
+                    class="w-11 h-11 rounded-xl border border-slate-700 cursor-pointer bg-transparent p-0.5"
+                  />
+                  <input
+                    type="text"
+                    v-model="onboardingAccentColor"
+                    class="form-input w-32 font-mono text-xs uppercase"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- QR code card (1 col) -->
+            <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-between text-center space-y-4">
+              <div>
+                <h3 class="text-white text-sm font-semibold">QR-код для гостей</h3>
+                <p class="text-slate-400 text-xs mt-0.5">Печать на столы, тейбл-тенты и полиграфию</p>
+              </div>
+
+              <div class="p-3 bg-white rounded-2xl shadow-inner flex items-center justify-center">
+                <img
+                  v-if="qrCodeDataUrl"
+                  :src="qrCodeDataUrl"
+                  alt="QR Code"
+                  class="w-44 h-44 object-contain"
+                />
+                <div v-else class="w-44 h-44 flex items-center justify-center text-slate-400 text-xs">
+                  Генерация QR...
+                </div>
+              </div>
+
+              <button
+                type="button"
+                @click="downloadQrCode"
+                :disabled="!qrCodeDataUrl"
+                class="w-full py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+              >
+                <span>⬇</span> Скачать QR в PNG
+              </button>
+            </div>
+          </div>
+
+          <hr class="border-slate-800" />
+
+          <!-- Bilingual texts configuration -->
+          <div class="space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-white font-semibold text-sm">Тексты и приветствие (двуязычные)</h3>
+                <p class="text-slate-400 text-xs">По умолчанию на странице отображается казахский язык (KZ), с возможностью мгновенного переключения на русский (RU)</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <!-- Kazakh Texts (Default) -->
+              <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 space-y-3.5">
+                <div class="flex items-center gap-2 border-b border-slate-800 pb-2">
+                  <span class="text-sm font-bold text-indigo-400">🇰🇿 Қазақша (негізгі)</span>
+                </div>
+                <div>
+                  <label class="form-label !text-xs">Басты тақырып (Заголовок)</label>
+                  <input
+                    v-model="onboardingTitleKz"
+                    type="text"
+                    class="form-input text-xs"
+                    placeholder="Лоялдық картасын алыңыз"
+                  />
+                </div>
+                <div>
+                  <label class="form-label !text-xs">Қосымша мәтін (Подзаголовок)</label>
+                  <input
+                    v-model="onboardingSubtitleKz"
+                    type="text"
+                    class="form-input text-xs"
+                    placeholder="Тіркеліп, әрбір тапсырыстан бонустар жинаңыз!"
+                  />
+                </div>
+                <div>
+                  <label class="form-label !text-xs">Қош келдіңіз бонусы (Текст о бонусе)</label>
+                  <input
+                    v-model="onboardingWelcomeBonusKz"
+                    type="text"
+                    class="form-input text-xs"
+                    placeholder="Мысалы: Тіркелу үшін 500 бонус сыйлыққа!"
+                  />
+                </div>
+              </div>
+
+              <!-- Russian Texts -->
+              <div class="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 space-y-3.5">
+                <div class="flex items-center gap-2 border-b border-slate-800 pb-2">
+                  <span class="text-sm font-bold text-slate-300">🇷🇺 Русский</span>
+                </div>
+                <div>
+                  <label class="form-label !text-xs">Главный заголовок</label>
+                  <input
+                    v-model="onboardingTitleRu"
+                    type="text"
+                    class="form-input text-xs"
+                    placeholder="Получите карту лояльности"
+                  />
+                </div>
+                <div>
+                  <label class="form-label !text-xs">Подзаголовок</label>
+                  <input
+                    v-model="onboardingSubtitleRu"
+                    type="text"
+                    class="form-input text-xs"
+                    placeholder="Зарегистрируйтесь и получайте бонусы с каждого заказа!"
+                  />
+                </div>
+                <div>
+                  <label class="form-label !text-xs">Приветственный бонус</label>
+                  <input
+                    v-model="onboardingWelcomeBonusRu"
+                    type="text"
+                    class="form-input text-xs"
+                    placeholder="Например: 500 бонусов в подарок при регистрации!"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Save bar -->
+          <div class="flex justify-end pt-4 border-t border-slate-800">
+            <SaveButton :saving="saving" @save="saveOnboardingSettings" />
+          </div>
+        </div>
+      </div>
+
       <!-- TAB: Branding -->
       <div v-show="activeTab === 'branding'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
         <!-- Color picker -->
@@ -1771,12 +2058,40 @@
 
       </div>
     </div>
+
+    <!-- WABA Required Alert Modal -->
+    <div v-if="showWabaRequiredModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-950 border border-amber-500/40 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+        <div class="flex items-center gap-3">
+          <span class="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl font-bold">⚠️</span>
+          <div>
+            <h3 class="text-white font-bold text-base">Требуется настройка WABA</h3>
+            <p class="text-amber-400/90 text-xs">WhatsApp Business API не активен</p>
+          </div>
+        </div>
+        <p class="text-slate-300 text-sm leading-relaxed">
+          Включение страницы онбординга заблокировано. Для авторизации и регистрации клиентов на веб-странице система отправляет проверочный код через WhatsApp.
+        </p>
+        <p class="text-slate-400 text-xs">
+          Пожалуйста, перейдите в раздел <b>Настройка WABA</b>, укажите Meta Access Token, Phone Number ID и включите тумблер WABA.
+        </p>
+        <div class="flex gap-3 pt-2">
+          <button @click="showWabaRequiredModal = false" type="button" class="flex-1 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:text-white text-xs font-medium transition-all cursor-pointer">
+            Понятно
+          </button>
+          <button @click="showWabaRequiredModal = false; activeTab = 'waba'" type="button" class="flex-1 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow-md transition-all cursor-pointer">
+            Настроить WABA →
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import QRCode from 'qrcode'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
@@ -1796,6 +2111,7 @@ const tabs = computed(() => {
   ]
   if (form.value.is_loyalty_enabled) {
     list.push(
+      { id: 'onboarding', label: 'Страница онбординга' },
       { id: 'branding', label: 'Брендинг TMA' },
       { id: 'wallet', label: 'Google Wallet' },
       { id: 'apple_wallet', label: 'Apple Wallet' },
@@ -1961,11 +2277,195 @@ const form = ref({
   iiko_api_login: '', iiko_app_id: '', iiko_client_secret: '', iiko_organization_id: '', iiko_loyalty_program_id: '',
   is_iiko_webhook_password_enabled: false, iiko_webhook_password: '',
   iiko_server_url: '', iiko_server_login: '', iiko_server_password: '',
+  is_web_onboarding_enabled: false,
+  web_onboarding_settings: {},
   branding: {},
   instagram_link: '', whatsapp_link: '',
   is_loyalty_enabled: true, is_analytics_enabled: false, is_ai_agent_enabled: false,
   llm_provider: 'openai', llm_model_name: 'gpt-4o-mini', llm_api_key: '', llm_system_prompt: '',
 })
+
+// Onboarding page reactive state & WABA guard
+const isWabaConfigured = computed(() => {
+  return !!(form.value.is_waba_enabled && form.value.waba_access_token && form.value.waba_phone_number_id)
+})
+const showWabaRequiredModal = ref(false)
+
+function toggleWebOnboarding() {
+  if (!form.value.is_web_onboarding_enabled) {
+    if (!isWabaConfigured.value) {
+      showWabaRequiredModal.value = true
+      toast.error('Для включения страницы онбординга необходимо сначала настроить и включить WABA!')
+      return
+    }
+    form.value.is_web_onboarding_enabled = true
+  } else {
+    form.value.is_web_onboarding_enabled = false
+  }
+}
+
+const onboardingAccentColor = computed({
+  get: () => form.value.web_onboarding_settings?.accent_color || form.value.branding?.design_color || '#6366f1',
+  set: (v) => {
+    form.value.web_onboarding_settings = {
+      ...(form.value.web_onboarding_settings || {}),
+      accent_color: v
+    }
+  }
+})
+
+const onboardingTitleKz = computed({
+  get: () => form.value.web_onboarding_settings?.title_kz ?? 'Лоялдық картасын алыңыз',
+  set: (v) => {
+    form.value.web_onboarding_settings = {
+      ...(form.value.web_onboarding_settings || {}),
+      title_kz: v
+    }
+  }
+})
+
+const onboardingTitleRu = computed({
+  get: () => form.value.web_onboarding_settings?.title_ru ?? 'Получите карту лояльности',
+  set: (v) => {
+    form.value.web_onboarding_settings = {
+      ...(form.value.web_onboarding_settings || {}),
+      title_ru: v
+    }
+  }
+})
+
+const onboardingSubtitleKz = computed({
+  get: () => form.value.web_onboarding_settings?.subtitle_kz ?? 'Тіркеліп, әрбір тапсырыстан бонустар жинаңыз!',
+  set: (v) => {
+    form.value.web_onboarding_settings = {
+      ...(form.value.web_onboarding_settings || {}),
+      subtitle_kz: v
+    }
+  }
+})
+
+const onboardingSubtitleRu = computed({
+  get: () => form.value.web_onboarding_settings?.subtitle_ru ?? 'Зарегистрируйтесь и получайте бонусы с каждого заказа!',
+  set: (v) => {
+    form.value.web_onboarding_settings = {
+      ...(form.value.web_onboarding_settings || {}),
+      subtitle_ru: v
+    }
+  }
+})
+
+const onboardingWelcomeBonusKz = computed({
+  get: () => form.value.web_onboarding_settings?.welcome_bonus_kz || '',
+  set: (v) => {
+    form.value.web_onboarding_settings = {
+      ...(form.value.web_onboarding_settings || {}),
+      welcome_bonus_kz: v
+    }
+  }
+})
+
+const onboardingWelcomeBonusRu = computed({
+  get: () => form.value.web_onboarding_settings?.welcome_bonus_ru || '',
+  set: (v) => {
+    form.value.web_onboarding_settings = {
+      ...(form.value.web_onboarding_settings || {}),
+      welcome_bonus_ru: v
+    }
+  }
+})
+
+const onboardingUrl = computed(() => {
+  const domain = window.location.origin
+  return `${domain}/join/${form.value.slug || ''}`
+})
+
+const qrCodeDataUrl = ref('')
+async function generateQrCode() {
+  if (!form.value.slug) return
+  try {
+    qrCodeDataUrl.value = await QRCode.toDataURL(onboardingUrl.value, {
+      width: 400,
+      margin: 2,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff'
+      }
+    })
+  } catch (e) {
+    console.error('Failed to generate QR code', e)
+  }
+}
+
+watch([onboardingUrl, () => activeTab.value], () => {
+  if (activeTab.value === 'onboarding') {
+    generateQrCode()
+  }
+}, { immediate: true })
+
+async function copyOnboardingUrl() {
+  try {
+    await navigator.clipboard.writeText(onboardingUrl.value)
+    toast.success('Ссылка на страницу онбординга скопирована')
+  } catch {
+    toast.error('Не удалось скопировать ссылку')
+  }
+}
+
+function downloadQrCode() {
+  if (!qrCodeDataUrl.value) return
+  const link = document.createElement('a')
+  link.download = `qr-onboarding-${form.value.slug}.png`
+  link.href = qrCodeDataUrl.value
+  link.click()
+  toast.success('QR-код скачан')
+}
+
+const uploadingOnboardingBanner = ref(false)
+const onboardingBannerPreview = ref(null)
+
+async function uploadOnboardingBanner(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  onboardingBannerPreview.value = URL.createObjectURL(file)
+  uploadingOnboardingBanner.value = true
+  try {
+    const fd = new FormData()
+    fd.append('banner', file)
+    const res = await api.post(`/core/organizations/${auth.currentOrgId}/upload-onboarding-banner/`, fd)
+    form.value.web_onboarding_settings = {
+      ...(form.value.web_onboarding_settings || {}),
+      banner_url: res.data.banner_url
+    }
+    toast.success('Баннер страницы онбординга загружен')
+  } catch {
+    toast.error('Ошибка загрузки баннера')
+    onboardingBannerPreview.value = null
+  } finally {
+    uploadingOnboardingBanner.value = false
+  }
+}
+
+async function saveOnboardingSettings() {
+  if (form.value.is_web_onboarding_enabled && !isWabaConfigured.value) {
+    showWabaRequiredModal.value = true
+    toast.error('Для включения страницы онбординга необходимо сначала настроить и включить WABA!')
+    form.value.is_web_onboarding_enabled = false
+    return
+  }
+  saving.value = true
+  try {
+    await api.patch(`/core/organizations/${auth.currentOrgId}/settings/`, {
+      is_web_onboarding_enabled: form.value.is_web_onboarding_enabled,
+      web_onboarding_settings: form.value.web_onboarding_settings,
+    })
+    toast.success('Настройки страницы онбординга сохранены')
+  } catch (e) {
+    const msg = e.response?.data?.is_web_onboarding_enabled?.[0] || e.response?.data?.detail || 'Ошибка сохранения настроек онбординга'
+    toast.error(msg)
+  } finally {
+    saving.value = false
+  }
+}
 
 const brandColor = computed({
   get: () => form.value.branding?.design_color || '#6366f1',
@@ -2232,6 +2732,8 @@ async function saveSettings() {
       iiko_server_password: form.value.iiko_server_password || undefined,
       instagram_link: form.value.instagram_link || null,
       whatsapp_link: form.value.whatsapp_link || null,
+      is_web_onboarding_enabled: form.value.is_web_onboarding_enabled,
+      web_onboarding_settings: form.value.web_onboarding_settings,
     })
     auth.updateOrganization({
       name: form.value.name,

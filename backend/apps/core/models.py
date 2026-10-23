@@ -116,8 +116,16 @@ class Organization(models.Model):
         default="Вы — полезный AI-финансовый аналитик и закупщик для ресторана. Помогайте управлять заказами, анализировать фудкост, цены и упущенную выручку."
     )
 
+    # Веб-онбординг
+    is_web_onboarding_enabled = models.BooleanField("Включена веб-страница онбординга", default=False)
+    web_onboarding_settings = models.JSONField("Настройки веб-онбординга", default=dict, blank=True)
+
     is_active = models.BooleanField("Активен", default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def is_waba_configured(self):
+        return bool(self.is_waba_enabled and self.waba_access_token and self.waba_phone_number_id)
 
     def get_tma_link(self):
         if self.tma_direct_link:

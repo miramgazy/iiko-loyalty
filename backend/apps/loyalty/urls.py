@@ -9,7 +9,12 @@ from apps.loyalty.views import (
     CustomerAppleWalletLinkView,
     CustomerPhoneUpdateView,
     LoyaltyProgramViewSet,
-    OwnerDashboardView
+    OwnerDashboardView,
+    WebOnboardingInfoView,
+    WebOnboardingCheckPhoneView,
+    WebOnboardingSendOtpView,
+    WebOnboardingVerifyView,
+    WebOnboardingWalletView
 )
 
 urlpatterns = [
@@ -40,4 +45,11 @@ urlpatterns = [
         'patch': 'partial_update',
         'delete': 'destroy'
     }), name='org_loyalty_program_detail'),
+
+    # Public Web Onboarding endpoints
+    path('public/onboarding/<str:slug>/info/', WebOnboardingInfoView.as_view(), name='web_onboarding_info'),
+    path('public/onboarding/<str:slug>/check-phone/', WebOnboardingCheckPhoneView.as_view(), name='web_onboarding_check_phone'),
+    path('public/onboarding/<str:slug>/send-otp/', WebOnboardingSendOtpView.as_view(), name='web_onboarding_send_otp'),
+    path('public/onboarding/<str:slug>/verify/', WebOnboardingVerifyView.as_view(), name='web_onboarding_verify'),
+    path('public/onboarding/<str:slug>/wallet/', WebOnboardingWalletView.as_view(), name='web_onboarding_wallet'),
 ]

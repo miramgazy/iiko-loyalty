@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Customer, IikoWebhookLog, LoyaltyProgram, Visit, CustomerWallet
+from .models import Customer, IikoWebhookLog, LoyaltyProgram, Visit, CustomerWallet, OnboardingVerificationCode
 
 class CustomerWalletInline(admin.TabularInline):
     model = CustomerWallet
@@ -13,8 +13,8 @@ class VisitInline(admin.TabularInline):
 
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('first_name', 'last_name', 'phone', 'telegram_id', 'loyalty_balance', 'organization', 'created_at')
-    list_filter = ('organization', 'is_bot_subscribed', 'is_active', 'language', 'created_at')
+    list_display = ('first_name', 'last_name', 'phone', 'telegram_id', 'onboarding_source', 'wallet_type', 'loyalty_balance', 'organization', 'created_at')
+    list_filter = ('organization', 'onboarding_source', 'wallet_type', 'is_bot_subscribed', 'is_active', 'language', 'created_at')
     search_fields = ('first_name', 'last_name', 'phone', 'telegram_id', 'email', 'iiko_customer_id', 'wallet_barcode')
     readonly_fields = ('created_at', 'updated_at', 'wallet_barcode')
     raw_id_fields = ('organization',)
@@ -74,3 +74,11 @@ class CustomerWalletAdmin(admin.ModelAdmin):
     search_fields = ('customer__first_name', 'customer__last_name', 'customer__phone', 'name')
     raw_id_fields = ('customer',)
     readonly_fields = ('created_at', 'updated_at')
+
+@admin.register(OnboardingVerificationCode)
+class OnboardingVerificationCodeAdmin(admin.ModelAdmin):
+    list_display = ('phone', 'code', 'organization', 'is_used', 'created_at')
+    list_filter = ('is_used', 'organization', 'created_at')
+    search_fields = ('phone', 'code')
+    raw_id_fields = ('organization',)
+    readonly_fields = ('created_at',)
