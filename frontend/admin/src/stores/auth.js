@@ -67,6 +67,15 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('current_org_id', String(orgId))
   }
 
+  function updateOrganization(orgData) {
+    if (!user.value || !currentOrgId.value) return
+    const mem = user.value.memberships?.find(m => String(m.organization.id) === String(currentOrgId.value))
+    if (mem && mem.organization) {
+      Object.assign(mem.organization, orgData)
+      localStorage.setItem('user', JSON.stringify(user.value))
+    }
+  }
+
   function logout() {
     accessToken.value = null
     refreshToken.value = null
@@ -90,6 +99,6 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken, refreshToken, user, currentOrgId,
     isAuthenticated, isSuperAdmin, currentMembership, currentRole,
     isOrgManager, isOrgAdmin,
-    login, refreshAccessToken, setCurrentOrg, logout,
+    login, refreshAccessToken, setCurrentOrg, updateOrganization, logout,
   }
 })

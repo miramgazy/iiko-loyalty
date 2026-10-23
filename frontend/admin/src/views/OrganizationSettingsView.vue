@@ -1,8 +1,8 @@
 <template>
-  <div class="p-8 max-w-4xl">
+  <div class="p-8 w-full">
     <div class="mb-8">
       <h1 class="text-2xl font-bold text-white">Настройки организации</h1>
-      <p class="text-slate-400 text-sm mt-1">Управление конфигурацией ресторана</p>
+      <p class="text-slate-400 text-sm mt-1">{{ currentTabLabel }}</p>
     </div>
 
     <div v-if="loading" class="flex items-center justify-center py-20">
@@ -10,16 +10,6 @@
     </div>
 
     <div v-else>
-      <!-- Tabs -->
-      <div class="flex bg-slate-800 rounded-xl p-1 mb-6 gap-1 w-fit">
-        <button v-for="tab in tabs" :key="tab.id"
-          :id="`tab-settings-${tab.id}`"
-          @click="activeTab = tab.id"
-          class="px-5 py-2 text-sm font-medium rounded-lg transition-all duration-200"
-          :class="activeTab === tab.id ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-400 hover:text-white'"
-        >{{ tab.label }}</button>
-      </div>
-
       <!-- TAB: General & Telegram -->
       <div v-show="activeTab === 'general'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-5">
         <div class="grid grid-cols-2 gap-4">
@@ -1786,6 +1776,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
 import { useToastStore } from '@/stores/toast'
@@ -1793,6 +1784,8 @@ import SaveButton from '@/components/SaveButton.vue'
 
 const auth = useAuthStore()
 const toast = useToastStore()
+const route = useRoute()
+const router = useRouter()
 
 const tabs = computed(() => {
   const list = [
@@ -1814,7 +1807,17 @@ const tabs = computed(() => {
   }
   return list
 })
-const activeTab = ref('general')
+
+const activeTab = ref(route.query.tab ? String(route.query.tab) : 'general')
+
+const currentTabLabel = computed(() => {
+  const t = tabs.value.find(tab => tab.id === activeTab.value)
+  return t ? `Раздел: ${t.label}` : 'Управление конфигурацией ресторана'
+})
+
+watch(() => route.query.tab, (newTab) => {
+  activeTab.value = newTab ? String(newTab) : 'general'
+}, { immediate: true })
 const loading = ref(true)
 const saving = ref(false)
 const uploadingLogo = ref(false)
@@ -2172,7 +2175,16 @@ async function load() {
     }
     if (activeTab.value === 'waba') {
       await loadWabaData()
+    } else if (activeTab.value === 'loyalty_programs') {
+      await fetchPrograms()
     }
+
+    auth.updateOrganization({
+      name: form.value.name,
+      is_loyalty_enabled: form.value.is_loyalty_enabled,
+      is_analytics_enabled: form.value.is_analytics_enabled,
+      is_ai_agent_enabled: form.value.is_ai_agent_enabled,
+    })
   } catch {
     toast.error('Не удалось загрузить настройки')
   } finally {
@@ -2220,6 +2232,12 @@ async function saveSettings() {
       iiko_server_password: form.value.iiko_server_password || undefined,
       instagram_link: form.value.instagram_link || null,
       whatsapp_link: form.value.whatsapp_link || null,
+    })
+    auth.updateOrganization({
+      name: form.value.name,
+      is_loyalty_enabled: form.value.is_loyalty_enabled,
+      is_analytics_enabled: form.value.is_analytics_enabled,
+      is_ai_agent_enabled: form.value.is_ai_agent_enabled,
     })
     toast.success('Настройки сохранены')
   } catch (e) {
