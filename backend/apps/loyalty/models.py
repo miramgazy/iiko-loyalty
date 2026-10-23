@@ -23,6 +23,11 @@ class Customer(models.Model):
     # Wallet / Digital Cards
     google_wallet_object_id = models.CharField("Google Wallet Object ID", max_length=100, null=True, blank=True)
     wallet_barcode = models.CharField("Штрих-код", max_length=50, unique=True, blank=True, null=True)
+    WALLET_TYPE_CHOICES = (
+        ('google', 'Google Wallet'),
+        ('apple', 'Apple Wallet'),
+    )
+    wallet_type = models.CharField("Тип карты кошелька", max_length=20, choices=WALLET_TYPE_CHOICES, null=True, blank=True)
 
     LANGUAGE_CHOICES = (
         ('ru', 'Русский'),

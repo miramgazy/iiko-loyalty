@@ -843,8 +843,363 @@
             <input type="text" v-model="walletForm.hex_background_color" class="form-input w-36 font-mono text-sm uppercase" placeholder="#000000" />
           </div>
         </div>
-        <div class="flex justify-end pt-2">
+        <div class="flex items-center justify-between pt-4 border-t border-slate-800">
+          <button
+            type="button"
+            @click="openWalletAdvancedModal"
+            class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
+          >
+            <span>⚙️</span>
+            <span>Геолокация и Push-уведомления</span>
+            <span v-if="walletForm.locations?.length" class="px-2 py-0.5 rounded-full text-xs bg-indigo-500/30 text-indigo-300 font-bold border border-indigo-500/30">
+              {{ walletForm.locations.length }}
+            </span>
+          </button>
           <SaveButton :saving="syncingWallet" @save="syncWalletClass" />
+        </div>
+
+        <!-- Modal: Google Wallet Advanced (Geofencing & Bilingual Push) -->
+        <div v-if="showWalletAdvancedModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 select-none">
+          <div class="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh] animate-[scaleIn_0.2s_ease-out]">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/90 flex-shrink-0">
+              <div class="flex items-center gap-2.5">
+                <span class="text-xl">⚙️</span>
+                <div>
+                  <h3 class="text-base font-bold text-white leading-tight">
+                    Геолокация и Push-уведомления Google Wallet
+                  </h3>
+                  <p class="text-[11px] text-slate-400 mt-0.5 leading-tight">
+                    Настройка гео-напоминаний на экране блокировки и шаблонов пушей
+                  </p>
+                </div>
+              </div>
+              <button 
+                @click="showWalletAdvancedModal = false" 
+                class="text-slate-400 hover:text-white transition-colors bg-transparent border-none cursor-pointer text-lg p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <!-- Modal Info Banner with Google limits -->
+            <div class="px-6 py-3 bg-indigo-950/30 border-b border-indigo-900/40 flex-shrink-0">
+              <div class="flex items-start gap-2.5 text-xs text-indigo-200/90 leading-relaxed">
+                <span class="text-base flex-shrink-0">ℹ️</span>
+                <div class="space-y-0.5">
+                  <p><span class="font-bold text-indigo-300">Ограничения Google Wallet API:</span> гео-напоминания (макс. 10 точек, радиус ~150 м). Заголовок push-сообщения — <span class="font-bold text-amber-300">до 35 символов</span>, текст — <span class="font-bold text-amber-300">до 200 символов</span>.</p>
+                  <p class="text-[11px] text-indigo-300/70">
+                    Переменные: <code class="px-1 py-0.5 rounded bg-indigo-900/50 text-indigo-200">{balance}</code> (баланс), <code class="px-1 py-0.5 rounded bg-indigo-900/50 text-indigo-200">{change}</code> (изменение), <code class="px-1 py-0.5 rounded bg-indigo-900/50 text-indigo-200">{org_name}</code> (ресторан), <code class="px-1 py-0.5 rounded bg-indigo-900/50 text-indigo-200">{name}</code> (имя).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Modal Navigation Tabs -->
+            <div class="flex border-b border-slate-800 bg-slate-900/50 px-6 gap-2 pt-2 flex-shrink-0">
+              <button
+                type="button"
+                @click="activeWalletModalTab = 'geo'"
+                class="px-4 py-2 text-xs font-bold rounded-t-xl transition-all border-b-2 flex items-center gap-1.5 cursor-pointer"
+                :class="activeWalletModalTab === 'geo' 
+                  ? 'border-indigo-500 text-indigo-300 bg-slate-900' 
+                  : 'border-transparent text-slate-400 hover:text-slate-200 bg-transparent'"
+              >
+                <span>📍 Геоточки филиалов</span>
+                <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-500/20 text-indigo-300">
+                  {{ walletForm.locations?.length || 0 }}/10
+                </span>
+              </button>
+              <button
+                type="button"
+                @click="activeWalletModalTab = 'push'"
+                class="px-4 py-2 text-xs font-bold rounded-t-xl transition-all border-b-2 flex items-center gap-1.5 cursor-pointer"
+                :class="activeWalletModalTab === 'push' 
+                  ? 'border-indigo-500 text-indigo-300 bg-slate-900' 
+                  : 'border-transparent text-slate-400 hover:text-slate-200 bg-transparent'"
+              >
+                <span>🔔 Шаблоны Push-сообщений</span>
+                <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300">
+                  RU / KZ
+                </span>
+              </button>
+            </div>
+
+            <!-- Modal Scrollable Content Body -->
+            <div class="p-6 overflow-y-auto space-y-5 flex-1">
+              
+              <!-- TAB 1: Locations (Geofencing) -->
+              <div v-show="activeWalletModalTab === 'geo'" class="space-y-4">
+                
+                <!-- Add new location form -->
+                <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
+                  <span class="text-xs font-bold text-slate-200 uppercase tracking-wider block">
+                    Добавить новый ресторан / филиал
+                  </span>
+                  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label class="block text-[11px] font-semibold text-slate-400 mb-1">Название филиала</label>
+                      <input 
+                        v-model="newLocation.name" 
+                        type="text" 
+                        class="form-input text-xs" 
+                        placeholder="Например: Dostyk Plaza" 
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-semibold text-slate-400 mb-1">Широта (Latitude, -90..90)</label>
+                      <input 
+                        v-model="newLocation.latitude" 
+                        type="number" 
+                        step="any" 
+                        class="form-input text-xs font-mono" 
+                        placeholder="43.238949" 
+                      />
+                    </div>
+                    <div>
+                      <label class="block text-[11px] font-semibold text-slate-400 mb-1">Долгота (Longitude, -180..180)</label>
+                      <input 
+                        v-model="newLocation.longitude" 
+                        type="number" 
+                        step="any" 
+                        class="form-input text-xs font-mono" 
+                        placeholder="76.889709" 
+                      />
+                    </div>
+                  </div>
+                  <div class="flex justify-between items-center pt-1">
+                    <span class="text-[11px] text-slate-500">
+                      Координаты можно скопировать в Яндекс или Google Maps
+                    </span>
+                    <button
+                      type="button"
+                      @click="addLocation"
+                      :disabled="walletForm.locations?.length >= 10"
+                      class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 border-none cursor-pointer shadow-sm"
+                    >
+                      <span>➕</span>
+                      <span>Добавить филиал</span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Locations List -->
+                <div>
+                  <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-bold text-slate-300">
+                      Список добавленных филиалов ({{ walletForm.locations?.length || 0 }} из 10)
+                    </span>
+                  </div>
+
+                  <div v-if="!walletForm.locations || walletForm.locations.length === 0" class="text-center py-8 px-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/30">
+                    <span class="text-2xl block mb-1">📍</span>
+                    <p class="text-xs text-slate-400 font-medium">Геоточки пока не добавлены</p>
+                    <p class="text-[11px] text-slate-500 mt-0.5">Добавьте координаты, чтобы карта появлялась на экране блокировки гостей</p>
+                  </div>
+
+                  <div v-else class="space-y-2">
+                    <div 
+                      v-for="(loc, idx) in walletForm.locations" 
+                      :key="idx"
+                      class="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-3 group hover:border-slate-700 transition-all"
+                    >
+                      <div class="flex items-center gap-3 min-w-0">
+                        <span class="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                          {{ idx + 1 }}
+                        </span>
+                        <div class="min-w-0 text-left">
+                          <p class="text-xs font-bold text-white truncate leading-tight">
+                            {{ loc.name || `Филиал #${idx + 1}` }}
+                          </p>
+                          <p class="text-[11px] text-slate-400 font-mono mt-0.5 leading-tight">
+                            Широта: {{ loc.latitude }}, Долгота: {{ loc.longitude }}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        @click="removeLocation(idx)"
+                        class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors border-none bg-transparent cursor-pointer flex-shrink-0"
+                        title="Удалить филиал"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- TAB 2: Bilingual Push Notification Templates -->
+              <div v-show="activeWalletModalTab === 'push'" class="space-y-4">
+                
+                <!-- Language Toggle Capsule -->
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-bold text-slate-300">Язык уведомления гостя:</span>
+                  <div class="bg-slate-900 border border-slate-800 rounded-lg p-1 flex gap-1">
+                    <button
+                      type="button"
+                      @click="activePushLang = 'ru'"
+                      class="px-3 py-1 rounded-md text-xs font-bold transition-all border-none cursor-pointer"
+                      :class="activePushLang === 'ru' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-transparent text-slate-400 hover:text-slate-200'"
+                    >
+                      🇷🇺 Русский (RU)
+                    </button>
+                    <button
+                      type="button"
+                      @click="activePushLang = 'kz'"
+                      class="px-3 py-1 rounded-md text-xs font-bold transition-all border-none cursor-pointer"
+                      :class="activePushLang === 'kz' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-transparent text-slate-400 hover:text-slate-200'"
+                    >
+                      🇰🇿 Қазақша (KZ)
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Tag Pills Helper -->
+                <div class="p-3 bg-slate-900/60 rounded-xl border border-slate-800 flex items-center gap-2 flex-wrap">
+                  <span class="text-[11px] text-slate-400 font-medium">Быстрая вставка тега в текст:</span>
+                  <button 
+                    type="button" 
+                    v-for="tag in ['{balance}', '{change}', '{org_name}', '{name}']" 
+                    :key="tag"
+                    @click="insertPushTag(tag)"
+                    class="px-2 py-0.5 rounded-md bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 text-[11px] font-mono cursor-pointer transition-all"
+                  >
+                    + {{ tag }}
+                  </button>
+                </div>
+
+                <!-- RU Language Fields -->
+                <div v-if="activePushLang === 'ru'" class="space-y-3 p-4 rounded-xl bg-slate-900/50 border border-slate-800">
+                  <div>
+                    <div class="flex justify-between items-center mb-1">
+                      <label class="text-xs font-bold text-slate-200">Заголовок Push-уведомления (RU)</label>
+                      <span 
+                        class="text-[11px] font-mono"
+                        :class="(walletForm.push_templates?.ru?.title?.length || 0) > 35 ? 'text-rose-400 font-bold' : 'text-slate-400'"
+                      >
+                        {{ walletForm.push_templates?.ru?.title?.length || 0 }} / 35
+                      </span>
+                    </div>
+                    <input
+                      v-model="walletForm.push_templates.ru.title"
+                      type="text"
+                      maxlength="35"
+                      class="form-input text-xs"
+                      placeholder="Баланс бонусов обновлен"
+                    />
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between items-center mb-1">
+                      <label class="text-xs font-bold text-slate-200">Текст сообщения Push-уведомления (RU)</label>
+                      <span 
+                        class="text-[11px] font-mono"
+                        :class="(walletForm.push_templates?.ru?.body?.length || 0) > 200 ? 'text-rose-400 font-bold' : 'text-slate-400'"
+                      >
+                        {{ walletForm.push_templates?.ru?.body?.length || 0 }} / 200
+                      </span>
+                    </div>
+                    <textarea
+                      v-model="walletForm.push_templates.ru.body"
+                      maxlength="200"
+                      rows="3"
+                      class="form-input text-xs resize-none"
+                      placeholder="{org_name}: начислено +{change} бонусов! Баланс: {balance} б."
+                    ></textarea>
+                  </div>
+                </div>
+
+                <!-- KZ Language Fields -->
+                <div v-if="activePushLang === 'kz'" class="space-y-3 p-4 rounded-xl bg-slate-900/50 border border-slate-800">
+                  <div>
+                    <div class="flex justify-between items-center mb-1">
+                      <label class="text-xs font-bold text-slate-200">Push хабарламасының тақырыбы (KZ)</label>
+                      <span 
+                        class="text-[11px] font-mono"
+                        :class="(walletForm.push_templates?.kz?.title?.length || 0) > 35 ? 'text-rose-400 font-bold' : 'text-slate-400'"
+                      >
+                        {{ walletForm.push_templates?.kz?.title?.length || 0 }} / 35
+                      </span>
+                    </div>
+                    <input
+                      v-model="walletForm.push_templates.kz.title"
+                      type="text"
+                      maxlength="35"
+                      class="form-input text-xs"
+                      placeholder="Бонус балансы жаңартылды"
+                    />
+                  </div>
+
+                  <div>
+                    <div class="flex justify-between items-center mb-1">
+                      <label class="text-xs font-bold text-slate-200">Push хабарламасының мәтіні (KZ)</label>
+                      <span 
+                        class="text-[11px] font-mono"
+                        :class="(walletForm.push_templates?.kz?.body?.length || 0) > 200 ? 'text-rose-400 font-bold' : 'text-slate-400'"
+                      >
+                        {{ walletForm.push_templates?.kz?.body?.length || 0 }} / 200
+                      </span>
+                    </div>
+                    <textarea
+                      v-model="walletForm.push_templates.kz.body"
+                      maxlength="200"
+                      rows="3"
+                      class="form-input text-xs resize-none"
+                      placeholder="{org_name}: +{change} бонус берілді! Балансыңыз: {balance} балл."
+                    ></textarea>
+                  </div>
+                </div>
+
+                <!-- Preview Box -->
+                <div class="p-3.5 rounded-xl bg-slate-950 border border-slate-800">
+                  <span class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+                    Пример отображения push-уведомления на смартфоне:
+                  </span>
+                  <div class="p-3 rounded-lg bg-zinc-900/90 border border-zinc-700/60 shadow-lg flex items-start gap-2.5">
+                    <span class="text-lg">💳</span>
+                    <div class="text-left min-w-0 flex-1">
+                      <p class="text-xs font-bold text-white leading-tight">
+                        {{ (activePushLang === 'kz' ? walletForm.push_templates?.kz?.title : walletForm.push_templates?.ru?.title) || 'Баланс бонусов обновлен' }}
+                      </p>
+                      <p class="text-[11px] text-zinc-300 mt-1 leading-snug">
+                        {{ ((activePushLang === 'kz' ? walletForm.push_templates?.kz?.body : walletForm.push_templates?.ru?.body) || '{org_name}: начислено +{change} бонусов! Баланс: {balance} б.')
+                            .replace('{balance}', '1 500')
+                            .replace('{change}', '150')
+                            .replace('{org_name}', form.name || 'Наш Ресторан')
+                            .replace('{name}', 'Александр') }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="px-6 py-4 border-t border-slate-800 bg-slate-900/90 flex justify-end gap-3 flex-shrink-0">
+              <button
+                type="button"
+                @click="showWalletAdvancedModal = false"
+                class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition-colors border-none cursor-pointer"
+              >
+                Отмена
+              </button>
+              <button
+                type="button"
+                @click="saveWalletAdvancedSettings"
+                :disabled="syncingWallet"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 border-none cursor-pointer disabled:opacity-50 shadow-md"
+              >
+                <span v-if="syncingWallet" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                <span>Сохранить и синхронизировать</span>
+              </button>
+            </div>
+
+          </div>
         </div>
       </div>
 
@@ -1521,7 +1876,27 @@ const walletForm = ref({
   issuer_name: '',
   logo_url: '',
   hero_image_url: '',
-  hex_background_color: '#000000'
+  hex_background_color: '#000000',
+  locations: [],
+  push_templates: {
+    ru: {
+      title: 'Баланс бонусов обновлен',
+      body: '{org_name}: начислено +{change} бонусов! Баланс: {balance} б.'
+    },
+    kz: {
+      title: 'Бонус балансы жаңартылды',
+      body: '{org_name}: +{change} бонус берілді! Балансыңыз: {balance} балл.'
+    }
+  }
+})
+
+const showWalletAdvancedModal = ref(false)
+const activeWalletModalTab = ref('geo')
+const activePushLang = ref('ru')
+const newLocation = ref({
+  name: '',
+  latitude: '',
+  longitude: ''
 })
 
 const form = ref({
@@ -1721,6 +2096,17 @@ async function load() {
       logo_url: gwSettings.logo_url || (res.data.branding?.logo_url ? (res.data.branding.logo_url.startsWith('http') ? res.data.branding.logo_url : window.location.origin + res.data.branding.logo_url) : ''),
       hero_image_url: gwSettings.hero_image_url || '',
       hex_background_color: gwSettings.hex_background_color || (res.data.branding?.design_color || '#1e1b4b'),
+      locations: Array.isArray(gwSettings.locations) ? JSON.parse(JSON.stringify(gwSettings.locations)) : [],
+      push_templates: gwSettings.push_templates ? JSON.parse(JSON.stringify(gwSettings.push_templates)) : {
+        ru: {
+          title: 'Баланс бонусов обновлен',
+          body: '{org_name}: начислено +{change} бонусов! Баланс: {balance} б.'
+        },
+        kz: {
+          title: 'Бонус балансы жаңартылды',
+          body: '{org_name}: +{change} бонус берілді! Балансыңыз: {balance} балл.'
+        }
+      }
     }
     if (walletForm.value.logo_url) {
       walletLogoPreview.value = walletForm.value.logo_url.startsWith('http') 
@@ -1767,6 +2153,8 @@ async function saveSettings() {
         logo_url: walletForm.value.logo_url,
         hero_image_url: walletForm.value.hero_image_url,
         hex_background_color: walletForm.value.hex_background_color,
+        locations: walletForm.value.locations || [],
+        push_templates: walletForm.value.push_templates || {},
       },
       is_waba_enabled: form.value.is_waba_enabled,
       waba_access_token: form.value.waba_access_token || undefined,
@@ -1953,6 +2341,8 @@ async function syncWalletClass() {
       hex_background_color: walletForm.value.hex_background_color || brandColor.value,
       logo_url: logoUrlResolved,
       hero_image_url: heroUrlResolved,
+      locations: walletForm.value.locations || [],
+      push_templates: walletForm.value.push_templates || {},
     }
     await api.post(`/core/organizations/${auth.currentOrgId}/google-wallet-class/`, data)
     toast.success('Настройки Google Wallet сохранены и синхронизированы')
@@ -1962,6 +2352,74 @@ async function syncWalletClass() {
   } finally {
     syncingWallet.value = false
   }
+}
+
+function openWalletAdvancedModal() {
+  if (!walletForm.value.locations) {
+    walletForm.value.locations = []
+  }
+  if (!walletForm.value.push_templates) {
+    walletForm.value.push_templates = {
+      ru: {
+        title: 'Баланс бонусов обновлен',
+        body: '{org_name}: начислено +{change} бонусов! Баланс: {balance} б.'
+      },
+      kz: {
+        title: 'Бонус балансы жаңартылды',
+        body: '{org_name}: +{change} бонус берілді! Балансыңыз: {balance} балл.'
+      }
+    }
+  }
+  showWalletAdvancedModal.value = true
+}
+
+function addLocation() {
+  const lat = parseFloat(newLocation.value.latitude)
+  const lng = parseFloat(newLocation.value.longitude)
+  if (isNaN(lat) || lat < -90 || lat > 90) {
+    toast.error('Широта (Latitude) должна быть числом от -90 до +90')
+    return
+  }
+  if (isNaN(lng) || lng < -180 || lng > 180) {
+    toast.error('Долгота (Longitude) должна быть числом от -180 до +180')
+    return
+  }
+  if ((walletForm.value.locations?.length || 0) >= 10) {
+    toast.error('В Google Wallet разрешено максимум 10 гео-точек')
+    return
+  }
+  walletForm.value.locations.push({
+    name: newLocation.value.name.trim() || `Филиал #${walletForm.value.locations.length + 1}`,
+    latitude: lat,
+    longitude: lng
+  })
+  newLocation.value = { name: '', latitude: '', longitude: '' }
+  toast.success('Локация филиала добавлена')
+}
+
+function removeLocation(idx) {
+  walletForm.value.locations.splice(idx, 1)
+}
+
+function insertPushTag(tag) {
+  const currentLang = activePushLang.value
+  if (!walletForm.value.push_templates) {
+    walletForm.value.push_templates = {}
+  }
+  if (!walletForm.value.push_templates[currentLang]) {
+    walletForm.value.push_templates[currentLang] = { title: '', body: '' }
+  }
+  const currentBody = walletForm.value.push_templates[currentLang].body || ''
+  if ((currentBody + ' ' + tag).length <= 200) {
+    walletForm.value.push_templates[currentLang].body = currentBody ? `${currentBody} ${tag}` : tag
+  } else {
+    toast.warning('Превышен лимит длины сообщения (200 символов)')
+  }
+}
+
+async function saveWalletAdvancedSettings() {
+  await syncWalletClass()
+  showWalletAdvancedModal.value = false
 }
 
 const programs = ref([])

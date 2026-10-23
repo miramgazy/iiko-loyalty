@@ -6,6 +6,7 @@ from apps.loyalty.views import (
     TmaWebhookView, 
     OrgCustomerViewSet, 
     CustomerGoogleWalletLinkView,
+    CustomerAppleWalletLinkView,
     CustomerPhoneUpdateView,
     LoyaltyProgramViewSet,
     OwnerDashboardView
@@ -21,6 +22,7 @@ urlpatterns = [
     path('owner/dashboard/', OwnerDashboardView.as_view(), name='owner_dashboard'),
     
     path('customer/wallet/google/', CustomerGoogleWalletLinkView.as_view(), name='customer_wallet_google'),
+    path('customer/wallet/apple/', CustomerAppleWalletLinkView.as_view(), name='customer_wallet_apple'),
     
     # Organization customer database
     path('organizations/<int:organization_id>/customers/', OrgCustomerViewSet.as_view({'get': 'list'}), name='org_customers'),

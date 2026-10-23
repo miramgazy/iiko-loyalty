@@ -177,6 +177,76 @@ def update_google_wallet_pass_task(self, customer_id):
     except Exception as exc:
         logger.warning(f"Error updating Google Wallet pass for customer {customer_id}: {exc}")
 
+@app.task(bind=True, max_retries=2, default_retry_delay=15)
+def send_google_wallet_push_task(self, customer_id, new_balance, change_amount):
+    """
+    Background task to send a Push Notification to Google Wallet pass via addMessage API.
+    Supports bilingual templates (KZ / RU) configured in organization.google_wallet_settings.
+    """
+    try:
+        customer = Customer.objects.filter(id=customer_id).select_related('organization').first()
+        if not customer or not customer.google_wallet_object_id or not customer.organization.is_google_wallet_enabled:
+            return
+
+        # If customer explicitly chosen Apple Wallet, skip Google Wallet push
+        if customer.wallet_type == 'apple':
+            return
+
+        from apps.loyalty.google_wallet_service import GoogleWalletService
+        service = GoogleWalletService()
+        org = customer.organization
+        gw_settings = org.google_wallet_settings or {}
+        templates = gw_settings.get('push_templates', {})
+
+        lang = customer.language or 'ru'
+        tpl = templates.get(lang) or templates.get('ru', {})
+
+        # Format numeric values
+        balance_fmt = str(int(new_balance)) if new_balance == int(new_balance) else str(new_balance)
+        change_fmt = str(int(abs(change_amount))) if abs(change_amount) == int(abs(change_amount)) else str(abs(change_amount))
+
+        cust_first = customer.first_name or ("Құрметті қонақ" if lang == 'kz' else "Гость")
+
+        # Default title & body if not customized
+        if lang == 'kz':
+            default_title = "Бонус балансы жаңартылды"
+            if change_amount > 0:
+                default_body = f"{org.name}: +{change_fmt} бонус берілді! Балансыңыз: {balance_fmt} балл."
+            elif change_amount < 0:
+                default_body = f"{org.name}: {change_fmt} бонус шешілді. Балансыңыз: {balance_fmt} балл."
+            else:
+                default_body = f"{org.name}: Балансыңыз: {balance_fmt} балл."
+        else:
+            default_title = "Баланс бонусов обновлен"
+            if change_amount > 0:
+                default_body = f"{org.name}: начислено +{change_fmt} бонусов! Баланс: {balance_fmt} б."
+            elif change_amount < 0:
+                default_body = f"{org.name}: списано {change_fmt} б. Баланс: {balance_fmt} б."
+            else:
+                default_body = f"{org.name}: ваш текущий баланс: {balance_fmt} бонусов."
+
+        title = tpl.get('title') or default_title
+        body = tpl.get('body') or default_body
+
+        # Dynamic template placeholders
+        title = title.replace('{balance}', balance_fmt)\
+                     .replace('{change}', change_fmt)\
+                     .replace('{org_name}', org.name)\
+                     .replace('{name}', cust_first)
+
+        body = body.replace('{balance}', balance_fmt)\
+                   .replace('{change}', change_fmt)\
+                   .replace('{org_name}', org.name)\
+                   .replace('{name}', cust_first)
+
+        # Enforce Google Wallet character limits: header <= 35 chars, body <= 200 chars
+        clean_title = title.strip()[:35]
+        clean_body = body.strip()[:200]
+
+        service.send_push_message(customer, clean_title, clean_body)
+    except Exception as exc:
+        logger.warning(f"Error sending Google Wallet push for customer {customer_id}: {exc}")
+
 @app.task
 def sync_all_customers_points():
     logger.info("Starting periodic sync of customer loyalty points...")
@@ -361,14 +431,18 @@ def process_iiko_webhook(log_id):
                 if customer.loyalty_balance != total_active_balance:
                     customer.loyalty_balance = total_active_balance
                     customer.save(update_fields=['loyalty_balance'])
-                    if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
+                    if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled and customer.wallet_type != 'apple':
                         update_google_wallet_pass_task.delay(customer.id)
+                        if change_amount != 0:
+                            send_google_wallet_push_task.delay(customer.id, float(customer.loyalty_balance), float(change_amount))
             else:
                 if customer.loyalty_balance != balance:
                     customer.loyalty_balance = balance
                     customer.save(update_fields=['loyalty_balance'])
-                    if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
+                    if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled and customer.wallet_type != 'apple':
                         update_google_wallet_pass_task.delay(customer.id)
+                        if change_amount != 0:
+                            send_google_wallet_push_task.delay(customer.id, float(customer.loyalty_balance), float(change_amount))
 
             # Notify via Websockets if user has active session
             try:

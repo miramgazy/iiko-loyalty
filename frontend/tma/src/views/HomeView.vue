@@ -129,9 +129,11 @@
         </div>
       </div>
 
-      <!-- Google Wallet Action Button (shown only when enabled in organization settings) -->
-      <div v-if="isGoogleWalletEnabled" class="w-full">
+      <!-- Digital Wallet Action Buttons (Google Wallet & Apple Wallet) -->
+      <div class="w-full flex flex-col gap-2.5">
+        <!-- Google Wallet Action Button -->
         <button
+          v-if="isGoogleWalletEnabled"
           @click="addToGoogleWallet"
           :disabled="isGoogleWalletLoading"
           class="w-full h-[52px] rounded-2xl bg-[#111113] hover:bg-[#18181b] active:scale-[0.98] border border-white/10 shadow-lg flex items-center justify-center gap-3 px-4 text-white font-semibold transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed group relative overflow-hidden"
@@ -159,10 +161,41 @@
           </template>
         </button>
 
-        <!-- Wallet error message if any -->
+        <!-- Apple Wallet Action Button -->
+        <button
+          @click="addToAppleWallet"
+          :disabled="isAppleWalletLoading"
+          class="w-full h-[52px] rounded-2xl bg-black hover:bg-zinc-900 active:scale-[0.98] border border-white/10 shadow-lg flex items-center justify-center gap-3 px-4 text-white font-semibold transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed group relative overflow-hidden"
+          style="box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);"
+        >
+          <!-- Subtle shine sweep effect on hover -->
+          <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000 pointer-events-none"></div>
+
+          <!-- Spinner or Apple Wallet Content -->
+          <div v-if="isAppleWalletLoading" class="flex items-center gap-2.5">
+            <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+            <span class="text-xs font-semibold text-zinc-300">{{ t('loading') }}</span>
+          </div>
+          <template v-else>
+            <!-- Apple Icon -->
+            <svg class="w-5 h-5 flex-shrink-0 fill-current" viewBox="0 0 170 170">
+              <path d="M150.37 130.25c-2.45 5.66-5.35 10.87-8.71 15.66-4.58 6.53-8.33 11.05-11.22 13.56-4.48 4.12-9.28 6.23-14.42 6.35-3.69 0-8.14-1.05-13.32-3.18-5.19-2.12-9.97-3.17-14.34-3.17-4.58 0-9.49 1.05-14.75 3.17-5.26 2.13-9.5 3.24-12.74 3.35-4.35.13-9.16-1.9-14.42-6.08-3.7-3.04-7.69-7.74-11.97-14.11-6.19-9.23-11.13-19.8-14.81-31.71-3.69-11.9-5.53-23.09-5.53-33.56 0-14.12 3.58-26.04 10.74-35.75 7.16-9.71 16.29-14.67 27.38-14.89 4.36 0 9.27 1.16 14.75 3.48 5.48 2.32 9.17 3.53 11.09 3.64 1.45 0 5.42-1.32 11.91-3.96 6.49-2.64 12.01-3.8 16.57-3.48 12.5.87 22.44 5.75 29.83 14.64-10.97 6.64-16.35 15.68-16.14 27.12.22 9.04 3.73 16.71 10.53 23.01 6.8 6.3 14.79 9.87 23.97 10.72-2.39 7.07-5.38 14.59-8.98 22.56zM119.22 33.15c0-7.29 2.65-14.14 7.95-20.55 5.3-6.41 11.75-10.42 19.34-12.03.11 1.09.16 2.07.16 2.94 0 7.07-2.67 14.04-8.01 20.91-5.34 6.87-11.83 10.97-19.44 12.3-.22-1.09-.33-2.18-.33-3.27z"/>
+            </svg>
+            <span class="text-xs font-bold tracking-wide">
+              {{ t('addToAppleWallet') }}
+            </span>
+          </template>
+        </button>
+
+        <!-- Wallet error or success messages -->
         <Transition name="fade">
-          <div v-if="walletError" class="mt-2 text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-center animate-[scaleIn_0.2s_ease-out]">
+          <div v-if="walletError" class="text-[11px] text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-center animate-[scaleIn_0.2s_ease-out]">
             {{ walletError }}
+          </div>
+        </Transition>
+        <Transition name="fade">
+          <div v-if="walletSuccess" class="text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-3 py-2 text-center animate-[scaleIn_0.2s_ease-out]">
+            {{ walletSuccess }}
           </div>
         </Transition>
       </div>
@@ -628,7 +661,9 @@ const isGoogleWalletEnabled = computed(() => {
   return /android/i.test(ua)
 })
 const isGoogleWalletLoading = ref(false)
+const isAppleWalletLoading = ref(false)
 const walletError = ref('')
+const walletSuccess = ref('')
 const showInvalidNameModal = ref(false)
 let redirectTimer = null
 
@@ -694,6 +729,7 @@ async function addToGoogleWallet() {
     if (res.data?.url) {
       if (res.data?.card_number && auth.customer) {
         auth.customer.iiko_card_number = res.data.card_number
+        auth.customer.wallet_type = 'google'
       }
       triggerHaptic('notification', 'success')
       const url = res.data.url
@@ -719,6 +755,49 @@ async function addToGoogleWallet() {
     }, 5000)
   } finally {
     isGoogleWalletLoading.value = false
+  }
+}
+
+async function addToAppleWallet() {
+  if (isAppleWalletLoading.value) return
+
+  // Verify first and last name before requesting Apple Wallet pass
+  const nameValidation = validateCustomerName(auth.customer)
+  if (!nameValidation.isValid) {
+    triggerHaptic('notification', 'warning')
+    showNameWarningPopup()
+    return
+  }
+
+  isAppleWalletLoading.value = true
+  walletError.value = ''
+  walletSuccess.value = ''
+  triggerHaptic('impact', 'medium')
+
+  try {
+    const res = await api.get('/loyalty/customer/wallet/apple/')
+    if (res.data?.card_number && auth.customer) {
+      auth.customer.iiko_card_number = res.data.card_number
+      auth.customer.wallet_type = 'apple'
+    }
+    triggerHaptic('notification', 'success')
+    walletSuccess.value = res.data?.message || 'Apple Wallet выбран'
+    setTimeout(() => {
+      walletSuccess.value = ''
+    }, 4000)
+  } catch (e) {
+    triggerHaptic('notification', 'error')
+    if (e.response?.data?.code === 'INVALID_NAME') {
+      showNameWarningPopup()
+      return
+    }
+    walletError.value = e.response?.data?.error || e.message || 'Ошибка выбора Apple Wallet'
+    console.error('Apple Wallet error:', e)
+    setTimeout(() => {
+      walletError.value = ''
+    }, 5000)
+  } finally {
+    isAppleWalletLoading.value = false
   }
 }
 

@@ -587,6 +587,9 @@ class CustomerGoogleWalletLinkView(APIView):
             service = GoogleWalletService()
             balance_str = str(int(customer.loyalty_balance)) if customer.loyalty_balance == int(customer.loyalty_balance) else str(customer.loyalty_balance)
             url = service.generate_google_wallet_link(customer, f"{balance_str} баллов")
+            if customer.wallet_type != 'google':
+                customer.wallet_type = 'google'
+                customer.save(update_fields=['wallet_type'])
             customer.refresh_from_db()
             return Response({
                 "url": url,
@@ -594,6 +597,48 @@ class CustomerGoogleWalletLinkView(APIView):
             })
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+class CustomerAppleWalletLinkView(APIView):
+    """
+    View for registering or requesting Apple Wallet card for the current Customer.
+    Records wallet_type='apple' in the database.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        customer = request.user
+        if not isinstance(customer, Customer):
+            return Response({"error": "Unauthorized, not a Customer"}, status=status.HTTP_403_FORBIDDEN)
+
+        if not customer.is_onboarded:
+            return Response({"error": "Вам необходимо подтвердить номер телефона"}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.loyalty.utils import is_valid_name
+        if not is_valid_name(customer.first_name, required=True) or not is_valid_name(customer.last_name, required=False):
+            return Response({
+                "error": "Пожалуйста, укажите ваши настоящие имя и фамилию в профиле",
+                "code": "INVALID_NAME"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # Ensure customer has an iiko_card_number
+        if not customer.iiko_card_number:
+            from apps.loyalty.utils import generate_unique_card_number
+            customer.iiko_card_number = generate_unique_card_number(customer.organization)
+            customer.save(update_fields=['iiko_card_number'])
+
+        if customer.wallet_type != 'apple':
+            customer.wallet_type = 'apple'
+            customer.save(update_fields=['wallet_type'])
+
+        return Response({
+            "status": "success",
+            "wallet_type": "apple",
+            "card_number": customer.iiko_card_number,
+            "message": "Apple Wallet выбран для программы лояльности"
+        })
+
+    def post(self, request, *args, **kwargs):
+        return self.get(request, *args, **kwargs)
 
 class IikoWebhookView(APIView):
     """

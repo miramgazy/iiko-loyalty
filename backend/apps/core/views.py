@@ -201,6 +201,12 @@ class OrganizationGoogleWalletSettingsView(APIView):
             settings_dict['hero_image_url'] = str(hero_image_url).strip()
         if hex_background_color is not None:
             settings_dict['hex_background_color'] = str(hex_background_color).strip()
+        locations = request.data.get('locations')
+        if locations is not None:
+            settings_dict['locations'] = locations
+        push_templates = request.data.get('push_templates')
+        if push_templates is not None:
+            settings_dict['push_templates'] = push_templates
 
         org.google_wallet_settings = settings_dict
         org.save(update_fields=['google_issuer_id', 'google_wallet_settings'])

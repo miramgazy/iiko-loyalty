@@ -97,6 +97,29 @@ class GoogleWalletService:
                 }
             }
 
+        # Geolocation points (up to 10 locations)
+        locations = class_data.get('locations')
+        if locations is None and organization.google_wallet_settings:
+            locations = organization.google_wallet_settings.get('locations', [])
+        
+        if locations and isinstance(locations, list):
+            valid_locs = []
+            for loc in locations[:10]:
+                if not isinstance(loc, dict):
+                    continue
+                try:
+                    lat = float(loc.get('latitude', 0))
+                    lng = float(loc.get('longitude', 0))
+                    if -90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0 and (lat != 0 or lng != 0):
+                        valid_locs.append({
+                            "latitude": lat,
+                            "longitude": lng,
+                        })
+                except (ValueError, TypeError):
+                    continue
+            if valid_locs:
+                payload["locations"] = valid_locs
+
         token = self.get_access_token()
         headers = {
             "Authorization": f"Bearer {token}",
@@ -136,10 +159,16 @@ class GoogleWalletService:
 
         # Object ID format: issuer_id.object_suffix
         object_id = customer.google_wallet_object_id
+        update_customer_fields = []
         if not object_id:
             object_id = f"{org.google_issuer_id}.cust_{customer.id}"
             customer.google_wallet_object_id = object_id
-            customer.save(update_fields=['google_wallet_object_id'])
+            update_customer_fields.append('google_wallet_object_id')
+        if customer.wallet_type != 'google':
+            customer.wallet_type = 'google'
+            update_customer_fields.append('wallet_type')
+        if update_customer_fields:
+            customer.save(update_fields=update_customer_fields)
 
         # Ensure customer has an iiko_card_number
         if not customer.iiko_card_number:
@@ -275,3 +304,53 @@ class GoogleWalletService:
             import logging
             logging.getLogger(__name__).warning(f"Google Wallet PATCH balance failed for customer {customer.id}: {e}")
             return False
+
+    def send_push_message(self, customer: Customer, title: str, body: str, message_id: str = None) -> bool:
+        """
+        Sends a push notification message to the customer's Google Wallet pass via addMessage API.
+        Enforces character limits according to Google Wallet specifications:
+        - header: max 35 characters
+        - body: max 200 characters
+        """
+        org = customer.organization
+        if not org.is_google_wallet_enabled or not org.google_issuer_id:
+            return False
+
+        object_id = customer.google_wallet_object_id
+        if not object_id:
+            return False
+
+        try:
+            token = self.get_access_token()
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            }
+            url = f"{self.base_url}/loyaltyObject/{object_id}/addMessage"
+
+            clean_title = (title or "Баланс бонусов обновлен").strip()[:35]
+            clean_body = (body or f"Баланс: {customer.loyalty_balance}").strip()[:200]
+
+            import time
+            payload = {
+                "message": {
+                    "header": clean_title,
+                    "body": clean_body,
+                    "id": message_id or f"msg_{int(time.time())}_{customer.id}",
+                    "messageType": "TEXT"
+                }
+            }
+            resp = requests.post(url, headers=headers, json=payload, timeout=10)
+            if resp.status_code in (200, 201):
+                return True
+            else:
+                import logging
+                logging.getLogger(__name__).warning(
+                    f"Google Wallet addMessage returned {resp.status_code} for customer {customer.id}: {resp.text}"
+                )
+                return False
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Google Wallet addMessage error for customer {customer.id}: {e}")
+            return False
+

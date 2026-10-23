@@ -28,12 +28,13 @@ class CustomerSerializer(serializers.ModelSerializer):
             'birthday', 
             'loyalty_balance',
             'language',
+            'wallet_type',
             'is_onboarded', 
             'organization',
             'wallets',
             'created_at',
         ]
-        read_only_fields = ['id', 'telegram_id', 'phone', 'iiko_customer_id', 'iiko_card_number', 'iiko_categories', 'loyalty_balance', 'is_onboarded', 'organization', 'wallets', 'created_at']
+        read_only_fields = ['id', 'telegram_id', 'phone', 'iiko_customer_id', 'iiko_card_number', 'iiko_categories', 'loyalty_balance', 'is_onboarded', 'organization', 'wallets', 'wallet_type', 'created_at']
 
     def validate_first_name(self, value):
         from apps.loyalty.utils import is_valid_name
