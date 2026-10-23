@@ -408,14 +408,31 @@ const dashboardUrl = computed(() => {
 }
 
 @media (max-width: 860px) {
+  .legal-header {
+    height: 64px;
+  }
+  .brand-logo-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 0.95rem;
+  }
+  .brand-logo-text {
+    font-size: 1.15rem;
+    white-space: nowrap;
+  }
   .nav-menu {
     display: none;
   }
+  .nav-btn {
+    height: 36px;
+    padding: 0 0.85rem;
+    font-size: 0.82rem;
+  }
   .legal-card {
-    padding: 1.75rem;
+    padding: 1.5rem;
   }
   .page-title {
-    font-size: 1.75rem;
+    font-size: 1.65rem;
   }
   .footer-row {
     flex-direction: column;

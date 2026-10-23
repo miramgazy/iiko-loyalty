@@ -18,7 +18,7 @@
           <a href="#contacts" class="nav-item">Контакты</a>
         </nav>
 
-        <!-- Nav Actions (Uniform buttons) -->
+        <!-- Nav Actions (Desktop uniform buttons + Mobile animated hamburger) -->
         <div class="nav-actions">
           <router-link :to="dashboardUrl" class="nav-btn nav-btn-outline" id="btn-header-login">
             <span>{{ auth.isAuthenticated ? 'В панель' : 'Войти' }}</span>
@@ -34,33 +34,79 @@
             <span>Подключить</span>
           </a>
 
-          <!-- Mobile Hamburger -->
-          <button @click="mobileMenuOpen = !mobileMenuOpen" class="mobile-toggle-btn" aria-label="Открыть меню">
-            <span v-if="!mobileMenuOpen">☰</span>
-            <span v-else>✕</span>
+          <!-- Mobile Hamburger Button (Animated 3-bar) -->
+          <button
+            @click="mobileMenuOpen = !mobileMenuOpen"
+            class="mobile-toggle-btn"
+            :class="{ 'is-active': mobileMenuOpen }"
+            aria-label="Меню"
+            id="btn-mobile-hamburger"
+          >
+            <span class="bar bar-1"></span>
+            <span class="bar bar-2"></span>
+            <span class="bar bar-3"></span>
           </button>
         </div>
       </div>
 
+      <!-- Backdrop overlay -->
+      <transition name="fade">
+        <div v-if="mobileMenuOpen" class="mobile-backdrop" @click="mobileMenuOpen = false"></div>
+      </transition>
+
       <!-- Mobile Dropdown Menu -->
-      <transition name="slide-fade">
+      <transition name="mobile-menu-anim">
         <div v-if="mobileMenuOpen" class="mobile-dropdown">
-          <a href="#features" @click="mobileMenuOpen = false" class="mobile-nav-link">Возможности</a>
-          <a href="#wallets" @click="mobileMenuOpen = false" class="mobile-nav-link">Электронные кошельки</a>
-          <a href="#iiko" @click="mobileMenuOpen = false" class="mobile-nav-link">Интеграция с iiko</a>
-          <a href="#compliance" @click="mobileMenuOpen = false" class="mobile-nav-link">Google & Apple</a>
-          <a href="#contacts" @click="mobileMenuOpen = false" class="mobile-nav-link">Контакты</a>
+          <nav class="mobile-nav-list">
+            <a href="#features" @click="mobileMenuOpen = false" class="mobile-nav-link">
+              <span class="mobile-nav-link-title">🚀 Возможности платформы</span>
+              <span class="mobile-nav-link-arrow">→</span>
+            </a>
+            <a href="#wallets" @click="mobileMenuOpen = false" class="mobile-nav-link">
+              <span class="mobile-nav-link-title">💳 Электронные кошельки</span>
+              <span class="mobile-nav-link-arrow">→</span>
+            </a>
+            <a href="#iiko" @click="mobileMenuOpen = false" class="mobile-nav-link">
+              <span class="mobile-nav-link-title">⚡️ Интеграция с iiko</span>
+              <span class="mobile-nav-link-arrow">→</span>
+            </a>
+            <a href="#compliance" @click="mobileMenuOpen = false" class="mobile-nav-link">
+              <span class="mobile-nav-link-title">🛡️ Google & Apple стандарты</span>
+              <span class="mobile-nav-link-arrow">→</span>
+            </a>
+            <a href="#contacts" @click="mobileMenuOpen = false" class="mobile-nav-link">
+              <span class="mobile-nav-link-title">📞 Контакты и поддержка</span>
+              <span class="mobile-nav-link-arrow">→</span>
+            </a>
+          </nav>
+
           <div class="mobile-nav-divider"></div>
-          <router-link :to="dashboardUrl" @click="mobileMenuOpen = false" class="mobile-nav-btn mobile-nav-btn-login">
-            <span>{{ auth.isAuthenticated ? 'В панель управления' : 'Войти в панель' }}</span>
-          </router-link>
-          <a
-            href="https://wa.me/77779285899?text=Здравствуйте!%20Хочу%20подключить%20Loyalty-MadiTech"
-            target="_blank"
-            class="mobile-nav-btn mobile-nav-btn-primary"
-          >
-            <span>Подключить</span>
-          </a>
+
+          <div class="mobile-actions-group">
+            <router-link
+              :to="dashboardUrl"
+              @click="mobileMenuOpen = false"
+              class="mobile-nav-btn mobile-nav-btn-login"
+            >
+              <span>{{ auth.isAuthenticated ? 'В панель управления' : 'Войти в панель' }}</span>
+            </router-link>
+            <a
+              href="https://wa.me/77779285899?text=Здравствуйте!%20Хочу%20подключить%20Loyalty-MadiTech"
+              target="_blank"
+              class="mobile-nav-btn mobile-nav-btn-primary"
+            >
+              <span>Подключить ресторан</span>
+            </a>
+          </div>
+
+          <div class="mobile-drawer-contacts">
+            <a href="tel:+77779285899" class="drawer-contact-item">
+              <span>📞 +7 777 9285899</span>
+            </a>
+            <a href="https://www.instagram.com/maditech_04" target="_blank" rel="noopener noreferrer" class="drawer-contact-item">
+              <span>📸 @maditech_04</span>
+            </a>
+          </div>
         </div>
       </transition>
     </header>
@@ -678,65 +724,201 @@ function cycleMode() {
   box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
 }
 
+/* Animated Hamburger Button */
 .mobile-toggle-btn {
   display: none;
-  background: transparent;
-  border: none;
-  color: #FFFFFF;
-  font-size: 1.4rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  width: 42px;
+  height: 42px;
   cursor: pointer;
-  padding: 0.25rem 0.5rem;
+  padding: 0;
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  transition: all 0.25s ease;
+  backdrop-filter: blur(8px);
 }
 
-/* Mobile Dropdown */
+.mobile-toggle-btn:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.mobile-toggle-btn .bar {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: #FFFFFF;
+  border-radius: 2px;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.mobile-toggle-btn.is-active .bar-1 {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.mobile-toggle-btn.is-active .bar-2 {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.mobile-toggle-btn.is-active .bar-3 {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* Mobile Backdrop */
+.mobile-backdrop {
+  position: fixed;
+  top: 76px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 95;
+}
+
+/* Mobile Dropdown Menu Drawer */
 .mobile-dropdown {
   position: absolute;
   top: 76px;
   left: 0;
   right: 0;
-  background: rgba(8, 9, 14, 0.98);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 1.5rem;
+  background: rgba(10, 12, 18, 0.98);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 1.25rem 1.25rem 1.75rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  backdrop-filter: blur(20px);
+  gap: 1.25rem;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  max-height: calc(100vh - 76px);
+  overflow-y: auto;
+}
+
+.mobile-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .mobile-nav-link {
-  color: #CBD5E1;
-  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #E2E8F0;
+  font-size: 0.95rem;
   font-weight: 500;
   text-decoration: none;
-  padding: 0.4rem 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.mobile-nav-link:hover,
+.mobile-nav-link:active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+}
+
+.mobile-nav-link-arrow {
+  color: #64748B;
+  font-size: 0.85rem;
+  transition: transform 0.2s ease;
+}
+
+.mobile-nav-link:hover .mobile-nav-link-arrow {
+  transform: translateX(3px);
+  color: #818CF8;
 }
 
 .mobile-nav-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.1);
-  margin: 0.5rem 0;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 0;
+}
+
+.mobile-actions-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
 .mobile-nav-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0.75rem 1rem;
+  height: 46px;
+  padding: 0 1rem;
   border-radius: 12px;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: 600;
   text-decoration: none;
+  transition: all 0.2s ease;
 }
 
 .mobile-nav-btn-login {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
   color: #FFFFFF;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.mobile-nav-btn-login:active {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .mobile-nav-btn-primary {
   background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
   color: #FFFFFF;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+}
+
+.mobile-drawer-contacts {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.drawer-contact-item {
+  color: #94A3B8;
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.drawer-contact-item:hover {
+  color: #818CF8;
+}
+
+/* Mobile Menu Transitions */
+.mobile-menu-anim-enter-active {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mobile-menu-anim-leave-active {
+  transition: all 0.2s ease-in;
+}
+.mobile-menu-anim-enter-from,
+.mobile-menu-anim-leave-to {
+  transform: translateY(-16px);
+  opacity: 0;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* Hero Section */
@@ -1593,20 +1775,7 @@ function cycleMode() {
   color: #FFFFFF;
 }
 
-/* Slide Fade Transition for Mobile Menu */
-.slide-fade-enter-active {
-  transition: all 0.3s ease-out;
-}
-.slide-fade-leave-active {
-  transition: all 0.2s cubic-bezier(1, 0.5, 0.8, 1);
-}
-.slide-fade-enter-from,
-.slide-fade-leave-to {
-  transform: translateY(-20px);
-  opacity: 0;
-}
-
-/* Responsive */
+/* Responsive Breakpoints */
 @media (max-width: 1024px) {
   .hero-grid {
     grid-template-columns: 1fr;
@@ -1638,17 +1807,190 @@ function cycleMode() {
 }
 
 @media (max-width: 768px) {
+  /* Header & Mobile Hamburger */
+  .landing-header {
+    height: 64px;
+  }
+  .landing-container {
+    padding: 0 1.25rem;
+  }
+  .brand-logo {
+    gap: 0.5rem;
+  }
+  .brand-logo-icon {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    font-size: 1rem;
+  }
+  .brand-logo-text {
+    font-size: 1.15rem;
+    white-space: nowrap;
+    letter-spacing: -0.01em;
+  }
   .nav-menu {
     display: none;
   }
+  /* On mobile, collapse action buttons into hamburger drawer */
+  .nav-actions .nav-btn {
+    display: none;
+  }
   .mobile-toggle-btn {
-    display: block;
+    display: flex;
+  }
+  .mobile-dropdown {
+    top: 64px;
+    max-height: calc(100vh - 64px);
+  }
+  .mobile-backdrop {
+    top: 64px;
+  }
+
+  /* Hero Section */
+  .hero-section {
+    padding: 92px 0 45px;
+  }
+  .hero-grid {
+    gap: 2.5rem;
+  }
+  .hero-badge {
+    font-size: 0.74rem;
+    padding: 0.35rem 0.8rem;
+    line-height: 1.35;
+    white-space: normal;
+    text-align: center;
   }
   .hero-title {
-    font-size: 2.3rem;
+    font-size: 2rem;
+    line-height: 1.2;
+    margin-bottom: 1rem;
   }
-  .features-grid {
+  .hero-desc {
+    font-size: 0.94rem;
+    line-height: 1.6;
+    margin-bottom: 1.6rem;
+  }
+  .hero-actions-row {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.75rem;
+  }
+  .hero-cta-btn {
+    width: 100%;
+    height: 48px;
+    justify-content: center;
+    font-size: 0.92rem;
+  }
+  .hero-stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-top: 1.75rem;
+    padding-top: 1.25rem;
+  }
+  .stat-cell {
+    padding: 0.5rem 0.25rem;
+  }
+  .stat-cell h3 {
+    font-size: 1.35rem;
+  }
+  .stat-cell p {
+    font-size: 0.72rem;
+    line-height: 1.25;
+  }
+
+  /* Interactive Smartphone Showcase */
+  .card-switcher {
+    width: 100%;
+    max-width: 350px;
+    gap: 4px;
+    padding: 4px;
+    margin: 0 auto 1.5rem;
+  }
+  .card-switch-tab {
+    padding: 7px 10px;
+    font-size: 0.76rem;
+  }
+  .phone-chassis {
+    width: 285px;
+    height: 550px;
+    border-radius: 42px;
+    margin: 0 auto;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75), 0 0 35px rgba(99, 102, 241, 0.2);
+  }
+  .phone-screen {
+    border-radius: 36px;
+  }
+
+  /* Section Common Spacing */
+  .features-section,
+  .wallets-section,
+  .integration-section,
+  .compliance-section,
+  .contacts-section {
+    padding: 45px 0;
+  }
+  .section-header {
+    margin-bottom: 2.25rem;
+  }
+  .section-title {
+    font-size: 1.75rem;
+    line-height: 1.25;
+  }
+  .section-desc {
+    font-size: 0.92rem;
+  }
+
+  /* Single Column Grids */
+  .features-grid,
+  .wallet-cards-grid,
+  .compliance-cards-row,
+  .contacts-wrapper {
     grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+  .feature-card,
+  .wallet-card,
+  .compliance-card,
+  .contacts-info-card,
+  .cta-box {
+    padding: 1.5rem;
+    border-radius: 18px;
+  }
+
+  /* Integration Banner */
+  .integration-banner {
+    grid-template-columns: 1fr;
+    padding: 1.75rem 1.25rem;
+    gap: 2rem;
+    border-radius: 20px;
+  }
+  .integration-title {
+    font-size: 1.6rem;
+  }
+  .tech-chips {
+    gap: 0.4rem;
+  }
+  .tech-chip {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+  }
+
+  /* Contacts CTA */
+  .cta-btns {
+    flex-direction: column;
+    width: 100%;
+    gap: 0.75rem;
+  }
+  .cta-btn {
+    width: 100%;
+    height: 48px;
+    justify-content: center;
+  }
+
+  /* Footer */
+  .landing-footer {
+    padding: 40px 0 25px;
   }
   .footer-grid {
     grid-template-columns: 1fr;
@@ -1659,24 +2001,49 @@ function cycleMode() {
     gap: 1rem;
     text-align: center;
   }
-  .phone-chassis {
-    width: 280px;
-    height: 560px;
-    border-radius: 40px;
+  .footer-legal-links {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .brand-logo-text {
+    font-size: 1.05rem;
+  }
+  .hero-title {
+    font-size: 1.75rem;
+  }
+  .hero-stats-row {
+    gap: 0.25rem;
+  }
+  .stat-cell {
+    padding: 0.5rem 0.15rem;
+  }
+  .stat-cell h3 {
+    font-size: 1.2rem;
+  }
+  .stat-cell p {
+    font-size: 0.68rem;
   }
   .card-switcher {
-    width: 100%;
-    max-width: 360px;
-    overflow-x: auto;
+    max-width: 320px;
   }
   .card-switch-tab {
-    padding: 6px 10px;
-    font-size: 0.78rem;
+    padding: 6px 7px;
+    font-size: 0.72rem;
   }
-  .nav-btn {
-    height: 36px;
-    padding: 0 1rem;
-    font-size: 0.82rem;
+  .phone-chassis {
+    width: 265px;
+    height: 520px;
+    border-radius: 38px;
+  }
+  .section-title {
+    font-size: 1.55rem;
+  }
+  .cta-box {
+    padding: 1.25rem;
   }
 }
 </style>
