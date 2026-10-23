@@ -26,8 +26,19 @@ class MailingTask(models.Model):
         (STATUS_ERROR, 'Ошибка'),
     ]
 
+    CHANNEL_TELEGRAM = 'telegram'
+    CHANNEL_GOOGLE_WALLET = 'google_wallet'
+    CHANNEL_APPLE_WALLET = 'apple_wallet'
+
+    CHANNEL_CHOICES = [
+        (CHANNEL_TELEGRAM, 'Telegram рассылка'),
+        (CHANNEL_GOOGLE_WALLET, 'Google Wallet Push'),
+        (CHANNEL_APPLE_WALLET, 'Apple Wallet Push'),
+    ]
+
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='mailing_tasks')
     title = models.CharField("Название рассылки", max_length=255)
+    channel_type = models.CharField("Тип рассылки", max_length=20, choices=CHANNEL_CHOICES, default=CHANNEL_TELEGRAM)
     message_ru = models.TextField("Сообщение (RU)")
     message_kz = models.TextField("Сообщение (KZ)")
     scheduled_at = models.DateTimeField("Время отправки")

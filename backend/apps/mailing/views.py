@@ -59,12 +59,13 @@ class MailingTaskViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def count_recipients(self, request):
         audience_type = request.query_params.get('audience_type', 'all')
+        channel_type = request.query_params.get('channel_type', MailingTask.CHANNEL_TELEGRAM)
         org = get_user_org(request)
         if not org:
             return Response({"error": "Organization context not found"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Build dummy task to query recipients
-        mock_task = MailingTask(organization=org, audience_type=audience_type)
+        mock_task = MailingTask(organization=org, audience_type=audience_type, channel_type=channel_type)
         from apps.mailing.tasks import get_mailing_recipients
         count = get_mailing_recipients(mock_task).count()
         return Response({"count": count})

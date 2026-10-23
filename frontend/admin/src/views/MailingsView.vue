@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="flex items-center justify-between mb-8">
       <div>
-        <h1 class="text-3xl font-bold text-white tracking-tight">Telegram Рассылки</h1>
-        <p class="text-slate-400 text-sm mt-1">Создание и аналитика маркетинговых кампаний в Telegram-боте</p>
+        <h1 class="text-3xl font-bold text-white tracking-tight">Маркетинговые рассылки</h1>
+        <p class="text-slate-400 text-sm mt-1">Создание и аналитика кампаний в Telegram-боте, Google Wallet и Apple Wallet</p>
       </div>
       <button
         id="btn-create-mailing"
@@ -33,6 +33,7 @@
           <thead>
             <tr class="border-b border-slate-800 bg-slate-900/50">
               <th class="px-6 py-4.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Рассылка</th>
+              <th class="px-6 py-4.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Канал</th>
               <th class="px-6 py-4.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Целевой сегмент</th>
               <th class="px-6 py-4.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Дата отправки</th>
               <th class="px-6 py-4.5 text-xs font-semibold text-slate-400 uppercase tracking-wider">Статус</th>
@@ -46,11 +47,30 @@
               <td class="px-6 py-4.5">
                 <div class="flex items-center gap-2">
                   <p class="font-bold text-white text-[15px]">{{ m.title }}</p>
-                  <span v-if="m.has_image" class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-950/80 text-indigo-300 border border-indigo-800/60" title="Рассылка с фото">
+                  <span v-if="m.has_image && m.channel_type === 'telegram'" class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-indigo-950/80 text-indigo-300 border border-indigo-800/60" title="Рассылка с фото">
                     📷 С фото
                   </span>
                 </div>
                 <p class="text-slate-500 text-xs truncate max-w-xs mt-1">{{ m.message_ru }}</p>
+              </td>
+
+              <!-- Channel Type -->
+              <td class="px-6 py-4.5">
+                <span v-if="m.channel_type === 'google_wallet'"
+                  class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-sky-950/60 text-sky-400 border border-sky-800/60">
+                  <span class="w-3.5 h-3.5 rounded-full bg-sky-500/20 flex items-center justify-center text-[9px] font-bold">G</span>
+                  Google Wallet
+                </span>
+                <span v-else-if="m.channel_type === 'apple_wallet'"
+                  class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-300 border border-zinc-700">
+                  <span></span>
+                  Apple Wallet
+                </span>
+                <span v-else
+                  class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg bg-indigo-950/60 text-indigo-300 border border-indigo-800/60">
+                  <span>📱</span>
+                  Telegram
+                </span>
               </td>
 
               <!-- Audience Segment -->
@@ -97,7 +117,7 @@
                 <button
                   @click="openTestModal(m)"
                   title="Тестовая отправка"
-                  class="border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 p-2 rounded-xl transition-all inline-flex items-center"
+                  class="border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 p-2 rounded-xl transition-all inline-flex items-center cursor-pointer"
                 >
                   🧪 Тест
                 </button>
@@ -105,14 +125,14 @@
                   v-if="canDelete(m)"
                   @click="deleteMailing(m.id)"
                   title="Удалить"
-                  class="border border-rose-950/40 text-rose-400 hover:text-white hover:bg-rose-900/30 p-2 rounded-xl transition-all inline-flex items-center"
+                  class="border border-rose-950/40 text-rose-400 hover:text-white hover:bg-rose-900/30 p-2 rounded-xl transition-all inline-flex items-center cursor-pointer"
                 >
                   🗑️
                 </button>
               </td>
             </tr>
             <tr v-if="!mailings.length">
-              <td colspan="6" class="px-6 py-16 text-center text-slate-500 font-medium">
+              <td colspan="7" class="px-6 py-16 text-center text-slate-500 font-medium">
                 Рассылки отсутствуют. Нажмите «Создать рассылку», чтобы запустить новую кампанию.
               </td>
             </tr>
@@ -132,13 +152,102 @@
 
         <!-- Modal body -->
         <div class="px-8 py-6 max-h-[70vh] overflow-y-auto space-y-6">
-          <!-- Title -->
+          <!-- Channel Type Selection -->
           <div class="space-y-2">
-            <label class="block text-sm font-semibold text-slate-300">Название кампании</label>
+            <label class="block text-sm font-semibold text-slate-300">Тип рассылки</label>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <!-- 1. Telegram -->
+              <div
+                @click="setChannelType('telegram')"
+                class="relative rounded-2xl border p-4 cursor-pointer transition-all flex flex-col justify-between"
+                :class="newMailing.channel_type === 'telegram'
+                  ? 'bg-indigo-950/50 border-indigo-500 ring-2 ring-indigo-500/30'
+                  : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'"
+              >
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-2xl">📱</span>
+                  <span v-if="newMailing.channel_type === 'telegram'" class="w-2.5 h-2.5 rounded-full bg-indigo-400"></span>
+                </div>
+                <div>
+                  <p class="font-bold text-white text-sm">Telegram рассылка</p>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Сообщение в боте</p>
+                </div>
+                <div class="mt-3 text-[10px] font-medium text-emerald-400">
+                  ✓ По умолчанию
+                </div>
+              </div>
+
+              <!-- 2. Google Wallet Push -->
+              <div
+                @click="isGoogleWalletEnabled ? setChannelType('google_wallet') : null"
+                class="relative rounded-2xl border p-4 transition-all flex flex-col justify-between"
+                :class="[
+                  !isGoogleWalletEnabled 
+                    ? 'opacity-40 bg-slate-950/30 border-slate-800/60 cursor-not-allowed' 
+                    : newMailing.channel_type === 'google_wallet'
+                      ? 'bg-sky-950/50 border-sky-500 ring-2 ring-sky-500/30 cursor-pointer'
+                      : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 cursor-pointer'
+                ]"
+              >
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-2xl">🌐</span>
+                  <span v-if="newMailing.channel_type === 'google_wallet'" class="w-2.5 h-2.5 rounded-full bg-sky-400"></span>
+                </div>
+                <div>
+                  <p class="font-bold text-white text-sm">Google Wallet Push</p>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Push на карту Google</p>
+                </div>
+                <div class="mt-3 text-[10px] font-medium">
+                  <span v-if="isGoogleWalletEnabled" class="text-sky-400">✓ Доступно</span>
+                  <span v-else class="text-amber-400 flex items-center gap-1">🔒 Выключено в настройках</span>
+                </div>
+              </div>
+
+              <!-- 3. Apple Wallet Push -->
+              <div
+                @click="isAppleWalletEnabled ? setChannelType('apple_wallet') : null"
+                class="relative rounded-2xl border p-4 transition-all flex flex-col justify-between"
+                :class="[
+                  !isAppleWalletEnabled 
+                    ? 'opacity-40 bg-slate-950/30 border-slate-800/60 cursor-not-allowed' 
+                    : newMailing.channel_type === 'apple_wallet'
+                      ? 'bg-zinc-800/70 border-zinc-400 ring-2 ring-zinc-400/30 cursor-pointer'
+                      : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 cursor-pointer'
+                ]"
+              >
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-2xl">🍏</span>
+                  <span v-if="newMailing.channel_type === 'apple_wallet'" class="w-2.5 h-2.5 rounded-full bg-zinc-300"></span>
+                </div>
+                <div>
+                  <p class="font-bold text-white text-sm">Apple Wallet Push</p>
+                  <p class="text-[11px] text-slate-400 mt-0.5">Push на карту Apple</p>
+                </div>
+                <div class="mt-3 text-[10px] font-medium">
+                  <span v-if="isAppleWalletEnabled" class="text-zinc-300">✓ Доступно</span>
+                  <span v-else class="text-amber-400 flex items-center gap-1">🔒 Выключено в настройках</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Title / Header -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="block text-sm font-semibold text-slate-300">
+                {{ newMailing.channel_type === 'telegram' ? 'Название кампании' : 'Заголовок push-уведомления' }}
+              </label>
+              <span v-if="newMailing.channel_type !== 'telegram'" 
+                    class="text-xs font-mono"
+                    :class="(newMailing.title?.length || 0) > 35 ? 'text-rose-400 font-bold' : 'text-slate-500'">
+                {{ newMailing.title?.length || 0 }} / 35 символов
+              </span>
+            </div>
             <input
               v-model="newMailing.title"
               type="text"
-              placeholder="Например: Скидки в будние дни"
+              :maxlength="newMailing.channel_type !== 'telegram' ? 35 : 255"
+              :placeholder="newMailing.channel_type === 'telegram' ? 'Например: Скидки в будние дни' : 'Например: Скидка 15% на всё меню'"
               class="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-slate-600 transition-all"
             />
           </div>
@@ -178,8 +287,8 @@
             <span class="font-extrabold text-sm text-indigo-200">{{ audienceCount }} человек(а)</span>
           </div>
 
-          <!-- Photo broadcast toggle & upload section -->
-          <div class="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-4">
+          <!-- Photo broadcast toggle & upload section (Only for Telegram) -->
+          <div v-if="newMailing.channel_type === 'telegram'" class="p-4 bg-slate-950/70 border border-slate-800 rounded-2xl space-y-4">
             <div class="flex items-center justify-between">
               <div class="flex items-center gap-3">
                 <div class="w-9 h-9 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-lg">
@@ -361,7 +470,12 @@
               <!-- Character counter & caption limit notice -->
               <div class="flex justify-between items-center text-xs mt-1.5 px-1">
                 <span class="text-slate-500">
-                  {{ newMailing.has_image ? 'Лимит подписи к фото: 1024 символа' : 'Лимит сообщения: 4096 символов' }}
+                  <template v-if="newMailing.channel_type !== 'telegram'">
+                    Лимит push-сообщения кошелька: 200 символов
+                  </template>
+                  <template v-else>
+                    {{ newMailing.has_image ? 'Лимит подписи к фото: 1024 символа' : 'Лимит сообщения: 4096 символов' }}
+                  </template>
                 </span>
                 <span
                   :class="currentCaptionLength > maxAllowedCaptionLength ? 'text-rose-400 font-bold' : 'text-slate-400'"
@@ -460,6 +574,20 @@ const toast = useToastStore()
 const mailings = ref([])
 const loading = ref(true)
 
+// Organization settings for wallet push availability
+const orgSettings = ref(null)
+const isGoogleWalletEnabled = computed(() => !!orgSettings.value?.is_google_wallet_enabled)
+const isAppleWalletEnabled = computed(() => !!orgSettings.value?.is_apple_wallet_enabled)
+
+async function loadOrgSettings() {
+  try {
+    const res = await api.get(`/core/organizations/${auth.currentOrgId}/settings/`)
+    orgSettings.value = res.data
+  } catch (e) {
+    console.error('Failed to load org settings:', e)
+  }
+}
+
 // Create modal state
 const createModalOpen = ref(false)
 const saving = ref(false)
@@ -472,6 +600,7 @@ const gettingFileId = ref(false)
 
 const newMailing = ref({
   title: '',
+  channel_type: 'telegram',
   audience_type: 'all',
   scheduled_at: '',
   message_ru: '',
@@ -484,8 +613,20 @@ const activeLangTab = ref('ru')
 const audienceCount = ref(null)
 const audienceCountLoading = ref(false)
 
+function setChannelType(channel) {
+  newMailing.value.channel_type = channel
+  if (channel !== 'telegram') {
+    newMailing.value.has_image = false
+    removeSelectedImage()
+  }
+  fetchAudienceCount()
+}
+
 // Caption limits
-const maxAllowedCaptionLength = computed(() => (newMailing.value.has_image ? 1024 : 4096))
+const maxAllowedCaptionLength = computed(() => {
+  if (newMailing.value.channel_type !== 'telegram') return 200
+  return newMailing.value.has_image ? 1024 : 4096
+})
 const currentCaptionLength = computed(() => {
   return activeLangTab.value === 'ru'
     ? (newMailing.value.message_ru || '').length
@@ -554,6 +695,7 @@ async function fetchAudienceCount() {
     const res = await api.get('/mailings/count_recipients/', {
       params: {
         audience_type: newMailing.value.audience_type,
+        channel_type: newMailing.value.channel_type,
         organization_id: auth.currentOrgId
       }
     })
@@ -678,12 +820,28 @@ function insertPlaceholder() {
 
 // Create campaign
 async function createMailing() {
-  if (!newMailing.value.title.trim()) return toast.error('Укажите название рассылки')
+  if (!newMailing.value.title.trim()) {
+    return toast.error(
+      newMailing.value.channel_type === 'telegram'
+        ? 'Укажите название рассылки'
+        : 'Укажите заголовок push-уведомления'
+    )
+  }
   if (!newMailing.value.scheduled_at) return toast.error('Укажите время отправки')
   if (!newMailing.value.message_ru.trim()) return toast.error('Заполните шаблон сообщения на русском')
   if (!newMailing.value.message_kz.trim()) return toast.error('Заполните шаблон сообщения на казахском')
 
-  if (newMailing.value.has_image) {
+  if (newMailing.value.channel_type !== 'telegram') {
+    if (newMailing.value.title.length > 35) {
+      return toast.error('Заголовок push-уведомления не должен превышать 35 символов')
+    }
+    if (newMailing.value.message_ru.length > 200) {
+      return toast.error('Текст push-уведомления (RU) не должен превышать 200 символов')
+    }
+    if (newMailing.value.message_kz.length > 200) {
+      return toast.error('Текст push-уведомления (KZ) не должен превышать 200 символов')
+    }
+  } else if (newMailing.value.has_image) {
     if (!selectedImageFile.value) {
       return toast.error('Загрузите изображение для отправки с фото')
     }
@@ -702,14 +860,15 @@ async function createMailing() {
   try {
     const formData = new FormData()
     formData.append('title', newMailing.value.title.trim())
+    formData.append('channel_type', newMailing.value.channel_type)
     formData.append('audience_type', newMailing.value.audience_type)
     formData.append('scheduled_at', newMailing.value.scheduled_at)
     formData.append('message_ru', newMailing.value.message_ru)
     formData.append('message_kz', newMailing.value.message_kz)
     formData.append('organization_id', auth.currentOrgId)
-    formData.append('has_image', newMailing.value.has_image ? 'true' : 'false')
+    formData.append('has_image', (newMailing.value.has_image && newMailing.value.channel_type === 'telegram') ? 'true' : 'false')
 
-    if (newMailing.value.has_image) {
+    if (newMailing.value.has_image && newMailing.value.channel_type === 'telegram') {
       if (selectedImageFile.value) {
         formData.append('image', selectedImageFile.value)
       }
@@ -792,6 +951,7 @@ function openCreateModal() {
 
   newMailing.value = {
     title: '',
+    channel_type: 'telegram',
     audience_type: 'all',
     scheduled_at: defaultDateTime,
     message_ru: '',
@@ -806,6 +966,7 @@ function openCreateModal() {
   activeLangTab.value = 'ru'
   audienceCount.value = null
   createModalOpen.value = true
+  loadOrgSettings()
   fetchAudienceCount()
 }
 
@@ -879,7 +1040,10 @@ function statusDotClass(status) {
   return styles[status] || styles.draft
 }
 
-onMounted(loadMailings)
+onMounted(() => {
+  loadMailings()
+  loadOrgSettings()
+})
 </script>
 
 <style scoped>

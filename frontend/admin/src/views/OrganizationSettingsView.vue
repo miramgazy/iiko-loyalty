@@ -1203,6 +1203,48 @@
         </div>
       </div>
 
+      <!-- TAB: Apple Wallet -->
+      <div v-show="activeTab === 'apple_wallet'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
+        <div class="flex items-center justify-between pb-6 border-b border-slate-800">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">🍏</span>
+              <h2 class="text-lg font-bold text-white">Интеграция с Apple Wallet</h2>
+              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-700/50 text-zinc-300 border border-zinc-600/50">
+                Apple Wallet Passes
+              </span>
+            </div>
+            <p class="text-slate-400 text-sm mt-1">
+              Отображение кнопки добавления карты в Apple Wallet и возможность отправки Push-уведомлений
+            </p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" v-model="form.is_apple_wallet_enabled" class="sr-only peer">
+            <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+            <span class="ml-3 text-sm font-medium" :class="form.is_apple_wallet_enabled ? 'text-emerald-400' : 'text-slate-500'">
+              {{ form.is_apple_wallet_enabled ? 'Включено' : 'Выключено' }}
+            </span>
+          </label>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="form-label">Pass Type Identifier (Pass ID)</label>
+            <input v-model="form.apple_pass_type_id" type="text" class="form-input" placeholder="pass.kz.loyalty.restaurant" />
+            <p class="text-xs text-slate-500 mt-1">Идентификатор карты из Apple Developer Portal</p>
+          </div>
+          <div>
+            <label class="form-label">Apple Team ID</label>
+            <input v-model="form.apple_team_id" type="text" class="form-input" placeholder="ABCDE12345" />
+            <p class="text-xs text-slate-500 mt-1">Идентификатор команды разработчика Apple</p>
+          </div>
+        </div>
+
+        <div class="flex justify-end pt-4 border-t border-slate-800">
+          <SaveButton :saving="saving" @save="saveSettings" />
+        </div>
+      </div>
+
       <!-- TAB: Loyalty Programs -->
       <div v-show="activeTab === 'loyalty_programs'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-5">
         <div class="flex justify-between items-center mb-4">
@@ -1763,6 +1805,7 @@ const tabs = computed(() => {
     list.push(
       { id: 'branding', label: 'Брендинг TMA' },
       { id: 'wallet', label: 'Google Wallet' },
+      { id: 'apple_wallet', label: 'Apple Wallet' },
       { id: 'loyalty_programs', label: 'Программа лояльности' }
     )
   }
@@ -1903,6 +1946,9 @@ const form = ref({
   name: '', slug: '', address: '',
   tg_bot_token: '', tg_bot_username: '', tma_name: '', tma_direct_link: '',
   is_google_wallet_enabled: false,
+  is_apple_wallet_enabled: false,
+  apple_pass_type_id: '',
+  apple_team_id: '',
   is_waba_enabled: false,
   waba_access_token: '',
   waba_business_account_id: '',

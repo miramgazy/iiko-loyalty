@@ -62,6 +62,12 @@ class Organization(models.Model):
     google_loyalty_class_id = models.CharField("Google Loyalty Class ID", max_length=100, null=True, blank=True)
     google_wallet_settings = models.JSONField("Настройки Google Wallet", default=dict, blank=True)
 
+    # Apple Wallet интеграция
+    is_apple_wallet_enabled = models.BooleanField("Включена интеграция с Apple Wallet", default=False)
+    apple_pass_type_id = models.CharField("Apple Pass Type ID", max_length=100, null=True, blank=True)
+    apple_team_id = models.CharField("Apple Team ID", max_length=50, null=True, blank=True)
+    apple_wallet_settings = models.JSONField("Настройки Apple Wallet", default=dict, blank=True)
+
     # Социальные сети
     instagram_link = models.URLField("Ссылка на Instagram", blank=True, null=True)
     whatsapp_link = models.URLField("Ссылка на WhatsApp", blank=True, null=True)

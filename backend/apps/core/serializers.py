@@ -67,6 +67,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
             'is_iiko_webhook_password_enabled', 'iiko_webhook_password',
             'iiko_server_url', 'iiko_server_login', 'iiko_server_password',
             'is_google_wallet_enabled', 'google_issuer_id', 'google_loyalty_class_id', 'google_wallet_settings',
+            'is_apple_wallet_enabled', 'apple_pass_type_id', 'apple_team_id', 'apple_wallet_settings',
             'branding', 'instagram_link', 'whatsapp_link',
             'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled',
             'llm_provider', 'llm_model_name', 'llm_api_key', 'llm_system_prompt'
