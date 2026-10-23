@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { safeStorage } from '@/services/storage'
+import { validateCustomerName } from '@/services/validation'
 
 const routes = [
   {
@@ -56,6 +57,7 @@ router.beforeEach((to, from, next) => {
 
   // If authenticated but not onboarded (no phone yet)
   if (auth.isAuthenticated && !auth.isOnboarded) {
+    safeStorage.setItem('tma_onboarding_in_progress', 'true')
     const langSelected = safeStorage.getItem('tma_lang_selected') === 'true'
     
     if (!langSelected && to.name !== 'onboarding-lang') {
@@ -81,6 +83,20 @@ router.beforeEach((to, from, next) => {
       return next()
     }
     // For /info, /profile and other pages — allow, don't block
+  }
+
+  // If in onboarding and name is not valid yet, route to profile for name entry
+  const inOnboarding = safeStorage.getItem('tma_onboarding_in_progress') === 'true'
+  if (auth.isAuthenticated && auth.isOnboarded && !auth.needsConsent && inOnboarding) {
+    const isNameValid = validateCustomerName(auth.customer).isValid
+    if (!isNameValid) {
+      if (to.name === 'home') {
+        return next({ path: '/profile', query: { onboarding: '1' } })
+      }
+      if (to.name === 'profile' && to.query.onboarding !== '1') {
+        return next({ path: '/profile', query: { onboarding: '1' } })
+      }
+    }
   }
 
   // If already onboarded and consent status decided, don't allow accessing onboarding pages

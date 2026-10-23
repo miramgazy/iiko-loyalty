@@ -115,6 +115,8 @@ import { useThemeStore } from '@/stores/theme'
 import { requestContact } from '@/services/telegram'
 import api from '@/services/api'
 import { t } from '@/i18n'
+import { validateCustomerName } from '@/services/validation'
+import { safeStorage } from '@/services/storage'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -131,6 +133,18 @@ const isSubmitting = ref(false)
 let ws = null
 let pollInterval = null
 let fallbackTimer = null
+
+function proceedAfterPhone() {
+  if (auth.needsConsent) {
+    router.replace('/onboarding/consent')
+  } else if (!validateCustomerName(auth.customer).isValid) {
+    safeStorage.setItem('tma_onboarding_in_progress', 'true')
+    router.replace({ path: '/profile', query: { onboarding: '1' } })
+  } else {
+    safeStorage.removeItem('tma_onboarding_in_progress')
+    router.replace('/')
+  }
+}
 
 function connectWebSocket() {
   const customerId = auth.customer?.id
@@ -152,11 +166,7 @@ function connectWebSocket() {
           is_onboarded: true,
         })
         cleanup()
-        if (auth.needsConsent) {
-          router.replace('/onboarding/consent')
-        } else {
-          router.replace('/')
-        }
+        proceedAfterPhone()
       }
     }
 
@@ -179,11 +189,7 @@ function startPolling() {
           loyalty_balance: res.data.loyalty_balance,
         })
         cleanup()
-        if (auth.needsConsent) {
-          router.replace('/onboarding/consent')
-        } else {
-          router.replace('/')
-        }
+        proceedAfterPhone()
       }
     } catch {
       // Silently retry
@@ -243,11 +249,7 @@ async function submitManualPhone() {
         is_onboarded: true,
         loyalty_balance: res.data.loyalty_balance,
       })
-      if (auth.needsConsent) {
-        router.replace('/onboarding/consent')
-      } else {
-        router.replace('/')
-      }
+      proceedAfterPhone()
     }
   } catch (err) {
     submitError.value = err.response?.data?.error || 'Ошибка при сохранении номера'
@@ -259,11 +261,7 @@ async function submitManualPhone() {
 onMounted(() => {
   // If the user already has a phone registered, redirect them forward
   if (auth.isOnboarded) {
-    if (auth.needsConsent) {
-      router.replace('/onboarding/consent')
-    } else {
-      router.replace('/')
-    }
+    proceedAfterPhone()
   }
 })
 

@@ -10,12 +10,21 @@
       <!-- Top Card: Header Title -->
       <div class="card-luxury text-left shadow-sm" style="margin-bottom: 0;">
         <h1 class="text-xl font-extrabold text-[color:var(--text)]">
-          {{ t('profile') }}
+          {{ isOnboarding ? t('onboardingNameTitle') : t('profile') }}
         </h1>
       </div>
       
-      <!-- Notification banner if redirected from Google Wallet -->
-      <div v-if="isRedirectedFromWallet" class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 shadow-lg animate-[scaleIn_0.2s_ease-out]" style="margin-top: 16px; margin-bottom: -8px;">
+      <!-- Notification banner for onboarding -->
+      <div v-if="isOnboarding" class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 shadow-lg animate-[scaleIn_0.2s_ease-out]" style="margin-top: 16px; margin-bottom: -8px;">
+        <span class="text-xl flex-shrink-0">👋</span>
+        <div class="text-xs text-amber-200/90 leading-relaxed text-left">
+          <p class="font-bold text-amber-300 mb-0.5">{{ t('onboardingNameTitle') }}</p>
+          <p>{{ t('onboardingNameDesc') }}</p>
+        </div>
+      </div>
+
+      <!-- Notification banner if redirected from Google Wallet / home banner -->
+      <div v-else-if="isRedirectedFromWallet" class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 shadow-lg animate-[scaleIn_0.2s_ease-out]" style="margin-top: 16px; margin-bottom: -8px;">
         <span class="text-xl flex-shrink-0">⚠️</span>
         <div class="text-xs text-amber-200/90 leading-relaxed text-left">
           <p class="font-bold text-amber-300 mb-0.5">{{ t('invalidNameTitle') }}</p>
@@ -82,7 +91,7 @@
         >
           <span v-if="saving" class="inline-block w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
           <template v-else>
-            {{ t('save') }}
+            {{ isOnboarding ? t('continue') : t('save') }}
           </template>
         </button>
       </div>
@@ -107,11 +116,13 @@ import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
 import { t } from '@/i18n'
 import { isValidName } from '@/services/validation'
+import { safeStorage } from '@/services/storage'
 
 const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
+const isOnboarding = computed(() => route.query.onboarding === '1')
 const isRedirectedFromWallet = computed(() => route.query.reason === 'invalid_name')
 
 const form = reactive({
@@ -160,8 +171,11 @@ async function fetchProfileData() {
 }
 
 function initForm(customerData) {
-  form.first_name = customerData?.first_name || ''
-  form.last_name = customerData?.last_name || ''
+  const rawFirst = customerData?.first_name || ''
+  const rawLast = customerData?.last_name || ''
+  // If imported name contains invalid characters (like a dot or emoji), do not populate garbage into input
+  form.first_name = isValidName(rawFirst, true) ? rawFirst : ''
+  form.last_name = isValidName(rawLast, false) ? rawLast : ''
   form.birthday = customerData?.birthday || ''
 }
 
@@ -194,13 +208,16 @@ async function saveProfile() {
     auth.updateCustomer(res.data)
     initForm(res.data)
     
+    // Clear onboarding flag
+    safeStorage.removeItem('tma_onboarding_in_progress')
+
     triggerHaptic('notification', 'success')
     showToast(t('profileUpdated'), false)
 
-    if (isRedirectedFromWallet.value) {
+    if (isOnboarding.value || isRedirectedFromWallet.value) {
       setTimeout(() => {
-        router.push('/')
-      }, 1200)
+        router.replace('/')
+      }, 1000)
     }
   } catch (e) {
     triggerHaptic('notification', 'error')
@@ -212,7 +229,10 @@ async function saveProfile() {
 }
 
 onMounted(() => {
-  if (isRedirectedFromWallet.value) {
+  if (isOnboarding.value) {
+    showToast(t('onboardingNameDesc'), false)
+    triggerHaptic('impact', 'medium')
+  } else if (isRedirectedFromWallet.value) {
     showToast(t('invalidNameToast'), true)
     triggerHaptic('notification', 'warning')
   }

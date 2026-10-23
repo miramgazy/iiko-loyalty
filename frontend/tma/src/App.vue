@@ -191,7 +191,8 @@ const showBottomNav = computed(() => {
          !auth.needsConsent &&
          route.name !== 'onboarding-lang' && 
          route.name !== 'onboarding-phone' &&
-         route.name !== 'onboarding-consent'
+         route.name !== 'onboarding-consent' &&
+         !(route.name === 'profile' && route.query.onboarding === '1')
 })
 
 function isRouteActive(path) {

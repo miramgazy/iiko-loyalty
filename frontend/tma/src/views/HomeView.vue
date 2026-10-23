@@ -7,6 +7,37 @@
     <!-- Main Content Container with proportional padding and spacing -->
     <div class="flex-1 page-p space-y-4 z-10 relative flex flex-col justify-start">
       
+      <!-- Non-intrusive Suggestion Banner to Update Profile Name -->
+      <div v-if="hasInvalidName && !isDismissedNameBanner" 
+           class="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 shadow-md animate-[scaleIn_0.2s_ease-out]">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="text-lg flex-shrink-0">⚠️</span>
+          <div class="text-left min-w-0">
+            <p class="text-xs font-bold text-amber-300 leading-tight">
+              {{ t('suggestUpdateNameTitle') }}
+            </p>
+            <p class="text-[11px] text-amber-200/80 truncate leading-tight mt-0.5">
+              {{ t('suggestUpdateNameDesc') }}
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-1.5 flex-shrink-0">
+          <RouterLink
+            to="/profile?reason=invalid_name"
+            class="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[11px] font-bold transition-all border border-amber-500/30 whitespace-nowrap"
+          >
+            {{ t('edit') }}
+          </RouterLink>
+          <button
+            @click="dismissNameBanner"
+            class="w-6 h-6 rounded-lg text-amber-400/60 hover:text-amber-300 flex items-center justify-center text-xs"
+            :title="t('close')"
+          >
+            ✕
+          </button>
+        </div>
+      </div>
+
       <!-- Second Block: 3D Loyalty Card -->
       <div class="card-luxury flex flex-col justify-between shadow-2xl relative overflow-hidden h-[240px] p-5 text-left select-none"
            :style="{ background: 'var(--gold-gradient)', color: 'var(--gold-text)', borderColor: 'rgba(255,255,255,0.1)' }">
@@ -370,6 +401,17 @@ const customerInitials = computed(() => {
   const c = auth.customer
   return ((c?.first_name?.[0] || '') + (c?.last_name?.[0] || '')).toUpperCase() || '?'
 })
+
+const isDismissedNameBanner = ref(sessionStorage.getItem('tma_dismiss_name_banner') === 'true')
+const hasInvalidName = computed(() => {
+  if (!auth.customer) return false
+  return !validateCustomerName(auth.customer).isValid
+})
+
+function dismissNameBanner() {
+  isDismissedNameBanner.value = true
+  sessionStorage.setItem('tma_dismiss_name_banner', 'true')
+}
 
 const orgName = computed(() => auth.organization?.name || auth.customer?.organization?.name || '')
 

@@ -88,6 +88,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { t } from '@/i18n'
 import api from '@/services/api'
+import { validateCustomerName } from '@/services/validation'
+import { safeStorage } from '@/services/storage'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -95,6 +97,16 @@ const theme = useThemeStore()
 
 const orgName = computed(() => auth.organization?.name || '')
 const loading = ref(false)
+
+function proceedAfterConsent() {
+  if (!validateCustomerName(auth.customer).isValid) {
+    safeStorage.setItem('tma_onboarding_in_progress', 'true')
+    router.replace({ path: '/profile', query: { onboarding: '1' } })
+  } else {
+    safeStorage.removeItem('tma_onboarding_in_progress')
+    router.replace('/')
+  }
+}
 
 async function handleConsent(allow) {
   loading.value = true
@@ -109,15 +121,14 @@ async function handleConsent(allow) {
       is_bot_subscribed: allow
     })
 
-    // Redirect to home screen
-    router.replace('/')
+    proceedAfterConsent()
   } catch (e) {
     console.error('Error saving consent:', e)
     // Fallback: still redirect
     auth.updateCustomer({
       is_bot_subscribed: allow
     })
-    router.replace('/')
+    proceedAfterConsent()
   } finally {
     loading.value = false
   }
