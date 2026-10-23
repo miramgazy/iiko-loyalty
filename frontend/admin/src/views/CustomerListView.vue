@@ -32,26 +32,157 @@
       </div>
     </div>
 
-    <!-- Search -->
-    <div class="mb-5 relative max-w-sm">
-      <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">🔍</span>
-      <input
-        id="input-customer-search"
-        v-model="search"
-        type="text"
-        placeholder="Поиск по имени или телефону..."
-        class="w-full bg-slate-900 border border-slate-800 text-white rounded-xl pl-10 pr-4 py-3 text-sm
-               focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
-               placeholder:text-slate-500 transition-all"
-        @input="debouncedSearch"
-      />
-    </div>
-
     <!-- Stats -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
       <div v-for="stat in stats" :key="stat.label" class="bg-slate-900 rounded-xl border border-slate-800 px-5 py-4">
         <p class="text-xs text-slate-500 mb-1">{{ stat.label }}</p>
         <p class="text-2xl font-bold text-white">{{ stat.value }}</p>
+      </div>
+    </div>
+
+    <!-- Wallet Cards Overview Tile -->
+    <div class="bg-slate-900 rounded-2xl border border-slate-800 p-5 mb-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-base font-semibold text-white">Карты кошелька (Wallet)</h2>
+            <p class="text-xs text-slate-400">Суммарная статистика добавления карт лояльности в кошельки клиентов</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-400">Установили карту:</span>
+            <span class="text-xs font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2.5 py-1 rounded-lg">
+              {{ totalWithWallet }} ({{ totalWithWalletPercent }}%)
+            </span>
+          </div>
+          <button v-if="selectedWalletFilter" @click="setWalletFilter('')" class="text-xs text-indigo-400 hover:text-indigo-300 underline">
+            Сбросить фильтр
+          </button>
+        </div>
+      </div>
+
+      <!-- 3 summary cards inside the tile -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <!-- Google Wallet -->
+        <div 
+          @click="setWalletFilter(selectedWalletFilter === 'google' ? '' : 'google')"
+          class="cursor-pointer relative overflow-hidden rounded-xl border p-4 transition-all duration-200"
+          :class="selectedWalletFilter === 'google' 
+            ? 'bg-sky-950/40 border-sky-500 ring-1 ring-sky-500' 
+            : 'bg-slate-800/60 border-slate-700/60 hover:bg-slate-800 hover:border-slate-600'"
+        >
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2.5">
+              <span class="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 text-sm font-bold">
+                G
+              </span>
+              <span class="text-sm font-semibold text-white">Google Wallet</span>
+            </div>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-950 text-sky-400 border border-sky-800">
+              {{ walletPercent(statsData.google_wallet) }}%
+            </span>
+          </div>
+          <div class="flex items-baseline justify-between mt-3">
+            <span class="text-2xl font-bold text-white">{{ statsData.google_wallet || 0 }}</span>
+            <span class="text-xs text-slate-400">клиентов</span>
+          </div>
+          <div class="w-full bg-slate-700/50 rounded-full h-1.5 mt-2 overflow-hidden">
+            <div class="bg-sky-400 h-1.5 rounded-full transition-all duration-500" :style="{ width: walletPercent(statsData.google_wallet) + '%' }"></div>
+          </div>
+        </div>
+
+        <!-- Apple Wallet -->
+        <div 
+          @click="setWalletFilter(selectedWalletFilter === 'apple' ? '' : 'apple')"
+          class="cursor-pointer relative overflow-hidden rounded-xl border p-4 transition-all duration-200"
+          :class="selectedWalletFilter === 'apple' 
+            ? 'bg-zinc-800/80 border-zinc-400 ring-1 ring-zinc-400' 
+            : 'bg-slate-800/60 border-slate-700/60 hover:bg-slate-800 hover:border-slate-600'"
+        >
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2.5">
+              <span class="w-8 h-8 rounded-lg bg-zinc-700/50 border border-zinc-600/50 flex items-center justify-center text-zinc-200 text-base">
+                
+              </span>
+              <span class="text-sm font-semibold text-white">Apple Wallet</span>
+            </div>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 border border-zinc-700">
+              {{ walletPercent(statsData.apple_wallet) }}%
+            </span>
+          </div>
+          <div class="flex items-baseline justify-between mt-3">
+            <span class="text-2xl font-bold text-white">{{ statsData.apple_wallet || 0 }}</span>
+            <span class="text-xs text-slate-400">клиентов</span>
+          </div>
+          <div class="w-full bg-slate-700/50 rounded-full h-1.5 mt-2 overflow-hidden">
+            <div class="bg-zinc-300 h-1.5 rounded-full transition-all duration-500" :style="{ width: walletPercent(statsData.apple_wallet) + '%' }"></div>
+          </div>
+        </div>
+
+        <!-- Without Wallet -->
+        <div 
+          @click="setWalletFilter(selectedWalletFilter === 'none' ? '' : 'none')"
+          class="cursor-pointer relative overflow-hidden rounded-xl border p-4 transition-all duration-200"
+          :class="selectedWalletFilter === 'none' 
+            ? 'bg-amber-950/30 border-amber-600 ring-1 ring-amber-600' 
+            : 'bg-slate-800/60 border-slate-700/60 hover:bg-slate-800 hover:border-slate-600'"
+        >
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2.5">
+              <span class="w-8 h-8 rounded-lg bg-slate-700/40 border border-slate-600/40 flex items-center justify-center text-slate-400 text-sm">
+                ✕
+              </span>
+              <span class="text-sm font-semibold text-slate-300">Не установлена</span>
+            </div>
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+              {{ walletPercent(statsData.no_wallet) }}%
+            </span>
+          </div>
+          <div class="flex items-baseline justify-between mt-3">
+            <span class="text-2xl font-bold text-slate-300">{{ statsData.no_wallet || 0 }}</span>
+            <span class="text-xs text-slate-400">клиентов</span>
+          </div>
+          <div class="w-full bg-slate-700/50 rounded-full h-1.5 mt-2 overflow-hidden">
+            <div class="bg-slate-500 h-1.5 rounded-full transition-all duration-500" :style="{ width: walletPercent(statsData.no_wallet) + '%' }"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search & Filters -->
+    <div class="flex flex-wrap items-center justify-between gap-4 mb-5">
+      <div class="relative max-w-sm flex-1 min-w-[260px]">
+        <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">🔍</span>
+        <input
+          id="input-customer-search"
+          v-model="search"
+          type="text"
+          placeholder="Поиск по имени или телефону..."
+          class="w-full bg-slate-900 border border-slate-800 text-white rounded-xl pl-10 pr-4 py-3 text-sm
+                 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent
+                 placeholder:text-slate-500 transition-all"
+          @input="debouncedSearch"
+        />
+      </div>
+
+      <div v-if="selectedWalletFilter" class="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-2 rounded-xl">
+        <span class="text-xs text-slate-400">Фильтр по карте:</span>
+        <span class="text-xs font-semibold px-2.5 py-1 rounded-lg"
+          :class="selectedWalletFilter === 'google'
+            ? 'bg-sky-950 text-sky-400 border border-sky-800'
+            : selectedWalletFilter === 'apple'
+              ? 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+              : 'bg-slate-800 text-slate-400 border border-slate-700'">
+          {{ selectedWalletFilter === 'google' ? 'Google Wallet' : selectedWalletFilter === 'apple' ? 'Apple Wallet' : 'Без карты' }}
+        </span>
+        <button @click="setWalletFilter('')" class="text-xs text-slate-500 hover:text-white ml-1">✕</button>
       </div>
     </div>
 
@@ -67,6 +198,7 @@
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Клиент</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Телефон</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Баллы / Кошельки</th>
+              <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Тип карты</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">iiko</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Рассылка</th>
               <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Дата</th>
@@ -105,6 +237,22 @@
                     <span class="font-bold whitespace-nowrap">{{ Number(w.balance).toLocaleString('ru-RU') }}</span>
                   </div>
                 </div>
+              </td>
+              <td class="px-6 py-4">
+                <span v-if="c.wallet_type === 'google' || (!c.wallet_type && c.google_wallet_object_id)" 
+                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-sky-950/40 text-sky-400 border border-sky-800/60 font-medium whitespace-nowrap">
+                  <span class="w-4 h-4 rounded-full bg-sky-500/20 flex items-center justify-center text-[10px] font-bold text-sky-300">G</span>
+                  Google Wallet
+                </span>
+                <span v-else-if="c.wallet_type === 'apple'" 
+                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg bg-zinc-800/80 text-zinc-200 border border-zinc-700 font-medium whitespace-nowrap">
+                  <span class="text-sm leading-none"></span>
+                  Apple Wallet
+                </span>
+                <span v-else 
+                  class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-800/60 text-slate-500 border border-slate-700/50 whitespace-nowrap">
+                  — Не выбрана
+                </span>
               </td>
               <td class="px-6 py-4">
                 <span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full mb-1"
@@ -188,8 +336,8 @@
               </td>
             </tr>
             <tr v-if="!customers.length">
-              <td colspan="7" class="px-6 py-12 text-center text-slate-500">
-                {{ search ? 'Клиенты не найдены' : 'Нет клиентов' }}
+              <td colspan="8" class="px-6 py-12 text-center text-slate-500">
+                {{ search || selectedWalletFilter ? 'Клиенты не найдены' : 'Нет клиентов' }}
               </td>
             </tr>
           </tbody>
@@ -308,7 +456,10 @@ const statsData = ref({
   with_telegram: 0,
   with_phone: 0,
   synced_iiko: 0,
-  bot_subscribed: 0
+  bot_subscribed: 0,
+  google_wallet: 0,
+  apple_wallet: 0,
+  no_wallet: 0,
 })
 
 const stats = computed(() => [
@@ -318,6 +469,29 @@ const stats = computed(() => [
   { label: 'Синхр. с iiko', value: statsData.value.synced_iiko },
   { label: 'Подписаны на бота', value: statsData.value.bot_subscribed },
 ])
+
+// Wallet filter & stats helpers
+const selectedWalletFilter = ref('')
+
+function setWalletFilter(type) {
+  selectedWalletFilter.value = type
+  currentPage.value = 1
+  loadCustomers()
+}
+
+const totalWithWallet = computed(() => {
+  return (statsData.value.google_wallet || 0) + (statsData.value.apple_wallet || 0)
+})
+
+const totalWithWalletPercent = computed(() => {
+  if (!statsData.value.total_count) return 0
+  return Math.round((totalWithWallet.value / statsData.value.total_count) * 100)
+})
+
+function walletPercent(val) {
+  if (!statsData.value.total_count || !val) return 0
+  return Math.round((val / statsData.value.total_count) * 100)
+}
 
 function debouncedSearch() {
   clearTimeout(searchTimer)
@@ -344,6 +518,7 @@ async function loadCustomers() {
       page_size: pageSize.value,
     }
     if (search.value.trim()) params.search = search.value.trim()
+    if (selectedWalletFilter.value) params.wallet_type = selectedWalletFilter.value
     const res = await api.get(`/loyalty/organizations/${auth.currentOrgId}/customers/`, { params })
     customers.value = res.data.results
     totalCount.value = res.data.count
@@ -438,10 +613,12 @@ async function pushCustomer(customer) {
 
 function exportCSV() {
   if (!customers.value.length) return toast.info('Нет данных для экспорта')
-  const headers = ['ID', 'Имя', 'Фамилия', 'Телефон', 'Telegram ID', 'Баллы', 'iiko ID', 'Номер карты iiko', 'Рассылка', 'Дата']
+  const headers = ['ID', 'Имя', 'Фамилия', 'Телефон', 'Telegram ID', 'Баллы', 'Тип карты', 'iiko ID', 'Номер карты iiko', 'Рассылка', 'Дата']
   const rows = customers.value.map(c => [
     c.id, c.first_name, c.last_name, c.phone || '', c.telegram_id,
-    c.loyalty_balance, c.iiko_customer_id || '', c.iiko_card_number || '',
+    c.loyalty_balance,
+    c.wallet_type === 'google' || (!c.wallet_type && c.google_wallet_object_id) ? 'Google Wallet' : (c.wallet_type === 'apple' ? 'Apple Wallet' : 'Не установлена'),
+    c.iiko_customer_id || '', c.iiko_card_number || '',
     c.is_bot_subscribed === true ? 'Подписан' : (c.is_bot_subscribed === false ? 'Отписан' : 'Не решено'),
     c.created_at,
   ])

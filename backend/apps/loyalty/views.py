@@ -446,6 +446,12 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
                 Q(last_name__icontains=search) |
                 Q(phone__icontains=search)
             )
+        wallet_type = self.request.query_params.get('wallet_type', '').strip()
+        if wallet_type:
+            if wallet_type == 'none':
+                queryset = queryset.filter(Q(wallet_type__isnull=True) | Q(wallet_type=''))
+            else:
+                queryset = queryset.filter(wallet_type=wallet_type)
         return queryset
 
     @action(detail=False, methods=['get'], url_path='stats')
@@ -458,6 +464,9 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
             with_phone=Count('id', filter=Q(phone__isnull=False) & ~Q(phone='')),
             synced_iiko=Count('id', filter=Q(iiko_customer_id__isnull=False)),
             bot_subscribed=Count('id', filter=Q(is_bot_subscribed=True)),
+            google_wallet=Count('id', filter=Q(wallet_type='google')),
+            apple_wallet=Count('id', filter=Q(wallet_type='apple')),
+            no_wallet=Count('id', filter=Q(wallet_type__isnull=True) | Q(wallet_type='')),
         )
         return Response(metrics)
 
