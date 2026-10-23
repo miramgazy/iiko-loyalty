@@ -9,7 +9,8 @@ class OrganizationSerializer(serializers.ModelSerializer):
         model = Organization
         fields = [
             'id', 'name', 'slug', 'address', 'branding', 'instagram_link', 'whatsapp_link', 'is_active', 'created_at',
-            'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled'
+            'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled',
+            'is_google_wallet_enabled', 'is_apple_wallet_enabled'
         ]
 
 class UserOrganizationSerializer(serializers.ModelSerializer):

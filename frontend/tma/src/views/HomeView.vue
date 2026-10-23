@@ -130,7 +130,7 @@
       </div>
 
       <!-- Digital Wallet Action Buttons (Google Wallet & Apple Wallet) -->
-      <div class="w-full flex flex-col gap-2.5">
+      <div v-if="isGoogleWalletEnabled || isAppleWalletEnabled || walletError || walletSuccess" class="w-full flex flex-col gap-2.5">
         <!-- Google Wallet Action Button -->
         <button
           v-if="isGoogleWalletEnabled"
@@ -163,6 +163,7 @@
 
         <!-- Apple Wallet Action Button -->
         <button
+          v-if="isAppleWalletEnabled"
           @click="addToAppleWallet"
           :disabled="isAppleWalletLoading"
           class="w-full h-[52px] rounded-2xl bg-black hover:bg-zinc-900 active:scale-[0.98] border border-white/10 shadow-lg flex items-center justify-center gap-3 px-4 text-white font-semibold transition-all duration-200 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed group relative overflow-hidden"
@@ -644,9 +645,10 @@ function toggleQrZoom(visible) {
   }
 }
 
-// Google Wallet handling
+// Google Wallet & Apple Wallet handling based on OS platform and organization settings
 const isGoogleWalletEnabled = computed(() => {
-  if (!auth.organization?.is_google_wallet_enabled) return false
+  const org = auth.organization || auth.customer?.organization
+  if (!org?.is_google_wallet_enabled) return false
 
   // Check Telegram WebApp platform first
   const tgPlatform = window.Telegram?.WebApp?.platform?.toLowerCase()
@@ -659,6 +661,24 @@ const isGoogleWalletEnabled = computed(() => {
   if (isIos) return false
 
   return /android/i.test(ua)
+})
+
+const isAppleWalletEnabled = computed(() => {
+  const org = auth.organization || auth.customer?.organization
+  if (!org?.is_apple_wallet_enabled) return false
+
+  // Check Telegram WebApp platform first
+  const tgPlatform = window.Telegram?.WebApp?.platform?.toLowerCase()
+  if (tgPlatform === 'ios') return true
+  if (tgPlatform === 'android') return false
+
+  // Fallback to User-Agent detection (strictly iOS, excluding Android)
+  const ua = navigator.userAgent || ''
+  const isAndroid = /android/i.test(ua)
+  if (isAndroid) return false
+
+  const isIos = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  return isIos
 })
 const isGoogleWalletLoading = ref(false)
 const isAppleWalletLoading = ref(false)

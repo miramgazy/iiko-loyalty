@@ -111,6 +111,7 @@ class TmaAuthView(APIView):
                 "name": org.name,
                 "branding": org.branding,
                 "is_google_wallet_enabled": org.is_google_wallet_enabled,
+                "is_apple_wallet_enabled": org.is_apple_wallet_enabled,
                 "instagram_link": org.instagram_link,
                 "whatsapp_link": org.whatsapp_link
             },
@@ -621,6 +622,9 @@ class CustomerAppleWalletLinkView(APIView):
 
         if not customer.is_onboarded:
             return Response({"error": "Вам необходимо подтвердить номер телефона"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not customer.organization.is_apple_wallet_enabled:
+            return Response({"error": "Интеграция с Apple Wallet отключена заведением"}, status=status.HTTP_400_BAD_REQUEST)
 
         from apps.loyalty.utils import is_valid_name
         if not is_valid_name(customer.first_name, required=True) or not is_valid_name(customer.last_name, required=False):

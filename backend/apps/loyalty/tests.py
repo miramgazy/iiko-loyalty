@@ -627,8 +627,9 @@ class WabaWebhookIntegrationTests(TestCase):
             }
         }]
 
-        url = "/api/loyalty/iiko/webhook/"
-        response = self.client.post(url, data=webhook_data, format='json')
+        url = "/api/v1/integrations/iiko/webhook/"
+        import json
+        response = self.client.post(url, data=json.dumps(webhook_data), content_type='application/json')
         self.assertEqual(response.status_code, 200)
 
         from apps.loyalty.models import IikoWebhookLog
