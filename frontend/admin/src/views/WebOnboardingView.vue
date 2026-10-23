@@ -223,7 +223,7 @@
                   @input="formatPhoneInput"
                   type="tel"
                   placeholder="(701) 000-00-00"
-                  maxlength="15"
+                  maxlength="18"
                   class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 text-white font-mono text-base rounded-2xl pl-16 pr-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all placeholder:text-slate-600"
                   required
                   autofocus
@@ -671,7 +671,12 @@ function formatPhoneInput(event) {
   noWhatsappError.value = false
   errorMessage.value = ''
   let val = event.target.value.replace(/\D/g, '')
-  if (val.startsWith('7') || val.startsWith('8')) {
+
+  // If 11+ digits entered (e.g. pasted +7... or 8...), strip leading 7/8 country code
+  if (val.length > 10 && (val.startsWith('7') || val.startsWith('8'))) {
+    val = val.substring(1)
+  } else if (val.startsWith('8')) {
+    // If user starts typing with 8 (domestic trunk prefix), drop 8 since +7 is already fixed
     val = val.substring(1)
   }
   val = val.substring(0, 10)
