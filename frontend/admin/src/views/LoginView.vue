@@ -11,9 +11,9 @@
           <span>На главную страницу</span>
         </router-link>
         <div class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-600/30">
-          <span class="text-white text-2xl font-bold">L</span>
+          <span class="text-white text-2xl font-bold">M</span>
         </div>
-        <h1 class="text-2xl font-bold text-white">LoyaltyAdmin</h1>
+        <h1 class="text-2xl font-bold text-white">Loyalty-MadiTech</h1>
         <p class="text-slate-400 text-sm mt-1">Войдите в систему управления</p>
       </div>
 

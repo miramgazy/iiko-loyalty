@@ -3,13 +3,15 @@
     <!-- Sidebar -->
     <aside v-if="auth.isAuthenticated && auth.currentOrgId || auth.isSuperAdmin"
       class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col flex-shrink-0">
-      <!-- Logo -->
+      <!-- Organization / Brand Header -->
       <div class="px-6 py-5 border-b border-slate-800">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-            <span class="text-white text-sm font-bold">L</span>
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+            <span class="text-white text-sm font-bold">{{ currentCompanyInitial }}</span>
           </div>
-          <span class="font-bold text-white tracking-tight">LoyaltyAdmin</span>
+          <span class="font-bold text-white tracking-tight truncate" :title="currentCompanyName">
+            {{ currentCompanyName }}
+          </span>
         </div>
       </div>
 
@@ -65,9 +67,18 @@
 
       <!-- User info + logout -->
       <div class="px-4 py-4 border-t border-slate-800">
-        <div v-if="auth.currentMembership" class="mb-2 px-2">
-          <p class="text-xs text-slate-500 truncate">{{ auth.currentMembership.organization.name }}</p>
+        <div class="mb-2 px-2">
+          <p class="text-xs text-slate-300 font-medium truncate">
+            {{ auth.user?.first_name || auth.user?.username || 'Пользователь' }}
+          </p>
           <p class="text-xs text-indigo-400 font-medium">{{ roleLabel(auth.currentRole) }}</p>
+          <RouterLink
+            v-if="auth.user?.memberships?.length > 1"
+            to="/select-org"
+            class="inline-block mt-1 text-[11px] text-slate-500 hover:text-indigo-400 transition-colors"
+          >
+            ⇄ Сменить организацию
+          </RouterLink>
         </div>
         <button
           @click="handleLogout"
@@ -88,12 +99,22 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import ToastContainer from '@/components/ToastContainer.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
+
+const currentCompanyName = computed(() => {
+  return auth.currentMembership?.organization?.name || (auth.isSuperAdmin ? 'Панель управления' : 'Loyalty-MadiTech')
+})
+
+const currentCompanyInitial = computed(() => {
+  const name = currentCompanyName.value.trim()
+  return name ? name.charAt(0).toUpperCase() : 'L'
+})
 
 function handleLogout() {
   auth.logout()
@@ -107,7 +128,8 @@ function roleLabel(role) {
     org_manager: 'Менеджер',
     org_admin: 'Администратор',
   }
-  return labels[role] || role
+  if (!role && auth.isSuperAdmin) return 'SuperAdmin'
+  return labels[role] || role || ''
 }
 </script>
 
