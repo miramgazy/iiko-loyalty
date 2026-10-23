@@ -478,61 +478,96 @@
             </div>
           </div>
 
-          <!-- SINGLE OS WALLET BUTTON (Strictly ONE button per user's system) -->
+          <!-- WALLET SECTION (Strictly by operating system, no cross-OS buttons) -->
           <div class="space-y-3 pt-2">
-            <!-- iOS: Apple Wallet Button -->
-            <button
-              v-if="deviceOS === 'ios' && info.is_apple_wallet_enabled"
-              id="btn-add-apple-wallet"
-              type="button"
-              @click="handleAddWallet('apple')"
-              :disabled="loadingWallet"
-              class="w-full py-4 px-6 rounded-2xl bg-black hover:bg-neutral-900 text-white font-semibold text-sm shadow-xl border border-neutral-700 flex items-center justify-center gap-3 transition-all duration-200 cursor-pointer active:scale-98"
-            >
-              <span v-if="loadingWallet" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-              <template v-else>
-                <span class="text-2xl leading-none"></span>
-                <span>{{ lang === 'kz' ? 'Apple Wallet-ке қосу' : 'Добавить в Apple Wallet' }}</span>
-              </template>
-            </button>
-
-            <!-- Android / Default: Google Wallet Button -->
-            <button
-              v-else-if="deviceOS !== 'ios' && info.is_google_wallet_enabled"
-              id="btn-add-google-wallet"
-              type="button"
-              @click="handleAddWallet('google')"
-              :disabled="loadingWallet"
-              class="w-full py-4 px-6 rounded-2xl bg-slate-900 hover:bg-slate-850 text-white font-semibold text-sm shadow-xl border border-slate-700 flex items-center justify-center gap-3 transition-all duration-200 cursor-pointer active:scale-98"
-            >
-              <span v-if="loadingWallet" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-              <template v-else>
-                <span class="w-6 h-6 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center text-xs font-black">G</span>
-                <span>{{ lang === 'kz' ? 'Google Wallet-ке қосу' : 'Добавить в Google Кошелек' }}</span>
-              </template>
-            </button>
-
-            <!-- Fallback if preferred OS wallet disabled by restaurant -->
-            <div v-else-if="info.is_apple_wallet_enabled || info.is_google_wallet_enabled" class="space-y-2">
-              <button
-                v-if="info.is_google_wallet_enabled"
-                type="button"
-                @click="handleAddWallet('google')"
-                :disabled="loadingWallet"
-                class="w-full py-3.5 px-5 rounded-2xl bg-slate-900 hover:bg-slate-850 text-white font-semibold text-xs border border-slate-700 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <span>🌐</span> {{ lang === 'kz' ? 'Google Wallet-ке қосу' : 'Добавить в Google Кошелек' }}
-              </button>
+            <!-- 1. iOS: ONLY Apple Wallet -->
+            <template v-if="deviceOS === 'ios'">
               <button
                 v-if="info.is_apple_wallet_enabled"
+                id="btn-add-apple-wallet"
                 type="button"
                 @click="handleAddWallet('apple')"
                 :disabled="loadingWallet"
-                class="w-full py-3.5 px-5 rounded-2xl bg-black hover:bg-neutral-900 text-white font-semibold text-xs border border-neutral-700 flex items-center justify-center gap-2 cursor-pointer"
+                class="w-full py-4 px-6 rounded-2xl bg-black hover:bg-neutral-900 text-white font-semibold text-sm shadow-xl border border-neutral-700 flex items-center justify-center gap-3 transition-all duration-200 cursor-pointer active:scale-98"
               >
-                <span></span> {{ lang === 'kz' ? 'Apple Wallet-ке қосу' : 'Добавить в Apple Wallet' }}
+                <span v-if="loadingWallet" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                <template v-else>
+                  <span class="text-2xl leading-none"></span>
+                  <span>{{ lang === 'kz' ? 'Apple Wallet-ке қосу' : 'Добавить в Apple Wallet' }}</span>
+                </template>
               </button>
-            </div>
+
+              <div
+                v-else
+                id="notice-apple-wallet-disabled"
+                class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 text-center space-y-1.5"
+              >
+                <div class="w-8 h-8 mx-auto rounded-full bg-neutral-800 border border-neutral-700 flex items-center justify-center text-sm text-neutral-300">
+                  
+                </div>
+                <p class="text-xs font-semibold text-slate-200">
+                  {{ lang === 'kz' ? 'Apple Wallet бапталмаған' : 'Apple Wallet не настроен' }}
+                </p>
+                <p class="text-[11px] text-slate-400 leading-relaxed max-w-xs mx-auto">
+                  {{ lang === 'kz'
+                    ? 'Бұл мекеме үшін Apple Wallet картасын шығару әлі бапталмаған.'
+                    : 'Для данной компании не настроено добавление карты в Apple Wallet.'
+                  }}
+                </p>
+              </div>
+            </template>
+
+            <!-- 2. Android: ONLY Google Wallet -->
+            <template v-else-if="deviceOS === 'android'">
+              <button
+                v-if="info.is_google_wallet_enabled"
+                id="btn-add-google-wallet"
+                type="button"
+                @click="handleAddWallet('google')"
+                :disabled="loadingWallet"
+                class="w-full py-4 px-6 rounded-2xl bg-slate-900 hover:bg-slate-850 text-white font-semibold text-sm shadow-xl border border-slate-700 flex items-center justify-center gap-3 transition-all duration-200 cursor-pointer active:scale-98"
+              >
+                <span v-if="loadingWallet" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                <template v-else>
+                  <span class="w-6 h-6 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center text-xs font-black">G</span>
+                  <span>{{ lang === 'kz' ? 'Google Wallet-ке қосу' : 'Добавить в Google Кошелек' }}</span>
+                </template>
+              </button>
+
+              <div
+                v-else
+                id="notice-google-wallet-disabled"
+                class="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 text-center space-y-1.5"
+              >
+                <div class="w-8 h-8 mx-auto rounded-full bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-xs font-bold text-sky-400">
+                  G
+                </div>
+                <p class="text-xs font-semibold text-slate-200">
+                  {{ lang === 'kz' ? 'Google Кошелек бапталмаған' : 'Google Кошелек не настроен' }}
+                </p>
+                <p class="text-[11px] text-slate-400 leading-relaxed max-w-xs mx-auto">
+                  {{ lang === 'kz'
+                    ? 'Бұл мекеме үшін Google Wallet картасын шығару әлі бапталмаған.'
+                    : 'Для данной компании не настроено добавление карты в Google Кошелек.'
+                  }}
+                </p>
+              </div>
+            </template>
+
+            <!-- 3. Other systems (Desktop Windows, Mac, Linux): No wallet buttons -->
+            <template v-else>
+              <div
+                id="notice-desktop-wallet"
+                class="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-800 text-center space-y-1"
+              >
+                <p class="text-[11px] text-slate-400 leading-relaxed">
+                  {{ lang === 'kz'
+                    ? 'Картаны телефон кошелегіне (Apple Wallet / Google Wallet) қосу үшін парақшаны смартфоннан ашыңыз.'
+                    : 'Для добавления карты в кошелек (Apple Wallet / Google Wallet) откройте эту страницу со смартфона.'
+                  }}
+                </p>
+              </div>
+            </template>
 
             <!-- Notice when wallet added or link opened -->
             <p v-if="walletMessage" class="text-xs text-center text-emerald-400 font-medium">
@@ -620,13 +655,13 @@ const customerData = ref(null)
 const resendCountdown = ref(0)
 let timerInterval = null
 
-// Device detection (iOS vs Android)
+// Device detection (iOS vs Android vs other)
 const deviceOS = computed(() => {
   if (typeof window === 'undefined') return 'other'
-  const ua = navigator.userAgent || ''
-  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  const ua = (navigator.userAgent || navigator.vendor || window.opera || '').toLowerCase()
+  const isIOS = /iphone|ipad|ipod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
   if (isIOS) return 'ios'
-  if (/Android/.test(ua)) return 'android'
+  if (/android/.test(ua)) return 'android'
   return 'other'
 })
 
