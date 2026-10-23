@@ -77,13 +77,29 @@ const routes = [
   },
   {
     path: '/',
-    redirect: () => {
-      const auth = useAuthStore()
-      if (!auth.isAuthenticated) return '/login'
-      if (auth.isSuperAdmin) return '/superadmin'
-      if (auth.currentOrgId) return '/admin/customers'
-      return '/select-org'
-    },
+    name: 'landing',
+    component: () => import('@/views/LandingView.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/privacy',
+    name: 'privacy',
+    component: () => import('@/views/PrivacyView.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/privacy.html',
+    redirect: '/privacy',
+  },
+  {
+    path: '/terms',
+    name: 'terms',
+    component: () => import('@/views/TermsView.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/terms.html',
+    redirect: '/terms',
   },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
@@ -95,6 +111,12 @@ const router = createRouter({
 
 router.beforeEach((to, from, next) => {
   const auth = useAuthStore()
+
+  if (to.name === 'login' && auth.isAuthenticated) {
+    if (auth.isSuperAdmin) return next('/superadmin')
+    if (auth.currentOrgId) return next('/admin/customers')
+    return next('/select-org')
+  }
 
   if (to.meta.public) return next()
 

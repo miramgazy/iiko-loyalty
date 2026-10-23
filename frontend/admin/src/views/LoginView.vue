@@ -3,6 +3,13 @@
     <div class="w-full max-w-md">
       <!-- Header -->
       <div class="text-center mb-8">
+        <router-link
+          to="/"
+          class="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors mb-5 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 hover:border-slate-700"
+        >
+          <span>←</span>
+          <span>На главную страницу</span>
+        </router-link>
         <div class="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-indigo-600/30">
           <span class="text-white text-2xl font-bold">L</span>
         </div>

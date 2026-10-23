@@ -25,11 +25,8 @@ FROM nginx:alpine AS final
 # Копируем конфигурацию Nginx
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Размещаем Промо-сайт (Landing) в /usr/share/nginx/html/website
-COPY website/ /usr/share/nginx/html/website/
-
-# Размещаем Admin Panel (SPA) в /usr/share/nginx/html/admin
-COPY --from=build-admin /app/admin/dist /usr/share/nginx/html/admin/
+# Размещаем главное веб-приложение (Vue SPA: Лендинг, Авторизация, Панель управления, Документы)
+COPY --from=build-admin /app/admin/dist /usr/share/nginx/html
 
 # Размещаем TMA по вложенному пути /tma
 COPY --from=build-tma  /app/tma/dist  /usr/share/nginx/html/tma/
