@@ -130,7 +130,7 @@
       </div>
 
       <!-- Digital Wallet Action Buttons (Google Wallet & Apple Wallet) -->
-      <div v-if="isGoogleWalletEnabled || isAppleWalletEnabled || walletError || walletSuccess" class="w-full flex flex-col gap-2.5">
+      <div v-if="isGoogleWalletEnabled || isAppleWalletEnabled || walletError || walletSuccess" class="w-full flex flex-col gap-2.5 mt-1.5 mb-6">
         <!-- Google Wallet Action Button -->
         <button
           v-if="isGoogleWalletEnabled"
