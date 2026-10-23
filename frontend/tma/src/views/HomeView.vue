@@ -290,19 +290,61 @@
         </div>
       </div>
     </Transition>
+
+    <!-- Warning Modal for Invalid Name before Google Wallet -->
+    <Teleport to="body">
+      <Transition name="fade">
+        <div v-if="showInvalidNameModal" 
+             class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md select-none"
+             @click.self="navigateToProfile">
+          <div class="card-luxury w-full max-w-sm p-6 text-center shadow-2xl border border-amber-500/30 bg-[color:var(--bg)] rounded-3xl animate-[scaleIn_0.25s_ease-out] relative"
+               style="box-shadow: 0 0 45px rgba(245, 158, 11, 0.2), 0 0 1px 1px rgba(255, 255, 255, 0.05) inset;">
+            <!-- Top Accent Line (Amber/Gold) -->
+            <div class="w-12 h-1.5 rounded-full mx-auto mb-4" style="background: var(--gold-gradient);"></div>
+
+            <!-- Warning Icon with animated gold glow -->
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.25)]">
+              <span class="text-3xl">⚠️</span>
+            </div>
+
+            <!-- Title -->
+            <h3 class="text-base font-extrabold text-[color:var(--text)] mb-2">
+              {{ t('invalidNameTitle') }}
+            </h3>
+
+            <!-- Description -->
+            <p class="text-xs text-[color:var(--muted)] leading-relaxed mb-6 font-medium">
+              {{ t('invalidNameDesc') }}
+            </p>
+
+            <!-- Action Button -->
+            <button
+              @click="navigateToProfile"
+              class="btn-primary w-full py-3.5 text-xs font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>👤</span>
+              <span>{{ t('goToProfile') }}</span>
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import QrcodeVue from 'qrcode.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import api from '@/services/api'
 import { t } from '@/i18n'
+import { validateCustomerName } from '@/services/validation'
 
 const auth = useAuthStore()
 const theme = useThemeStore()
+const router = useRouter()
 
 // Native Telegram Haptic Feedback caller
 function triggerHaptic(type = 'impact', subtype = 'light') {
@@ -545,9 +587,62 @@ const isGoogleWalletEnabled = computed(() => {
 })
 const isGoogleWalletLoading = ref(false)
 const walletError = ref('')
+const showInvalidNameModal = ref(false)
+let redirectTimer = null
+
+function showNameWarningPopup() {
+  showInvalidNameModal.value = true
+
+  // Native Telegram popup if supported
+  const tg = window.Telegram?.WebApp
+  if (tg?.showPopup && typeof tg.showPopup === 'function') {
+    try {
+      tg.showPopup({
+        title: t('invalidNameTitle'),
+        message: t('invalidNameDesc'),
+        buttons: [{ id: 'profile', type: 'default', text: t('goToProfile') }]
+      }, () => {
+        navigateToProfile()
+      })
+    } catch (e) {
+      console.warn('Telegram showPopup failed:', e)
+    }
+  }
+
+  // Automatic transition to profile page after 2.4s
+  if (redirectTimer) clearTimeout(redirectTimer)
+  redirectTimer = setTimeout(() => {
+    navigateToProfile()
+  }, 2400)
+}
+
+function navigateToProfile() {
+  if (redirectTimer) {
+    clearTimeout(redirectTimer)
+    redirectTimer = null
+  }
+  showInvalidNameModal.value = false
+  router.push({ path: '/profile', query: { reason: 'invalid_name' } })
+}
+
+onUnmounted(() => {
+  if (redirectTimer) {
+    clearTimeout(redirectTimer)
+    redirectTimer = null
+  }
+})
 
 async function addToGoogleWallet() {
   if (isGoogleWalletLoading.value) return
+
+  // Verify first and last name before requesting Google Wallet pass
+  const nameValidation = validateCustomerName(auth.customer)
+  if (!nameValidation.isValid) {
+    triggerHaptic('notification', 'warning')
+    showNameWarningPopup()
+    return
+  }
+
   isGoogleWalletLoading.value = true
   walletError.value = ''
   triggerHaptic('impact', 'medium')
@@ -571,6 +666,10 @@ async function addToGoogleWallet() {
     }
   } catch (e) {
     triggerHaptic('notification', 'error')
+    if (e.response?.data?.code === 'INVALID_NAME') {
+      showNameWarningPopup()
+      return
+    }
     walletError.value = e.response?.data?.error || e.message || 'Ошибка генерации ссылки Google Wallet'
     console.error('Google Wallet error:', e)
     setTimeout(() => {

@@ -14,6 +14,15 @@
         </h1>
       </div>
       
+      <!-- Notification banner if redirected from Google Wallet -->
+      <div v-if="isRedirectedFromWallet" class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 shadow-lg animate-[scaleIn_0.2s_ease-out]" style="margin-top: 16px; margin-bottom: -8px;">
+        <span class="text-xl flex-shrink-0">⚠️</span>
+        <div class="text-xs text-amber-200/90 leading-relaxed text-left">
+          <p class="font-bold text-amber-300 mb-0.5">{{ t('invalidNameTitle') }}</p>
+          <p>{{ t('invalidNameDesc') }}</p>
+        </div>
+      </div>
+
       <!-- Profile Card Form -->
       <div class="card-luxury text-left flex flex-col shadow-sm gap-4" :style="{ marginBottom: 0, marginTop: '24px' }">
         
@@ -92,12 +101,18 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
 import { t } from '@/i18n'
+import { isValidName } from '@/services/validation'
 
 const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
+
+const isRedirectedFromWallet = computed(() => route.query.reason === 'invalid_name')
 
 const form = reactive({
   first_name: '',
@@ -151,9 +166,17 @@ function initForm(customerData) {
 }
 
 async function saveProfile() {
-  if (!form.first_name.trim()) {
+  const isFirstValid = isValidName(form.first_name, true)
+  if (!isFirstValid) {
     triggerHaptic('notification', 'error')
-    showToast(t('firstName') + ' - required field', true)
+    showToast(t('nameContainsInvalidChars'), true)
+    return
+  }
+
+  const isLastValid = isValidName(form.last_name, false)
+  if (!isLastValid) {
+    triggerHaptic('notification', 'error')
+    showToast(t('lastNameContainsInvalidChars'), true)
     return
   }
 
@@ -173,9 +196,15 @@ async function saveProfile() {
     
     triggerHaptic('notification', 'success')
     showToast(t('profileUpdated'), false)
+
+    if (isRedirectedFromWallet.value) {
+      setTimeout(() => {
+        router.push('/')
+      }, 1200)
+    }
   } catch (e) {
     triggerHaptic('notification', 'error')
-    const errMsg = e.response?.data?.error || t('profileError')
+    const errMsg = e.response?.data?.first_name?.[0] || e.response?.data?.last_name?.[0] || e.response?.data?.error || t('profileError')
     showToast(errMsg, true)
   } finally {
     saving.value = false
@@ -183,6 +212,11 @@ async function saveProfile() {
 }
 
 onMounted(() => {
+  if (isRedirectedFromWallet.value) {
+    showToast(t('invalidNameToast'), true)
+    triggerHaptic('notification', 'warning')
+  }
+
   if (auth.customer) {
     initForm(auth.customer)
   }

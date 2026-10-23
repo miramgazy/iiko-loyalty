@@ -35,6 +35,18 @@ class CustomerSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'telegram_id', 'phone', 'iiko_customer_id', 'iiko_card_number', 'iiko_categories', 'loyalty_balance', 'is_onboarded', 'organization', 'wallets', 'created_at']
 
+    def validate_first_name(self, value):
+        from apps.loyalty.utils import is_valid_name
+        if value is not None and not is_valid_name(value, required=True):
+            raise serializers.ValidationError("Имя не должно содержать цифр, точек, эмодзи или спецсимволов и должно состоять минимум из 2 букв.")
+        return value.strip() if value else value
+
+    def validate_last_name(self, value):
+        from apps.loyalty.utils import is_valid_name
+        if value and not is_valid_name(value, required=False):
+            raise serializers.ValidationError("Фамилия не должна содержать цифр, точек, эмодзи или спецсимволов и должна состоять минимум из 2 букв.")
+        return value.strip() if value else ""
+
 class LoyaltyProgramSerializer(serializers.ModelSerializer):
     class Meta:
         model = LoyaltyProgram

@@ -576,6 +576,13 @@ class CustomerGoogleWalletLinkView(APIView):
         if not customer.organization.is_google_wallet_enabled:
             return Response({"error": "Интеграция с Google Wallet отключена для этого заведения"}, status=status.HTTP_400_BAD_REQUEST)
 
+        from apps.loyalty.utils import is_valid_name
+        if not is_valid_name(customer.first_name, required=True) or not is_valid_name(customer.last_name, required=False):
+            return Response({
+                "error": "Пожалуйста, укажите ваши настоящие имя и фамилию в профиле",
+                "code": "INVALID_NAME"
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             service = GoogleWalletService()
             balance_str = str(int(customer.loyalty_balance)) if customer.loyalty_balance == int(customer.loyalty_balance) else str(customer.loyalty_balance)
