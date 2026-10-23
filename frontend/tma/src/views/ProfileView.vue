@@ -15,19 +15,19 @@
       </div>
       
       <!-- Notification banner for onboarding -->
-      <div v-if="isOnboarding" class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 shadow-lg animate-[scaleIn_0.2s_ease-out]" style="margin-top: 16px; margin-bottom: -8px;">
+      <div v-if="isOnboarding" class="banner-warning p-4 flex items-start gap-3 animate-[scaleIn_0.2s_ease-out]" style="margin-top: 16px; margin-bottom: -8px;">
         <span class="text-xl flex-shrink-0">👋</span>
-        <div class="text-xs text-amber-200/90 leading-relaxed text-left">
-          <p class="font-bold text-amber-300 mb-0.5">{{ t('onboardingNameTitle') }}</p>
+        <div class="text-xs banner-warning-text leading-relaxed text-left">
+          <p class="banner-warning-title text-sm mb-0.5">{{ t('onboardingNameTitle') }}</p>
           <p>{{ t('onboardingNameDesc') }}</p>
         </div>
       </div>
 
       <!-- Notification banner if redirected from Google Wallet / home banner -->
-      <div v-else-if="isRedirectedFromWallet" class="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 shadow-lg animate-[scaleIn_0.2s_ease-out]" style="margin-top: 16px; margin-bottom: -8px;">
+      <div v-else-if="isRedirectedFromWallet" class="banner-warning p-4 flex items-start gap-3 animate-[scaleIn_0.2s_ease-out]" style="margin-top: 16px; margin-bottom: -8px;">
         <span class="text-xl flex-shrink-0">⚠️</span>
-        <div class="text-xs text-amber-200/90 leading-relaxed text-left">
-          <p class="font-bold text-amber-300 mb-0.5">{{ t('invalidNameTitle') }}</p>
+        <div class="text-xs banner-warning-text leading-relaxed text-left">
+          <p class="banner-warning-title text-sm mb-0.5">{{ t('invalidNameTitle') }}</p>
           <p>{{ t('invalidNameDesc') }}</p>
         </div>
       </div>

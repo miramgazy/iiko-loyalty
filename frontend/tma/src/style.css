@@ -48,6 +48,20 @@
   --card-border: var(--border);
   --input-bg: var(--bg-secondary);
   --input-border: var(--border);
+
+  /* Предупреждающие баннеры и уведомления (по умолчанию светлая тема) */
+  --warning-bg: #fffbeb;
+  --warning-border: rgba(217, 119, 6, 0.35);
+  --warning-title: #78350f;
+  --warning-text: #92400e;
+  --warning-icon-bg: rgba(245, 158, 11, 0.16);
+  --warning-btn-bg: rgba(217, 119, 6, 0.14);
+  --warning-btn-hover: rgba(217, 119, 6, 0.24);
+  --warning-btn-text: #78350f;
+  --warning-btn-border: rgba(217, 119, 6, 0.30);
+  --warning-close: #92400e;
+  --warning-close-hover: #78350f;
+  --warning-shadow: 0 4px 14px rgba(217, 119, 6, 0.08);
 }
 
 /* Переопределения для темной темы */
@@ -63,6 +77,20 @@
     
     --brand-10: rgba(201, 168, 76, 0.15);
     --brand-15: rgba(201, 168, 76, 0.20);
+
+    /* Предупреждающие баннеры для темной темы */
+    --warning-bg: rgba(245, 158, 11, 0.12);
+    --warning-border: rgba(245, 158, 11, 0.30);
+    --warning-title: #fbbf24;
+    --warning-text: #fde68a;
+    --warning-icon-bg: rgba(245, 158, 11, 0.20);
+    --warning-btn-bg: rgba(245, 158, 11, 0.22);
+    --warning-btn-hover: rgba(245, 158, 11, 0.32);
+    --warning-btn-text: #fef3c7;
+    --warning-btn-border: rgba(245, 158, 11, 0.35);
+    --warning-close: rgba(251, 191, 36, 0.75);
+    --warning-close-hover: #fbbf24;
+    --warning-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
   }
 }
 
@@ -77,6 +105,20 @@
   
   --brand-10: rgba(201, 168, 76, 0.15);
   --brand-15: rgba(201, 168, 76, 0.20);
+
+  /* Предупреждающие баннеры для темной темы */
+  --warning-bg: rgba(245, 158, 11, 0.12);
+  --warning-border: rgba(245, 158, 11, 0.30);
+  --warning-title: #fbbf24;
+  --warning-text: #fde68a;
+  --warning-icon-bg: rgba(245, 158, 11, 0.20);
+  --warning-btn-bg: rgba(245, 158, 11, 0.22);
+  --warning-btn-hover: rgba(245, 158, 11, 0.32);
+  --warning-btn-text: #fef3c7;
+  --warning-btn-border: rgba(245, 158, 11, 0.35);
+  --warning-close: rgba(251, 191, 36, 0.75);
+  --warning-close-hover: #fbbf24;
+  --warning-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }
 
 .tg-theme-light {
@@ -90,6 +132,20 @@
   
   --brand-10: rgba(201, 168, 76, 0.10);
   --brand-15: rgba(201, 168, 76, 0.15);
+
+  /* Предупреждающие баннеры для светлой темы */
+  --warning-bg: #fffbeb;
+  --warning-border: rgba(217, 119, 6, 0.35);
+  --warning-title: #78350f;
+  --warning-text: #92400e;
+  --warning-icon-bg: rgba(245, 158, 11, 0.16);
+  --warning-btn-bg: rgba(217, 119, 6, 0.14);
+  --warning-btn-hover: rgba(217, 119, 6, 0.24);
+  --warning-btn-text: #78350f;
+  --warning-btn-border: rgba(217, 119, 6, 0.30);
+  --warning-close: #92400e;
+  --warning-close-hover: #78350f;
+  --warning-shadow: 0 4px 14px rgba(217, 119, 6, 0.08);
 }
 
 * {
@@ -282,6 +338,74 @@ h3, .section-title {
 
 .card-luxury:active {
   transform: scale(0.98);
+}
+
+/* Warning & Notification Banners (Adaptive for Light & Dark Themes) */
+.banner-warning {
+  background-color: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  box-shadow: var(--warning-shadow);
+  border-radius: 16px;
+  transition: all 0.25s ease;
+}
+
+.banner-warning-title {
+  color: var(--warning-title);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.banner-warning-text {
+  color: var(--warning-text);
+  line-height: 1.4;
+}
+
+.banner-warning-icon {
+  background-color: var(--warning-icon-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.banner-warning-btn {
+  background-color: var(--warning-btn-bg);
+  color: var(--warning-btn-text);
+  border: 1px solid var(--warning-btn-border);
+  font-weight: 700;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.banner-warning-btn:hover,
+.banner-warning-btn:active {
+  background-color: var(--warning-btn-hover);
+  transform: scale(0.97);
+}
+
+.banner-warning-close {
+  color: var(--warning-close);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.banner-warning-close:hover,
+.banner-warning-close:active {
+  color: var(--warning-close-hover);
+  transform: scale(1.1);
 }
 
 /* Buttons */

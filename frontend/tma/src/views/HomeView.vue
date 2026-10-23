@@ -9,14 +9,14 @@
       
       <!-- Non-intrusive Suggestion Banner to Update Profile Name -->
       <div v-if="hasInvalidName && !isDismissedNameBanner" 
-           class="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 shadow-md animate-[scaleIn_0.2s_ease-out]">
+           class="banner-warning p-3.5 flex items-center justify-between gap-3 animate-[scaleIn_0.2s_ease-out]">
         <div class="flex items-center gap-2.5 min-w-0">
           <span class="text-lg flex-shrink-0">⚠️</span>
           <div class="text-left min-w-0">
-            <p class="text-xs font-bold text-amber-300 leading-tight">
+            <p class="banner-warning-title text-xs leading-tight">
               {{ t('suggestUpdateNameTitle') }}
             </p>
-            <p class="text-[11px] text-amber-200/80 truncate leading-tight mt-0.5">
+            <p class="banner-warning-text text-[11px] truncate leading-tight mt-0.5">
               {{ t('suggestUpdateNameDesc') }}
             </p>
           </div>
@@ -24,13 +24,13 @@
         <div class="flex items-center gap-1.5 flex-shrink-0">
           <RouterLink
             to="/profile?reason=invalid_name"
-            class="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[11px] font-bold transition-all border border-amber-500/30 whitespace-nowrap"
+            class="banner-warning-btn px-2.5 py-1.5 text-[11px]"
           >
             {{ t('edit') }}
           </RouterLink>
           <button
             @click="dismissNameBanner"
-            class="w-6 h-6 rounded-lg text-amber-400/60 hover:text-amber-300 flex items-center justify-center text-xs"
+            class="banner-warning-close w-6 h-6 text-xs"
             :title="t('close')"
           >
             ✕
@@ -328,13 +328,13 @@
         <div v-if="showInvalidNameModal" 
              class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md select-none"
              @click.self="navigateToProfile">
-          <div class="card-luxury w-full max-w-sm p-6 text-center shadow-2xl border border-amber-500/30 bg-[color:var(--bg)] rounded-3xl animate-[scaleIn_0.25s_ease-out] relative"
+          <div class="card-luxury w-full max-w-sm p-6 text-center shadow-2xl border border-[color:var(--warning-border)] bg-[color:var(--bg)] rounded-3xl animate-[scaleIn_0.25s_ease-out] relative"
                style="box-shadow: 0 0 45px rgba(245, 158, 11, 0.2), 0 0 1px 1px rgba(255, 255, 255, 0.05) inset;">
             <!-- Top Accent Line (Amber/Gold) -->
             <div class="w-12 h-1.5 rounded-full mx-auto mb-4" style="background: var(--gold-gradient);"></div>
 
             <!-- Warning Icon with animated gold glow -->
-            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shadow-[0_0_20px_rgba(245,158,11,0.25)]">
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl banner-warning-icon shadow-[0_0_20px_rgba(245,158,11,0.25)]">
               <span class="text-3xl">⚠️</span>
             </div>
 
