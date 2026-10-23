@@ -517,8 +517,19 @@
     </main>
 
     <!-- Footer -->
-    <footer class="relative z-10 w-full max-w-md mx-auto px-4 py-4 text-center text-[11px] text-slate-600">
-      <p>© {{ new Date().getFullYear() }} {{ info?.organization_name || 'Loyalty' }}. Powered by MadiTech Loyalty.</p>
+    <footer class="relative z-10 w-full max-w-md mx-auto px-4 py-4 text-center text-[11px] text-slate-500 space-y-1">
+      <p>© {{ new Date().getFullYear() }} {{ info?.organization_name || 'Loyalty' }}</p>
+      <p>
+        {{ lang === 'kz' ? 'Әзірлеген' : 'Разработано' }}
+        <a
+          href="https://loyalty.mevent.kz"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-indigo-400 hover:text-indigo-300 font-semibold underline decoration-indigo-400/40 hover:decoration-indigo-300 transition-colors"
+        >
+          ИП-Maditech
+        </a>
+      </p>
     </footer>
   </div>
 </template>
