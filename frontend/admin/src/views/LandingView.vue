@@ -6,7 +6,7 @@
         <!-- Logo -->
         <router-link to="/" class="brand-logo">
           <div class="brand-logo-icon">M</div>
-          <span class="brand-logo-text">MadiTech</span>
+          <span class="brand-logo-text">Loyalty-MadiTech</span>
         </router-link>
 
         <!-- Nav Links (Desktop) -->
@@ -25,7 +25,7 @@
           </router-link>
 
           <a
-            href="https://wa.me/77779285899?text=Здравствуйте!%20Хочу%20подключить%20MadiTech"
+            href="https://wa.me/77779285899?text=Здравствуйте!%20Хочу%20подключить%20Loyalty-MadiTech"
             target="_blank"
             rel="noopener noreferrer"
             class="nav-btn nav-btn-primary"
@@ -55,7 +55,7 @@
             <span>{{ auth.isAuthenticated ? 'В панель управления' : 'Войти в панель' }}</span>
           </router-link>
           <a
-            href="https://wa.me/77779285899?text=Здравствуйте!%20Хочу%20подключить%20MadiTech"
+            href="https://wa.me/77779285899?text=Здравствуйте!%20Хочу%20подключить%20Loyalty-MadiTech"
             target="_blank"
             class="mobile-nav-btn mobile-nav-btn-primary"
           >
@@ -80,12 +80,12 @@
           </h1>
 
           <p class="hero-desc">
-            <strong>MadiTech</strong> — облачная платформа автоматизации лояльности. Выпускайте брендированные карты в <strong>Google Wallet</strong> и <strong>Apple Wallet</strong>, запускайте <strong>Telegram Mini App</strong> и управляйте бонусами гостей через прямую синхронизацию с кассами <strong>iiko Cloud</strong>.
+            <strong>Loyalty-MadiTech</strong> — облачная платформа автоматизации лояльности. Выпускайте брендированные карты в <strong>Google Wallet</strong> и <strong>Apple Wallet</strong>, запускайте <strong>Telegram Mini App</strong> и управляйте бонусами гостей через прямую синхронизацию с кассами <strong>iiko Cloud</strong>.
           </p>
 
           <div class="hero-actions-row">
             <a
-              href="https://wa.me/77779285899?text=Здравствуйте!%20Хочу%20подключить%20MadiTech"
+              href="https://wa.me/77779285899?text=Здравствуйте!%20Хочу%20подключить%20Loyalty-MadiTech"
               target="_blank"
               class="hero-cta-btn hero-cta-primary"
             >
@@ -122,7 +122,7 @@
               :class="{ active: activeMode === 'google' }"
               data-mode="google"
             >
-              <span class="tab-emoji">🤖</span> Google Wallet
+              <span class="tab-emoji"></span> Google Wallet
             </button>
             <button
               @click="activeMode = 'apple'"
@@ -130,7 +130,7 @@
               :class="{ active: activeMode === 'apple' }"
               data-mode="apple"
             >
-              <span class="tab-emoji">🍎</span> Apple Wallet
+              <span class="tab-emoji"></span> Apple Wallet
             </button>
             <button
               @click="activeMode = 'tma'"
@@ -138,7 +138,7 @@
               :class="{ active: activeMode === 'tma' }"
               data-mode="tma"
             >
-              <span class="tab-emoji">✈️</span> Telegram Mini App
+              <span class="tab-emoji"></span> Telegram Mini App
             </button>
           </div>
 
@@ -203,7 +203,7 @@
           <span class="section-tag">Преимущества платформы</span>
           <h2 class="section-title">Всё для лояльности гостей в одном решении</h2>
           <p class="section-desc">
-            Забудьте о дорогих мобильных приложениях, которые никто не хочет скачивать. MadiTech дает ресторанам готовые инструменты прямо в телефонах гостей.
+            Забудьте о дорогих мобильных приложениях, которые никто не хочет скачивать. Loyalty-MadiTech дает ресторанам готовые инструменты прямо в телефонах гостей.
           </p>
         </div>
 
@@ -220,7 +220,7 @@
             <div class="feature-icon">📲</div>
             <h3 class="feature-card-title">Telegram Mini App (TMA)</h3>
             <p class="feature-card-desc">
-              Полноценный личный кабинет гостя внутри Telegram: моментальная регистрация по номеру телефона, история чеков, меню заведения и статус карты.
+              Полноценный личный кабинет гостя внутри Telegram: моментальная регистрация по номеру телефона.
             </p>
           </div>
 
@@ -236,7 +236,7 @@
             <div class="feature-icon">📊</div>
             <h3 class="feature-card-title">Аналитика и сегментация гостей</h3>
             <p class="feature-card-desc">
-              Удобная панель управления для управляющих: RFM-анализ, статистика повторных визитов, отслеживание среднего чека и целевые рассылки.
+              Удобная панель управления для управляющих: статистика повторных визитов и целевые рассылки.
             </p>
           </div>
         </div>
@@ -281,10 +281,10 @@
             </ul>
 
             <div class="tech-chips">
-              <span class="tech-chip">🤖 Android Ready</span>
-              <span class="tech-chip">🍎 iOS PassKit Ready</span>
-              <span class="tech-chip">🍽️ iiko Transport API v1</span>
-              <span class="tech-chip">✈️ Telegram WebApp</span>
+              <span class="tech-chip">Android Ready</span>
+              <span class="tech-chip">iOS PassKit Ready</span>
+              <span class="tech-chip">iiko Transport API v1</span>
+              <span class="tech-chip">Telegram WebApp</span>
             </div>
           </div>
 
@@ -325,7 +325,7 @@
           <span class="section-tag">Безопасность и соответствие</span>
           <h2 class="section-title">Соответствие стандартам Google и Apple</h2>
           <p class="section-desc">
-            Сервис <strong>MadiTech</strong> (домен <strong>loyalty.mevent.kz</strong>, разработка компании <strong>ИП MadiTech</strong>) строго следует политикам безопасности Google API Services User Data Policy и руководству Apple Developer PassKit Guidelines.
+            Сервис <strong>Loyalty-MadiTech</strong> (домен <strong>loyalty.mevent.kz</strong>, разработка компании <strong>ИП MadiTech</strong>) строго следует политикам безопасности Google API Services User Data Policy и руководству Apple Developer PassKit Guidelines.
           </p>
         </div>
 
@@ -357,7 +357,7 @@
               </div>
             </div>
             <p>
-              Сервис MadiTech разработан компанией ИП MadiTech и выступает сертифицированным технологическим провайдером (Service Provider) для заведений общественного питания. Каждый ресторан является официальным эмитентом собственной программы лояльности, а MadiTech обеспечивает безопасный выпуск и криптографическую подпись цифровых карт.
+              Сервис <strong>Loyalty-MadiTech</strong> разработан компанией ИП MadiTech и выступает сертифицированным технологическим провайдером (Service Provider) для заведений общественного питания. Каждый ресторан является официальным эмитентом собственной программы лояльности, а <strong>Loyalty-MadiTech</strong> обеспечивает безопасный выпуск и криптографическую подпись цифровых карт.
             </p>
             <div class="compliance-action">
               <router-link to="/terms" class="compliance-btn">
@@ -443,7 +443,7 @@
 
             <div class="cta-btns">
               <a
-                href="https://wa.me/77779285899?text=Здравствуйте!%20Хочу%20подключить%20MadiTech"
+                href="https://wa.me/77779285899?text=Здравствуйте!%20Хочу%20подключить%20Loyalty-MadiTech"
                 target="_blank"
                 class="cta-btn cta-btn-primary"
               >
@@ -469,7 +469,7 @@
           <div>
             <div class="brand-logo">
               <div class="brand-logo-icon">M</div>
-              <span class="brand-logo-text">MadiTech</span>
+              <span class="brand-logo-text">Loyalty-MadiTech</span>
             </div>
             <p class="footer-about">
               Современная платформа цифровой лояльности для ресторанов и сферы гостеприимства. Электронные кошельки, Telegram Mini App и iiko Cloud. Разработка компании <strong>ИП MadiTech</strong>.
@@ -530,9 +530,9 @@ const dashboardUrl = computed(() => {
 
 const modes = ['google', 'apple', 'tma']
 const badgeLabels = {
-  google: '🤖 Google Wallet Pass • Android',
-  apple: '🍎 Apple Wallet PassKit • iOS',
-  tma: '✈️ Telegram Mini App • Все платформы'
+  google: 'Google Wallet Pass • Android',
+  apple: 'Apple Wallet PassKit • iOS',
+  tma: 'Telegram Mini App • Все платформы'
 }
 
 function cycleMode() {

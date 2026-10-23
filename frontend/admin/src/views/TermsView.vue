@@ -5,7 +5,7 @@
       <div class="legal-container nav-row">
         <router-link to="/" class="brand-logo">
           <div class="brand-logo-icon">M</div>
-          <span class="brand-logo-text">MadiTech</span>
+          <span class="brand-logo-text">Loyalty-MadiTech</span>
         </router-link>
 
         <nav class="nav-menu">
@@ -21,7 +21,7 @@
             <span>{{ auth.isAuthenticated ? 'В панель' : 'Войти' }}</span>
           </router-link>
           <a
-            href="https://wa.me/77779285899?text=Здравствуйте!%20Хочу%20подключить%20MadiTech"
+            href="https://wa.me/77779285899?text=Здравствуйте!%20Хочу%20подключить%20Loyalty-MadiTech"
             target="_blank"
             rel="noopener noreferrer"
             class="nav-btn nav-btn-primary"
