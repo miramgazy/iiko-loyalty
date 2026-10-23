@@ -846,6 +846,40 @@ class WebOnboardingTests(TestCase):
         customer.refresh_from_db()
         self.assertEqual(customer.wallet_type, 'apple')
 
+    @patch('apps.core.services.waba_service.dispatch_waba_notification')
+    def test_onboarding_send_otp_no_whatsapp_error(self, mock_dispatch):
+        """
+        Verify that when Meta/WABA returns a not_on_whatsapp error (or subcode 131026),
+        the endpoint returns 400 with error_code='NO_WHATSAPP' and deletes the generated code.
+        """
+        self.organization.is_web_onboarding_enabled = True
+        self.organization.is_waba_enabled = True
+        self.organization.waba_access_token = "EAAB_test_token"
+        self.organization.waba_phone_number_id = "1029384756"
+        self.organization.save()
+
+        # Mock Meta returning error #131026
+        mock_dispatch.return_value = [{
+            "success": False,
+            "not_on_whatsapp": True,
+            "error_subcode": 131026,
+            "error": "Номер не зарегистрирован в WhatsApp (Meta #131026)"
+        }]
+
+        phone = "+77019990011"
+        res = self.client.post(
+            f"/api/loyalty/public/onboarding/{self.organization.slug}/send-otp/",
+            data={"phone": phone},
+            content_type="application/json"
+        )
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(res.data.get('error_code'), 'NO_WHATSAPP')
+        self.assertIn("не зарегистрирован в WhatsApp", res.data.get('error'))
+
+        # Verification code should be cleaned up
+        from apps.loyalty.models import OnboardingVerificationCode
+        self.assertFalse(OnboardingVerificationCode.objects.filter(phone=phone).exists())
+
 
 
 

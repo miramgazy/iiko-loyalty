@@ -246,8 +246,20 @@ class WabaService:
             else:
                 err_detail = data.get("error", {})
                 code = err_detail.get('code')
+                subcode = err_detail.get('error_subcode')
                 raw_msg = err_detail.get('message', '')
-                if code == 12:
+
+                is_not_on_whatsapp = (
+                    subcode in [131026, 131051, 131047] or
+                    code in [131026, 131051, 131047] or
+                    'not a valid whatsapp user' in raw_msg.lower() or
+                    'not on whatsapp' in raw_msg.lower() or
+                    ('not registered' in raw_msg.lower() and 'whatsapp' in raw_msg.lower())
+                )
+
+                if is_not_on_whatsapp:
+                    error_msg = f"Номер не зарегистрирован в WhatsApp (Meta #{subcode or code}): {raw_msg}"
+                elif code == 12:
                     error_msg = (
                         "Ошибка Meta (#12): Неверно указан Phone Number ID. "
                         "В поле Phone Number ID указан ID бизнес-аккаунта или сам номер телефона, а должен быть "
@@ -256,11 +268,20 @@ class WabaService:
                     )
                 else:
                     error_msg = f"Meta Error {code}: {raw_msg}"
+
                 log.status = WabaMessageLog.STATUS_FAILED
                 log.error_message = error_msg
                 log.save(update_fields=['status', 'error_message'])
                 logger.error(f"WABA Send error: {error_msg}")
-                return {"success": False, "error": error_msg, "log_id": log.id}
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "code": code,
+                    "error_subcode": subcode,
+                    "raw_message": raw_msg,
+                    "not_on_whatsapp": is_not_on_whatsapp,
+                    "log_id": log.id
+                }
 
         except Exception as e:
             error_msg = str(e)
@@ -276,13 +297,14 @@ def dispatch_waba_notification(
     event_type: str,
     actual_payload: Dict[str, Any],
     recipient_phone: Optional[str] = None
-):
+) -> List[Dict[str, Any]]:
     """
     Finds enabled WabaTriggerRules matching the event_type for the organization
     and executes them via WabaService.
+    Returns a list of result dicts from send_template_message.
     """
     if not org.is_waba_enabled or not org.waba_access_token or not org.waba_phone_number_id:
-        return
+        return []
 
     phone = recipient_phone or actual_payload.get('phone')
     if not phone and actual_payload.get('customerId'):
@@ -296,17 +318,18 @@ def dispatch_waba_notification(
 
     if not phone:
         logger.info(f"WABA: No recipient phone available for event '{event_type}' in org {org.name}")
-        return
+        return []
 
     rules = WabaTriggerRule.objects.filter(organization=org, event_type=event_type, is_enabled=True)
     if not rules.exists():
-        return
+        return []
 
+    results = []
     service = WabaService(org)
     for rule in rules:
         try:
             components, rendered_text = service.build_components(rule.parameter_mappings, actual_payload)
-            service.send_template_message(
+            res = service.send_template_message(
                 to_phone=str(phone),
                 template_name=rule.template_name,
                 language_code=rule.template_language or 'ru',
@@ -315,7 +338,11 @@ def dispatch_waba_notification(
                 message_type=rule.event_type,
                 rendered_text=rendered_text
             )
+            results.append(res)
         except Exception as e:
             logger.error(f"Error dispatching WABA rule '{rule.name}': {e}")
+            results.append({"success": False, "error": str(e)})
+
+    return results
 
 

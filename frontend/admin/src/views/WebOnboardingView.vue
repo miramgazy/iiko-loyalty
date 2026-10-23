@@ -139,9 +139,54 @@
           </div>
         </div>
 
+        <!-- NO WHATSAPP NOTIFICATION (Displayed instead of OTP input when number is not registered on WhatsApp) -->
+        <div
+          v-if="noWhatsappError"
+          id="notice-no-whatsapp"
+          class="bg-slate-900/80 border border-amber-500/40 rounded-3xl p-6 backdrop-blur-xl shadow-2xl space-y-5 text-center animate-fade-in"
+        >
+          <div class="w-16 h-16 mx-auto rounded-3xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-3xl border border-amber-500/30 shadow-lg">
+            ⚠️
+          </div>
+
+          <div class="space-y-2">
+            <h3 class="text-base font-bold text-white tracking-tight">
+              {{ lang === 'kz' ? 'Бұл нөмірде WhatsApp жоқ!' : 'На данном номере нет WhatsApp!' }}
+            </h3>
+            <p class="text-xs text-slate-300 leading-relaxed max-w-sm mx-auto">
+              {{ lang === 'kz'
+                ? `«${formattedPhoneNumber}» нөмірі WhatsApp жүйесінде тіркелмеген. Растау коды тек WhatsApp арқылы жіберіледі. Тіркелу үшін белсенді WhatsApp бар нөмірді енгізіңіз.`
+                : `Номер «${formattedPhoneNumber}» не зарегистрирован в WhatsApp. Проверочный код не может быть доставлен. Для регистрации укажите номер с активным WhatsApp.`
+              }}
+            </p>
+          </div>
+
+          <div class="p-3 bg-slate-950/60 border border-slate-800 rounded-2xl flex items-center gap-3 text-left">
+            <div class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-sm flex-shrink-0">
+              💬
+            </div>
+            <p class="text-[11px] text-slate-400 leading-tight">
+              {{ lang === 'kz'
+                ? 'Қате енгізілсе, телефон нөмірін тексеріп, қайта жазыңыз.'
+                : 'Проверьте правильность ввода или укажите другой номер с WhatsApp.'
+              }}
+            </p>
+          </div>
+
+          <button
+            id="btn-change-phone-nowhatsapp"
+            type="button"
+            @click="changePhoneAfterNoWhatsapp"
+            class="w-full py-3.5 px-4 rounded-xl text-xs font-semibold text-white shadow-xl transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+            :style="{ backgroundColor: accentColor }"
+          >
+            ← {{ lang === 'kz' ? 'Басқа телефон нөмірін енгізу' : 'Указать другой номер телефона' }}
+          </button>
+        </div>
+
         <!-- STEP 1: Phone input -->
         <div
-          v-if="step === 'phone'"
+          v-else-if="step === 'phone'"
           class="bg-slate-900/70 border border-slate-800 rounded-3xl p-5 backdrop-blur-xl shadow-xl space-y-4"
         >
           <div class="space-y-1">
@@ -207,7 +252,7 @@
 
         <!-- STEP 2: Name & Details input (for NEW guests) -->
         <div
-          v-if="step === 'details'"
+          v-else-if="step === 'details'"
           class="bg-slate-900/70 border border-slate-800 rounded-3xl p-5 backdrop-blur-xl shadow-xl space-y-4"
         >
           <div class="space-y-1">
@@ -291,7 +336,7 @@
 
         <!-- STEP 3: OTP Verification -->
         <div
-          v-if="step === 'otp'"
+          v-else-if="step === 'otp'"
           class="bg-slate-900/70 border border-slate-800 rounded-3xl p-5 backdrop-blur-xl shadow-xl space-y-4"
         >
           <div class="space-y-1">
@@ -368,7 +413,7 @@
 
         <!-- STEP 4: SUCCESS & WALLET ADD CARD (No navigation to profile, single OS wallet button) -->
         <div
-          v-if="step === 'success'"
+          v-else-if="step === 'success'"
           class="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 backdrop-blur-xl shadow-2xl space-y-6 animate-fade-in"
         >
           <!-- Celebratory Header -->
@@ -551,6 +596,7 @@ const step = ref('phone')
 const loading = ref(true)
 const info = ref(null)
 const errorMessage = ref('')
+const noWhatsappError = ref(false)
 
 // Form fields
 const phoneInput = ref('')
@@ -622,6 +668,8 @@ const formattedPhoneNumber = computed(() => {
 })
 
 function formatPhoneInput(event) {
+  noWhatsappError.value = false
+  errorMessage.value = ''
   let val = event.target.value.replace(/\D/g, '')
   if (val.startsWith('7') || val.startsWith('8')) {
     val = val.substring(1)
@@ -644,6 +692,12 @@ function formatPhoneInput(event) {
   phoneInput.value = formatted
 }
 
+function changePhoneAfterNoWhatsapp() {
+  noWhatsappError.value = false
+  errorMessage.value = ''
+  step.value = 'phone'
+}
+
 async function loadInfo() {
   loading.value = true
   errorMessage.value = ''
@@ -660,6 +714,7 @@ async function loadInfo() {
 // 1. Submit Phone
 async function handlePhoneSubmit() {
   errorMessage.value = ''
+  noWhatsappError.value = false
   const digits = cleanPhoneDigits.value
   if (digits.length < 10) {
     errorMessage.value = lang.value === 'kz' ? 'Телефон нөмірін толық енгізіңіз' : 'Введите полный номер телефона'
@@ -693,6 +748,7 @@ async function handlePhoneSubmit() {
 // 2. Submit Details & Send OTP
 async function handleDetailsSubmit() {
   errorMessage.value = ''
+  noWhatsappError.value = false
   if (!firstName.value.trim() || firstName.value.trim().length < 2) {
     errorMessage.value = lang.value === 'kz' ? 'Атыңызды дұрыс енгізіңіз (кемінде 2 әріп)' : 'Введите настоящее имя (не менее 2 букв)'
     return
@@ -707,7 +763,11 @@ async function handleDetailsSubmit() {
     step.value = 'otp'
     startCountdown(60)
   } catch (e) {
-    errorMessage.value = e.response?.data?.error || (lang.value === 'kz' ? 'Код жіберу мүмкін болмады' : 'Не удалось отправить код')
+    if (e.response?.data?.error_code === 'NO_WHATSAPP') {
+      noWhatsappError.value = true
+    } else {
+      errorMessage.value = e.response?.data?.error || (lang.value === 'kz' ? 'Код жіберу мүмкін болмады' : 'Не удалось отправить код')
+    }
   } finally {
     sendingOtp.value = false
   }
@@ -717,6 +777,7 @@ async function handleDetailsSubmit() {
 async function resendOtp() {
   if (resendCountdown.value > 0 || sendingOtp.value) return
   errorMessage.value = ''
+  noWhatsappError.value = false
   const fullPhone = `+7${cleanPhoneDigits.value}`
   sendingOtp.value = true
   try {
@@ -725,7 +786,11 @@ async function resendOtp() {
     })
     startCountdown(60)
   } catch (e) {
-    errorMessage.value = e.response?.data?.error || (lang.value === 'kz' ? 'Код жіберу мүмкін болмады' : 'Не удалось отправить код')
+    if (e.response?.data?.error_code === 'NO_WHATSAPP') {
+      noWhatsappError.value = true
+    } else {
+      errorMessage.value = e.response?.data?.error || (lang.value === 'kz' ? 'Код жіберу мүмкін болмады' : 'Не удалось отправить код')
+    }
   } finally {
     sendingOtp.value = false
   }

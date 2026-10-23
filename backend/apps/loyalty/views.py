@@ -951,7 +951,7 @@ class WebOnboardingSendOtpView(APIView):
         import random
         code = f"{random.randint(1000, 9999)}"
 
-        OnboardingVerificationCode.objects.create(
+        verification_obj = OnboardingVerificationCode.objects.create(
             organization=org,
             phone=clean_phone,
             code=code
@@ -960,12 +960,26 @@ class WebOnboardingSendOtpView(APIView):
         # Dispatch via WABA
         try:
             from apps.core.services.waba_service import dispatch_waba_notification
-            dispatch_waba_notification(
+            results = dispatch_waba_notification(
                 org=org,
                 event_type='auth_code',
                 actual_payload={'phone': clean_phone, 'text': code, 'auth_code': code},
                 recipient_phone=clean_phone
             )
+            # Inspect dispatch results for non-existent WhatsApp number
+            for res in results:
+                if (
+                    res.get('not_on_whatsapp') or
+                    res.get('error_subcode') in [131026, 131051, 131047] or
+                    res.get('code') in [131026, 131051, 131047]
+                ):
+                    verification_obj.delete()
+                    logger.warning(f"Onboarding OTP failed: {clean_phone} is not on WhatsApp for org {org.slug}")
+                    return Response({
+                        "error_code": "NO_WHATSAPP",
+                        "error": "Введенный номер не зарегистрирован в WhatsApp. Пожалуйста, укажите номер с активным WhatsApp."
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
             logger.info(f"Onboarding OTP code sent to {clean_phone} for org {org.slug}")
         except Exception as e:
             logger.error(f"Error dispatching WABA OTP: {e}")
