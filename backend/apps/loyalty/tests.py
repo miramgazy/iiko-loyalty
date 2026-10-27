@@ -850,12 +850,48 @@ class WebOnboardingTests(TestCase):
             onboarding_source='web'
         )
 
-        # 1. Google Wallet
-        res_g = self.client.post(
+        # 1. Unauthenticated attempt without device_token -> 403 Forbidden
+        res_unauth = self.client.post(
             f"/api/loyalty/public/onboarding/{self.organization.slug}/wallet/",
             data={
                 "customer_id": customer.id,
                 "phone": customer.phone,
+                "wallet_type": "google"
+            },
+            content_type="application/json"
+        )
+        self.assertEqual(res_unauth.status_code, 403)
+
+        # Create trusted device for customer
+        from apps.loyalty.models import CustomerTrustedDevice
+        dev = CustomerTrustedDevice.objects.create(
+            customer=customer,
+            token="test_trusted_wallet_token_xyz999",
+            expires_at=timezone.now() + datetime.timedelta(days=180)
+        )
+
+        # 2. Multi-tenant isolation test: another organization cannot use this device_token
+        other_org = Organization.objects.create(
+            name="Other Cafe",
+            slug="other-cafe",
+            is_web_onboarding_enabled=True,
+            is_google_wallet_enabled=True
+        )
+        res_cross_org = self.client.post(
+            f"/api/loyalty/public/onboarding/{other_org.slug}/wallet/",
+            data={
+                "device_token": dev.token,
+                "wallet_type": "google"
+            },
+            content_type="application/json"
+        )
+        self.assertEqual(res_cross_org.status_code, 403)
+
+        # 3. Google Wallet with valid device_token in correct organization -> 200
+        res_g = self.client.post(
+            f"/api/loyalty/public/onboarding/{self.organization.slug}/wallet/",
+            data={
+                "device_token": dev.token,
                 "wallet_type": "google"
             },
             content_type="application/json"
@@ -865,12 +901,11 @@ class WebOnboardingTests(TestCase):
         customer.refresh_from_db()
         self.assertEqual(customer.wallet_type, 'google')
 
-        # 2. Apple Wallet
+        # 4. Apple Wallet with valid device_token in correct organization -> 200
         res_a = self.client.post(
             f"/api/loyalty/public/onboarding/{self.organization.slug}/wallet/",
             data={
-                "customer_id": customer.id,
-                "phone": customer.phone,
+                "device_token": dev.token,
                 "wallet_type": "apple"
             },
             content_type="application/json"

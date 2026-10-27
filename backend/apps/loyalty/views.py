@@ -1250,15 +1250,6 @@ class WebOnboardingWalletView(APIView):
             customer = get_customer_from_device_token(org, device_token)
 
         if not customer:
-            customer_id = request.data.get('customer_id')
-            raw_phone = request.data.get('phone', '')
-            clean_phone = normalize_phone(raw_phone) if raw_phone else ''
-            if customer_id:
-                customer = Customer.objects.filter(id=customer_id, organization=org).first()
-            elif clean_phone:
-                customer = Customer.objects.filter(organization=org, phone=clean_phone).first()
-
-        if not customer:
             return Response({
                 "error": "Сессия устройства не подтверждена. Пожалуйста, подтвердите вход по номеру телефона."
             }, status=status.HTTP_403_FORBIDDEN)
