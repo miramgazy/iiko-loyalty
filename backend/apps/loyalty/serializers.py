@@ -11,6 +11,11 @@ class CustomerSerializer(serializers.ModelSerializer):
     organization = OrganizationSerializer(read_only=True)
     is_onboarded = serializers.BooleanField(read_only=True)
     wallets = CustomerWalletSerializer(many=True, read_only=True)
+    tier = serializers.SerializerMethodField(read_only=True)
+
+    def get_tier(self, obj):
+        from apps.loyalty.utils import resolve_customer_tier
+        return resolve_customer_tier(obj)
 
     class Meta:
         model = Customer
@@ -33,9 +38,10 @@ class CustomerSerializer(serializers.ModelSerializer):
             'is_onboarded', 
             'organization',
             'wallets',
+            'tier',
             'created_at',
         ]
-        read_only_fields = ['id', 'telegram_id', 'phone', 'iiko_customer_id', 'iiko_card_number', 'iiko_categories', 'loyalty_balance', 'is_onboarded', 'organization', 'wallets', 'wallet_type', 'onboarding_source', 'created_at']
+        read_only_fields = ['id', 'telegram_id', 'phone', 'iiko_customer_id', 'iiko_card_number', 'iiko_categories', 'loyalty_balance', 'is_onboarded', 'organization', 'wallets', 'wallet_type', 'onboarding_source', 'tier', 'created_at']
 
     def validate_first_name(self, value):
         from apps.loyalty.utils import is_valid_name

@@ -120,8 +120,29 @@ class Organization(models.Model):
     is_web_onboarding_enabled = models.BooleanField("Включена веб-страница онбординга", default=False)
     web_onboarding_settings = models.JSONField("Настройки веб-онбординга", default=dict, blank=True)
 
+    # Классификация клиентов и ранги карт
+    is_client_classification_enabled = models.BooleanField("Включена классификация клиентов и ранги карт", default=False)
+    client_classification_settings = models.JSONField("Настройки классификации клиентов и рангов", default=dict, blank=True)
+
     is_active = models.BooleanField("Активен", default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def brand_color(self):
+        """
+        Single unified base brand & card color.
+        Priority: client_classification_settings.brand_color -> branding.design_color -> web_onboarding_settings.accent_color -> default '#6366f1'
+        """
+        classification = self.client_classification_settings or {}
+        if classification.get('brand_color'):
+            return classification.get('brand_color')
+        branding = self.branding or {}
+        if branding.get('design_color'):
+            return branding.get('design_color')
+        onboarding = self.web_onboarding_settings or {}
+        if onboarding.get('accent_color'):
+            return onboarding.get('accent_color')
+        return '#6366f1'
 
     @property
     def is_waba_configured(self):

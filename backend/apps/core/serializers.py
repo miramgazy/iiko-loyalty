@@ -58,6 +58,7 @@ class SuperAdminOrganizationSerializer(serializers.ModelSerializer):
 
 class OrganizationSettingsSerializer(serializers.ModelSerializer):
     is_waba_configured = serializers.BooleanField(read_only=True)
+    brand_color = serializers.CharField(read_only=True)
 
     class Meta:
         model = Organization
@@ -72,11 +73,12 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
             'is_google_wallet_enabled', 'google_issuer_id', 'google_loyalty_class_id', 'google_wallet_settings',
             'is_apple_wallet_enabled', 'apple_pass_type_id', 'apple_team_id', 'apple_wallet_settings',
             'is_web_onboarding_enabled', 'web_onboarding_settings',
+            'is_client_classification_enabled', 'client_classification_settings', 'brand_color',
             'branding', 'instagram_link', 'whatsapp_link',
             'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled',
             'llm_provider', 'llm_model_name', 'llm_api_key', 'llm_system_prompt'
         ]
-        read_only_fields = ['id', 'slug', 'is_waba_configured', 'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled']
+        read_only_fields = ['id', 'slug', 'is_waba_configured', 'brand_color', 'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled']
 
     def validate(self, attrs):
         is_onboarding = attrs.get('is_web_onboarding_enabled')
@@ -115,6 +117,40 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
                 val = validated_data[field]
                 if val == '••••••••':
                     validated_data.pop(field)
+
+        # Synchronize unified brand_color if client_classification_settings is updated
+        if 'client_classification_settings' in validated_data:
+            c_settings = validated_data['client_classification_settings'] or {}
+            brand_color = c_settings.get('brand_color')
+            if brand_color:
+                # Sync into branding
+                branding = validated_data.get('branding', instance.branding or {})
+                if isinstance(branding, dict):
+                    branding = dict(branding)
+                    branding['design_color'] = brand_color
+                    validated_data['branding'] = branding
+
+                # Sync into web_onboarding_settings
+                onboarding = validated_data.get('web_onboarding_settings', instance.web_onboarding_settings or {})
+                if isinstance(onboarding, dict):
+                    onboarding = dict(onboarding)
+                    onboarding['accent_color'] = brand_color
+                    validated_data['web_onboarding_settings'] = onboarding
+
+                # Sync into google_wallet_settings
+                gw_settings = validated_data.get('google_wallet_settings', instance.google_wallet_settings or {})
+                if isinstance(gw_settings, dict):
+                    gw_settings = dict(gw_settings)
+                    gw_settings['hex_background_color'] = brand_color
+                    validated_data['google_wallet_settings'] = gw_settings
+
+                # Sync into apple_wallet_settings
+                aw_settings = validated_data.get('apple_wallet_settings', instance.apple_wallet_settings or {})
+                if isinstance(aw_settings, dict):
+                    aw_settings = dict(aw_settings)
+                    aw_settings['background_color'] = brand_color
+                    validated_data['apple_wallet_settings'] = aw_settings
+
         return super().update(instance, validated_data)
 
 

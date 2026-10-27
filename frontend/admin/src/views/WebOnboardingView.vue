@@ -468,8 +468,8 @@
                   </div>
 
                   <div class="flex items-center gap-2 flex-shrink-0">
-                    <span class="text-[10px] uppercase font-mono px-2 py-0.5 bg-black/35 backdrop-blur-sm rounded-full border border-white/15 text-white/90">
-                      Loyalty Pass
+                    <span class="text-[10px] uppercase font-mono px-2 py-0.5 bg-black/35 backdrop-blur-sm rounded-full border border-white/15 text-white/90 font-bold">
+                      {{ customerData?.tier?.badge || customerData?.tier?.name || 'Loyalty Pass' }}
                     </span>
                     <button
                       type="button"
@@ -517,7 +517,7 @@
                     </div>
                     <div class="text-right">
                       <p class="text-[10px] uppercase text-white/75 font-medium tracking-wider">
-                        {{ lang === 'kz' ? 'Баланс' : 'Баланс' }}
+                        {{ customerData?.tier?.cashback_percent ? `Кэшбэк ${customerData.tier.cashback_percent}%` : (lang === 'kz' ? 'Баланс' : 'Баланс') }}
                       </p>
                       <p class="text-lg font-black font-mono leading-tight">
                         {{ customerData?.balance || 0 }} <span class="text-xs font-normal opacity-80">{{ lang === 'kz' ? 'бонус' : 'баллов' }}</span>
@@ -829,11 +829,17 @@ const deviceOS = computed(() => {
 
 // Dynamic branding helpers
 const accentColor = computed(() => {
-  return info.value?.settings?.accent_color || info.value?.branding?.design_color || '#6366f1'
+  return customerData.value?.tier?.color || info.value?.brand_color || info.value?.settings?.accent_color || info.value?.branding?.design_color || '#6366f1'
 })
 
-// Premium Card Background Style driven by "Акцентный цвет кнопок и элементов"
+// Premium Card Background Style driven by resolved tier or unified brand color
 const cardBackgroundStyle = computed(() => {
+  if (customerData.value?.tier?.gradient) {
+    return {
+      background: customerData.value.tier.gradient,
+      boxShadow: `0 20px 45px -12px rgba(0, 0, 0, 0.6), 0 0 35px -10px ${customerData.value.tier.color || '#000'}, inset 0 1px 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 2px 0 rgba(0, 0, 0, 0.35)`
+    }
+  }
   const color = accentColor.value || '#6366f1'
   return {
     backgroundColor: color,

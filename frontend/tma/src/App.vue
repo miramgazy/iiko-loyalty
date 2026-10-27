@@ -235,8 +235,8 @@ onMounted(async () => {
 
 
   if (success) {
-    // Apply branding from organization settings
-    theme.applyBranding(auth.organization?.branding)
+    // Apply branding from organization settings (using unified brand_color)
+    theme.applyBranding(auth.organization?.branding, auth.organization?.brand_color)
 
     // Sync app locale with backend customer language setting
     if (auth.customer?.language) {

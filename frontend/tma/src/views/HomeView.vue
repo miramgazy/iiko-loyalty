@@ -39,17 +39,22 @@
       </div>
 
       <!-- Second Block: 3D Loyalty Card -->
-      <div class="card-luxury flex flex-col justify-between shadow-2xl relative overflow-hidden h-[240px] p-5 text-left select-none"
-           :style="{ background: 'var(--gold-gradient)', color: 'var(--gold-text)', borderColor: 'rgba(255,255,255,0.1)' }">
+      <div class="card-luxury flex flex-col justify-between shadow-2xl relative overflow-hidden h-[240px] p-5 text-left select-none transition-all duration-300"
+           :style="cardStyle">
         <!-- Shiny element for premium card feeling -->
         <div class="absolute top-0 -left-[60%] w-[50%] h-full bg-gradient-to-r from-transparent via-white/15 to-transparent skew-x-[-20deg] animate-card-shine pointer-events-none"></div>
 
-        <!-- Top row: Owner Name & Branding Icon -->
+        <!-- Top row: Owner Name, Tier Badge & Branding Icon -->
         <div class="flex justify-between items-start z-10">
           <div class="flex flex-col text-left">
-            <span class="text-[9px] opacity-75 uppercase tracking-wider font-extrabold mb-1">
-              {{ t('cardOwner') }}
-            </span>
+            <div class="flex items-center gap-1.5 mb-1">
+              <span class="text-[9px] opacity-75 uppercase tracking-wider font-extrabold">
+                {{ t('cardOwner') }}
+              </span>
+              <span v-if="resolvedTierBadge" class="text-[9px] uppercase font-mono px-2 py-0.5 bg-black/35 backdrop-blur-sm rounded-full border border-white/20 text-white font-bold">
+                {{ resolvedTierBadge }}
+              </span>
+            </div>
             <span class="text-[17px] font-extrabold tracking-tight leading-none truncate max-w-[200px] mb-1">
               {{ customerName }}
             </span>
@@ -509,13 +514,74 @@ const activeCategoryName = computed(() => {
   return 'new_user'
 })
 
+// Resolved dynamic card tier based on organization classification settings & customer data
+const activeTier = computed(() => {
+  if (!auth.organization?.is_client_classification_enabled) {
+    return null
+  }
+  const tiers = auth.organization?.client_classification_settings?.tiers
+  if (Array.isArray(tiers) && tiers.length > 0) {
+    const curWallet = activeWalletName.value || ''
+    if (curWallet) {
+      const lower = curWallet.toLowerCase()
+      const matched = tiers.find(t => {
+        if (t.iiko_wallet_name && lower.includes(t.iiko_wallet_name.toLowerCase())) return true
+        if (t.keywords) {
+          const kwList = t.keywords.split(',').map(k => k.trim().toLowerCase()).filter(Boolean)
+          if (kwList.some(k => lower.includes(k))) return true
+        }
+        return false
+      })
+      if (matched) return matched
+    }
+  }
+  const customerTier = auth.customer?.tier
+  if (customerTier && customerTier.is_classified) {
+    return customerTier
+  }
+  return null
+})
+
+const resolvedTierBadge = computed(() => {
+  if (activeTier.value) {
+    return activeTier.value.badge || activeTier.value.name
+  }
+  return null
+})
+
+const cardStyle = computed(() => {
+  if (activeTier.value) {
+    if (activeTier.value.gradient) {
+      return {
+        background: activeTier.value.gradient,
+        color: '#ffffff',
+        borderColor: 'rgba(255,255,255,0.2)',
+        boxShadow: `0 20px 45px -12px rgba(0, 0, 0, 0.6), 0 0 35px -10px ${activeTier.value.color || '#000'}`
+      }
+    }
+    if (activeTier.value.color) {
+      return {
+        background: `linear-gradient(135deg, ${activeTier.value.color} 0%, #09090b 100%)`,
+        color: '#ffffff',
+        borderColor: 'rgba(255,255,255,0.2)',
+        boxShadow: `0 20px 45px -12px rgba(0, 0, 0, 0.6), 0 0 35px -10px ${activeTier.value.color}`
+      }
+    }
+  }
+  return {
+    background: 'var(--gold-gradient)',
+    color: 'var(--gold-text)',
+    borderColor: 'rgba(255,255,255,0.1)'
+  }
+})
+
 // Match active category/wallet to Display Names, Cashback %, and Next Tier Thresholds
 const categoryInfo = computed(() => {
   const name = (activeCategoryName.value || '').toLowerCase()
   const walletName = activeWalletName.value
   
-  // Set display name to active wallet name, falling back to category display name
-  let display = walletName
+  // Set display name to active tier name, or active wallet name, falling back to category display name
+  let display = activeTier.value?.name || walletName
   if (!display) {
     display = t('newUser')
     if (activeCategoryName.value && activeCategoryName.value !== 'new_user') {
@@ -524,21 +590,23 @@ const categoryInfo = computed(() => {
   }
 
   // Determine cashback %
-  let cashback = 5
-  if (walletName) {
-    // Try to extract percentage from wallet name (e.g. "Кэшбэк 3%" -> 3)
-    const percentMatch = walletName.match(/(\d+(?:\.\d+)?)\s*%/)
-    if (percentMatch) {
-      cashback = parseFloat(percentMatch[1])
-    }
-  } else {
-    // Fallback to category-based cashback
-    if (name.includes('silver') || name.includes('серебр')) {
-      cashback = 10
-    } else if (name.includes('gold') || name.includes('золот')) {
-      cashback = 15
-    } else if (name.includes('platinum') || name.includes('платин')) {
-      cashback = 20
+  let cashback = activeTier.value?.cashback_percent || 5
+  if (!activeTier.value?.cashback_percent) {
+    if (walletName) {
+      // Try to extract percentage from wallet name (e.g. "Кэшбэк 3%" -> 3)
+      const percentMatch = walletName.match(/(\d+(?:\.\d+)?)\s*%/)
+      if (percentMatch) {
+        cashback = parseFloat(percentMatch[1])
+      }
+    } else {
+      // Fallback to category-based cashback
+      if (name.includes('silver') || name.includes('серебр')) {
+        cashback = 10
+      } else if (name.includes('gold') || name.includes('золот')) {
+        cashback = 15
+      } else if (name.includes('platinum') || name.includes('платин')) {
+        cashback = 20
+      }
     }
   }
 

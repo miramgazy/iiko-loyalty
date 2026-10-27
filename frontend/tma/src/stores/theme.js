@@ -92,14 +92,13 @@ export const useThemeStore = defineStore('tma-theme', () => {
   // Apply default preview brand variables on init
   updateThemeVariables(primaryColor.value)
 
-  function applyBranding(branding) {
-    if (!branding) return
-
-    if (branding.design_color) {
-      primaryColor.value = branding.design_color
-      document.documentElement.style.setProperty('--color-primary', branding.design_color)
-      updateThemeVariables(branding.design_color)
-      applyThemeColors(branding.design_color)
+  function applyBranding(branding, brandColorOverride = null) {
+    const finalColor = brandColorOverride || branding?.design_color
+    if (finalColor) {
+      primaryColor.value = finalColor
+      document.documentElement.style.setProperty('--color-primary', finalColor)
+      updateThemeVariables(finalColor)
+      applyThemeColors(finalColor)
     } else {
       // Fall back to Telegram native colors
       const tg = window.Telegram?.WebApp

@@ -70,7 +70,7 @@ class GoogleWalletService:
             "issuerName": class_data.get('issuer_name', organization.name),
             "programName": class_data.get('class_name', organization.name),
             "reviewStatus": "UNDER_REVIEW",
-            "hexBackgroundColor": class_data.get('hex_background_color', '#000000'),
+            "hexBackgroundColor": class_data.get('hex_background_color') or organization.brand_color or '#000000',
         }
         
         logo_url = class_data.get('logo_url')

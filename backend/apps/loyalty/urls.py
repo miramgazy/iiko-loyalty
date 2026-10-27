@@ -14,10 +14,12 @@ from apps.loyalty.views import (
     WebOnboardingCheckPhoneView,
     WebOnboardingSendOtpView,
     WebOnboardingVerifyView,
-    WebOnboardingWalletView
+    WebOnboardingWalletView,
+    OrganizationIikoWalletsView
 )
 
 urlpatterns = [
+    path('organizations/iiko-wallets/', OrganizationIikoWalletsView.as_view(), name='org_iiko_wallets'),
     path('tma/auth/', TmaAuthView.as_view(), name='tma_auth'),
     path('customer/me/', CustomerMeView.as_view(), name='customer_me'),
     path('customer/sync/', CustomerSyncView.as_view(), name='customer_sync'),

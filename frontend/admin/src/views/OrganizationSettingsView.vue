@@ -661,6 +661,403 @@
         </div>
       </div>
 
+      <!-- TAB: Card Tiers & Design (Single Source of Truth) -->
+      <div v-show="activeTab === 'card_tiers'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-8">
+        <!-- Header -->
+        <div class="flex items-center justify-between pb-5 border-b border-slate-800">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-2xl">💳</span>
+              <h2 class="text-lg font-bold text-white">Ранги и дизайн карт лояльности</h2>
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                Единый источник стиля
+              </span>
+            </div>
+            <p class="text-slate-400 text-xs mt-1">
+              Централизованное управление цветом бренда и автоматической сменой дизайна карт для всех каналов (TMA, Веб-онбординг, Google Wallet, Apple Wallet)
+            </p>
+          </div>
+        </div>
+
+        <!-- SECTION 1: Unified Base Brand & Card Color (BEFORE the toggle) -->
+        <div class="bg-slate-950/70 border border-slate-800 rounded-2xl p-5 space-y-4">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h3 class="text-white text-sm font-bold flex items-center gap-2">
+                <span>🎨</span> Базовый цвет бренда и карт лояльности
+              </h3>
+              <p class="text-slate-400 text-xs mt-1 leading-relaxed max-w-xl">
+                Этот цвет является единым по умолчанию во всех точках касания с гостем. Если классификация ниже выключена (или гость не имеет специального ранга), все его карты автоматически окрашиваются в этот цвет.
+              </p>
+            </div>
+          </div>
+
+          <!-- Color controls -->
+          <div class="flex flex-wrap items-center gap-4 pt-2">
+            <div class="relative">
+              <input
+                id="input-unified-brand-color"
+                type="color"
+                v-model="brandColor"
+                class="w-12 h-12 rounded-xl border-2 border-slate-700 cursor-pointer bg-transparent p-0.5"
+              />
+            </div>
+            <input
+              type="text"
+              v-model="brandColor"
+              class="form-input w-36 font-mono text-sm uppercase"
+              placeholder="#6366F1"
+            />
+            <div
+              class="w-12 h-12 rounded-xl border border-white/20 shadow-lg flex items-center justify-center text-xs font-bold text-white transition-all"
+              :style="{ backgroundColor: brandColor }"
+            >
+              ✓
+            </div>
+
+            <!-- Quick palette chips -->
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-xs text-slate-500 mr-1">Быстрый выбор:</span>
+              <button
+                v-for="c in quickPalette"
+                :key="c"
+                type="button"
+                @click="brandColor = c"
+                class="w-6 h-6 rounded-lg border border-white/20 transition-transform hover:scale-110 active:scale-95 cursor-pointer shadow-sm"
+                :style="{ backgroundColor: c }"
+                :title="c"
+              ></button>
+            </div>
+          </div>
+
+          <!-- Touchpoints coverage badge list -->
+          <div class="pt-3 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+            <span class="font-medium text-slate-300">Применяется в:</span>
+            <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400 flex items-center gap-1 font-medium">
+              ✓ Веб-онбординг
+            </span>
+            <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400 flex items-center gap-1 font-medium">
+              ✓ Telegram Mini App
+            </span>
+            <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400 flex items-center gap-1 font-medium">
+              ✓ Google Wallet
+            </span>
+            <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400 flex items-center gap-1 font-medium">
+              ✓ Apple Wallet
+            </span>
+          </div>
+        </div>
+
+        <!-- SECTION 2: Classification Toggle -->
+        <div class="bg-slate-950/70 border border-slate-800 rounded-2xl p-5 flex items-center justify-between">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-lg">⭐</span>
+              <h3 class="text-sm font-bold text-white">Классификация клиентов и ранги карт</h3>
+            </div>
+            <p class="text-xs text-slate-400 mt-1 max-w-xl">
+              Включите, чтобы карты гостей динамически меняли цвет, металлический стиль и статус (Silver, Gold, VIP) на основе программ или категорий iiko.
+            </p>
+          </div>
+
+          <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+            <input type="checkbox" v-model="form.is_client_classification_enabled" class="sr-only peer">
+            <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+            <span class="ml-3 text-sm font-medium" :class="form.is_client_classification_enabled ? 'text-emerald-400' : 'text-slate-500'">
+              {{ form.is_client_classification_enabled ? 'Включено' : 'Выключено' }}
+            </span>
+          </label>
+        </div>
+
+        <!-- SECTION 3: Tiers Builder & Live Preview (Visible when classification is ON) -->
+        <div v-if="form.is_client_classification_enabled" class="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+          <!-- Left Column: Tiers Constructor (7 cols) -->
+          <div class="xl:col-span-7 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h4 class="text-sm font-bold text-white">Список уровней (рангов)</h4>
+                <p class="text-xs text-slate-400">Настройте условия привязки и дизайн для каждого статуса</p>
+              </div>
+              <button
+                type="button"
+                @click="addTier"
+                class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <span>➕</span> Добавить ранг
+              </button>
+            </div>
+
+            <!-- Empty state -->
+            <div v-if="!form.client_classification_settings?.tiers?.length" class="p-8 text-center bg-slate-950/40 border border-dashed border-slate-800 rounded-2xl space-y-3">
+              <span class="text-3xl block">🏷️</span>
+              <p class="text-xs text-slate-400">
+                Уровни лояльности пока не добавлены. Нажмите «Добавить ранг», чтобы настроить Silver, Gold или VIP статус.
+              </p>
+              <button
+                type="button"
+                @click="addDefaultTiers"
+                class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-medium transition-all cursor-pointer"
+              >
+                ✨ Добавить стандартные пресеты (Silver, Gold, VIP)
+              </button>
+            </div>
+
+            <!-- Tiers List -->
+            <div v-else class="space-y-4">
+              <div
+                v-for="(tier, idx) in form.client_classification_settings.tiers"
+                :key="tier.id || idx"
+                class="bg-slate-950/90 border border-slate-800 rounded-2xl p-4.5 space-y-4 transition-all"
+                :class="{ 'ring-2 ring-indigo-500/50': previewTierId === tier.id }"
+              >
+                <!-- Tier Header -->
+                <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+                  <div class="flex items-center gap-2.5">
+                    <div
+                      class="w-6 h-6 rounded-lg border border-white/20 shadow-sm flex items-center justify-center text-xs font-bold text-white"
+                      :style="{ backgroundColor: tier.color }"
+                    >
+                      {{ idx + 1 }}
+                    </div>
+                    <span class="text-sm font-bold text-white">{{ tier.name || 'Без названия' }}</span>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-mono uppercase bg-black/40 border border-white/10 text-white/90">
+                      {{ tier.badge || 'Pass' }}
+                    </span>
+                  </div>
+
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      @click="previewTierId = tier.id"
+                      class="px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer"
+                      :class="previewTierId === tier.id ? 'bg-indigo-600 text-white' : 'bg-slate-800 hover:bg-slate-700 text-slate-300'"
+                    >
+                      👁️ Превью
+                    </button>
+                    <button
+                      type="button"
+                      @click="removeTier(idx)"
+                      class="p-1 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer"
+                      title="Удалить ранг"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Fields Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label class="form-label text-xs">Название ранга (RU)</label>
+                    <input v-model="tier.name" type="text" class="form-input text-xs" placeholder="Например: Gold VIP" />
+                  </div>
+                  <div>
+                    <label class="form-label text-xs">Название ранга (KZ)</label>
+                    <input v-model="tier.name_kz" type="text" class="form-input text-xs" placeholder="Мысалы: Gold VIP" />
+                  </div>
+
+                  <div>
+                    <label class="form-label text-xs">Текст бейджа на карте</label>
+                    <input v-model="tier.badge" type="text" class="form-input text-xs font-mono" placeholder="Gold VIP Pass" />
+                  </div>
+                  <div>
+                    <label class="form-label text-xs">Кэшбэк % (для отображения)</label>
+                    <input v-model.number="tier.cashback_percent" type="number" class="form-input text-xs font-mono" placeholder="15" />
+                  </div>
+                </div>
+
+                <!-- iiko matching criteria -->
+                <div class="p-3 bg-slate-900/80 border border-slate-800/80 rounded-xl space-y-2.5">
+                  <span class="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                    <span>🔗</span> Правило сопоставления с iiko
+                  </span>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label class="block text-[11px] text-slate-400 mb-1">Программа лояльности из iiko</label>
+                      <select v-model="tier.iiko_wallet_name" class="form-input text-xs">
+                        <option value="">-- Выберите программу iiko --</option>
+                        <option v-for="w in availableIikoWallets" :key="w" :value="w">{{ w }}</option>
+                      </select>
+                      <p class="text-[10px] text-slate-500 mt-0.5">Точное совпадение по названию кошелька</p>
+                    </div>
+
+                    <div>
+                      <label class="block text-[11px] text-slate-400 mb-1">Или ключевые слова (через запятую)</label>
+                      <input
+                        v-model="tier.keywords"
+                        type="text"
+                        class="form-input text-xs font-mono"
+                        placeholder="gold, золот, 15%"
+                      />
+                      <p class="text-[10px] text-slate-500 mt-0.5">Поиск в названии кошелька или категории гостя</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Style & Preset selector -->
+                <div class="space-y-2">
+                  <label class="form-label text-xs">Стиль и цвет карты</label>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <button
+                      v-for="preset in tierColorPresets"
+                      :key="preset.id"
+                      type="button"
+                      @click="applyPresetToTier(tier, preset)"
+                      class="px-2.5 py-1.5 rounded-xl text-xs font-medium border flex items-center gap-1.5 transition-all cursor-pointer"
+                      :class="tier.gradient_preset === preset.id ? 'border-white text-white shadow-md' : 'border-slate-800 text-slate-400 hover:text-slate-200'"
+                      :style="{ background: preset.gradient }"
+                    >
+                      <span class="w-2.5 h-2.5 rounded-full bg-white/40"></span>
+                      <span class="text-white text-[11px] font-semibold">{{ preset.name }}</span>
+                    </button>
+                  </div>
+
+                  <!-- Custom color override -->
+                  <div class="flex items-center gap-3 pt-1">
+                    <span class="text-xs text-slate-500">Пользовательский цвет:</span>
+                    <input
+                      type="color"
+                      v-model="tier.color"
+                      class="w-7 h-7 rounded-lg border border-slate-700 cursor-pointer bg-transparent p-0.5"
+                    />
+                    <input
+                      type="text"
+                      v-model="tier.color"
+                      class="form-input w-28 font-mono text-xs uppercase"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Interactive 3D Card Live Preview (5 cols) -->
+          <div class="xl:col-span-5 sticky top-6 space-y-4">
+            <div class="bg-slate-950/90 border border-slate-800 rounded-2xl p-5 space-y-4">
+              <div class="flex items-center justify-between">
+                <div>
+                  <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                    <span>✨</span> Интерактивный предпросмотр
+                  </h4>
+                  <p class="text-xs text-slate-400">Нажмите на карту для 3D-переворота к QR-коду</p>
+                </div>
+
+                <!-- Preview target selector -->
+                <select
+                  v-model="previewTierId"
+                  class="bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                >
+                  <option value="base">Базовый цвет</option>
+                  <option
+                    v-for="t in form.client_classification_settings?.tiers || []"
+                    :key="t.id"
+                    :value="t.id"
+                  >
+                    {{ t.name || 'Ранг' }}
+                  </option>
+                </select>
+              </div>
+
+              <!-- 3D Card Flipper in Preview -->
+              <div class="card-perspective w-full max-w-sm mx-auto">
+                <div
+                  class="card-flipper hover:scale-[1.01] active:scale-[0.99] transition-transform duration-200"
+                  :class="{ 'is-flipped': previewFlipped }"
+                  @click="previewFlipped = !previewFlipped"
+                >
+                  <!-- Front Face Preview -->
+                  <div
+                    class="card-face card-front relative rounded-3xl p-5 text-white overflow-hidden flex flex-col justify-between min-h-[260px] border border-white/20 select-none shadow-2xl"
+                    :style="previewCardStyle"
+                  >
+                    <div class="absolute -top-16 -left-16 w-40 h-40 rounded-full bg-white/15 blur-2xl pointer-events-none"></div>
+                    <div class="absolute -bottom-16 -right-16 w-40 h-40 rounded-full bg-black/35 blur-2xl pointer-events-none"></div>
+
+                    <!-- Top row -->
+                    <div class="relative z-10 flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center font-black text-xs text-white">
+                          {{ (form.name || 'R').charAt(0) }}
+                        </div>
+                        <span class="text-xs font-bold tracking-wider uppercase truncate opacity-95">
+                          {{ form.name || 'Название заведения' }}
+                        </span>
+                      </div>
+                      <span class="text-[10px] uppercase font-mono px-2.5 py-0.5 bg-black/35 backdrop-blur-sm rounded-full border border-white/15 text-white/90 font-bold">
+                        {{ activePreviewTier?.badge || 'Loyalty Pass' }}
+                      </span>
+                    </div>
+
+                    <!-- Chip & contactless -->
+                    <div class="relative z-10 flex items-center justify-between my-2">
+                      <div class="w-10 h-7 rounded-lg bg-gradient-to-br from-amber-300 via-amber-200 to-amber-500 border border-amber-600/40 p-1 flex flex-col justify-between shadow-inner">
+                        <div class="w-full h-[1px] bg-amber-700/40"></div>
+                        <div class="flex justify-between items-center px-1">
+                          <div class="w-2 h-2.5 border border-amber-700/50 rounded-sm"></div>
+                          <div class="w-2 h-2.5 border border-amber-700/50 rounded-sm"></div>
+                        </div>
+                        <div class="w-full h-[1px] bg-amber-700/40"></div>
+                      </div>
+                      <span class="text-white/60 text-xs font-mono">● ● ● ●</span>
+                    </div>
+
+                    <!-- Bottom row -->
+                    <div class="relative z-10 space-y-1">
+                      <div class="flex justify-between items-end">
+                        <div>
+                          <p class="text-[9px] uppercase text-white/70 font-semibold tracking-wider">Гость</p>
+                          <p class="text-sm font-bold">Азамат Сериков</p>
+                        </div>
+                        <div class="text-right">
+                          <p class="text-[9px] uppercase text-white/70 font-semibold tracking-wider">
+                            {{ activePreviewTier?.cashback_percent ? `Кэшбэк ${activePreviewTier.cashback_percent}%` : 'Баланс' }}
+                          </p>
+                          <p class="text-lg font-black font-mono leading-none">1 500 <span class="text-xs font-normal opacity-80">бонус</span></p>
+                        </div>
+                      </div>
+                      <div class="pt-1.5 border-t border-white/20 flex items-center justify-between text-[10px] font-mono text-white/80">
+                        <span>№ 7701 •••• 99</span>
+                        <span>↺ Нажмите для QR</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Back Face Preview -->
+                  <div
+                    class="card-face card-back absolute inset-0 rounded-3xl p-5 text-white overflow-hidden flex flex-col justify-between min-h-[260px] border border-white/20 select-none shadow-2xl"
+                    :style="previewCardStyle"
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-bold uppercase tracking-wider">{{ form.name || 'Loyalty Pass' }}</span>
+                      <span class="text-[10px] text-white/80">↺ Лицевая</span>
+                    </div>
+
+                    <div class="my-auto py-1 text-center">
+                      <div class="bg-white rounded-2xl p-2.5 shadow-2xl inline-flex flex-col items-center justify-center border border-black/10">
+                        <div class="w-24 h-24 bg-slate-900 rounded-lg flex items-center justify-center text-white text-3xl">
+                          🏁
+                        </div>
+                        <span class="text-[10px] font-mono font-bold text-slate-900 mt-1">№ 77019990011</span>
+                      </div>
+                    </div>
+
+                    <p class="text-[10px] text-white/90 text-center leading-tight">
+                      Покажите QR-код кассиру для начисления или списания бонусов
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Save Button -->
+        <div class="flex justify-end pt-5 border-t border-slate-800">
+          <SaveButton :saving="saving" @save="saveSettings" />
+        </div>
+      </div>
+
       <!-- TAB: Onboarding -->
       <div v-show="activeTab === 'onboarding'" class="space-y-6">
         <!-- Main header / toggle box -->
@@ -2111,6 +2508,7 @@ const tabs = computed(() => {
   ]
   if (form.value.is_loyalty_enabled) {
     list.push(
+      { id: 'card_tiers', label: 'Ранги и дизайн карт' },
       { id: 'onboarding', label: 'Страница онбординга' },
       { id: 'branding', label: 'Брендинг TMA' },
       { id: 'wallet', label: 'Google Wallet' },
@@ -2279,6 +2677,11 @@ const form = ref({
   iiko_server_url: '', iiko_server_login: '', iiko_server_password: '',
   is_web_onboarding_enabled: false,
   web_onboarding_settings: {},
+  is_client_classification_enabled: false,
+  client_classification_settings: {
+    brand_color: '#6366f1',
+    tiers: []
+  },
   branding: {},
   instagram_link: '', whatsapp_link: '',
   is_loyalty_enabled: true, is_analytics_enabled: false, is_ai_agent_enabled: false,
@@ -2467,9 +2870,162 @@ async function saveOnboardingSettings() {
   }
 }
 
+// Card Tiers & Unified Brand Color logic
+const quickPalette = [
+  '#6366f1', '#4f46e5', '#0ea5e9', '#10b981', '#f59e0b',
+  '#f97316', '#ef4444', '#ec4899', '#8b5cf6', '#1e293b', '#000000'
+]
+
+const tierColorPresets = [
+  { id: 'bronze', name: 'Бронза', color: '#b45309', gradient: 'linear-gradient(135deg, #78350f, #b45309, #d97706)' },
+  { id: 'silver', name: 'Серебро', color: '#64748b', gradient: 'linear-gradient(135deg, #334155, #64748b, #94a3b8)' },
+  { id: 'gold', name: 'Золото', color: '#d97706', gradient: 'linear-gradient(135deg, #92400e, #d97706, #fbbf24)' },
+  { id: 'platinum', name: 'Платина', color: '#475569', gradient: 'linear-gradient(135deg, #1e293b, #475569, #cbd5e1)' },
+  { id: 'emerald', name: 'Изумруд', color: '#059669', gradient: 'linear-gradient(135deg, #064e3b, #059669, #34d399)' },
+  { id: 'sapphire', name: 'Сапфир', color: '#2563eb', gradient: 'linear-gradient(135deg, #1e3a8a, #2563eb, #60a5fa)' },
+  { id: 'ruby', name: 'Рубин', color: '#dc2626', gradient: 'linear-gradient(135deg, #881337, #e11d48, #f43f5e)' },
+  { id: 'black_vip', name: 'Black VIP', color: '#09090b', gradient: 'linear-gradient(135deg, #09090b, #18181b, #27272a)' },
+]
+
+const availableIikoWallets = ref([])
+const loadingIikoWallets = ref(false)
+const previewTierId = ref('base')
+const previewFlipped = ref(false)
+
 const brandColor = computed({
-  get: () => form.value.branding?.design_color || '#6366f1',
-  set: (v) => { form.value.branding = { ...form.value.branding, design_color: v } },
+  get: () => form.value.client_classification_settings?.brand_color || form.value.branding?.design_color || form.value.web_onboarding_settings?.accent_color || '#6366f1',
+  set: (v) => {
+    form.value.client_classification_settings = {
+      ...(form.value.client_classification_settings || {}),
+      brand_color: v
+    }
+    form.value.branding = {
+      ...(form.value.branding || {}),
+      design_color: v
+    }
+    form.value.web_onboarding_settings = {
+      ...(form.value.web_onboarding_settings || {}),
+      accent_color: v
+    }
+    if (walletForm.value) {
+      walletForm.value.hex_background_color = v
+    }
+  },
+})
+
+async function fetchIikoWallets() {
+  if (!auth.currentOrgId) return
+  loadingIikoWallets.value = true
+  try {
+    const res = await api.get('/loyalty/organizations/iiko-wallets/')
+    availableIikoWallets.value = res.data?.wallets || []
+  } catch (e) {
+    console.warn('Could not fetch iiko wallets:', e)
+  } finally {
+    loadingIikoWallets.value = false
+  }
+}
+
+function addTier() {
+  if (!form.value.client_classification_settings) {
+    form.value.client_classification_settings = { brand_color: brandColor.value, tiers: [] }
+  }
+  if (!Array.isArray(form.value.client_classification_settings.tiers)) {
+    form.value.client_classification_settings.tiers = []
+  }
+  const newId = 'tier_' + Date.now()
+  const nextNum = form.value.client_classification_settings.tiers.length + 1
+  const defaultPreset = tierColorPresets[Math.min(nextNum - 1, tierColorPresets.length - 1)] || tierColorPresets[0]
+  const newTier = {
+    id: newId,
+    name: `Уровень ${nextNum}`,
+    name_kz: `Деңгей ${nextNum}`,
+    badge: `Tier ${nextNum}`,
+    color: defaultPreset.color,
+    gradient: defaultPreset.gradient,
+    gradient_preset: defaultPreset.id,
+    cashback_percent: nextNum * 5,
+    iiko_wallet_name: '',
+    keywords: '',
+  }
+  form.value.client_classification_settings.tiers.push(newTier)
+  previewTierId.value = newId
+}
+
+function removeTier(index) {
+  const removed = form.value.client_classification_settings?.tiers?.splice(index, 1)?.[0]
+  if (previewTierId.value === removed?.id) {
+    previewTierId.value = form.value.client_classification_settings?.tiers?.[0]?.id || 'base'
+  }
+}
+
+function addDefaultTiers() {
+  if (!form.value.client_classification_settings) {
+    form.value.client_classification_settings = { brand_color: brandColor.value, tiers: [] }
+  }
+  form.value.client_classification_settings.tiers = [
+    {
+      id: 'tier_silver',
+      name: 'Silver',
+      name_kz: 'Silver',
+      badge: 'Silver Pass',
+      color: '#64748b',
+      gradient: 'linear-gradient(135deg, #334155, #64748b, #94a3b8)',
+      gradient_preset: 'silver',
+      cashback_percent: 5,
+      iiko_wallet_name: '',
+      keywords: 'silver, серебр, 5%',
+    },
+    {
+      id: 'tier_gold',
+      name: 'Gold',
+      name_kz: 'Gold',
+      badge: 'Gold VIP',
+      color: '#d97706',
+      gradient: 'linear-gradient(135deg, #92400e, #d97706, #fbbf24)',
+      gradient_preset: 'gold',
+      cashback_percent: 10,
+      iiko_wallet_name: '',
+      keywords: 'gold, золот, 10%',
+    },
+    {
+      id: 'tier_vip',
+      name: 'Platinum VIP',
+      name_kz: 'Platinum VIP',
+      badge: 'Black VIP',
+      color: '#09090b',
+      gradient: 'linear-gradient(135deg, #09090b, #18181b, #27272a)',
+      gradient_preset: 'black_vip',
+      cashback_percent: 15,
+      iiko_wallet_name: '',
+      keywords: 'vip, вип, платин, 15%',
+    },
+  ]
+  previewTierId.value = 'tier_gold'
+}
+
+function applyPresetToTier(tier, preset) {
+  tier.gradient_preset = preset.id
+  tier.gradient = preset.gradient
+  tier.color = preset.color
+}
+
+const activePreviewTier = computed(() => {
+  if (previewTierId.value === 'base') return null
+  const tiers = form.value.client_classification_settings?.tiers || []
+  return tiers.find(t => t.id === previewTierId.value) || tiers[0] || null
+})
+
+const previewCardStyle = computed(() => {
+  if (activePreviewTier.value) {
+    if (activePreviewTier.value.gradient) {
+      return { background: activePreviewTier.value.gradient }
+    }
+    const c = activePreviewTier.value.color || brandColor.value
+    return { background: `linear-gradient(135deg, ${c}, #000000)` }
+  }
+  const base = brandColor.value || '#6366f1'
+  return { background: `linear-gradient(135deg, ${base}, #0f172a)` }
 })
 const greetingText = computed({
   get: () => form.value.branding?.greeting_text || '',
@@ -2670,6 +3226,16 @@ async function load() {
     
     initLlmModelFields()
     
+    if (!form.value.client_classification_settings) {
+      form.value.client_classification_settings = {
+        brand_color: form.value.brand_color || form.value.branding?.design_color || '#6366f1',
+        tiers: []
+      }
+    } else if (!form.value.client_classification_settings.brand_color) {
+      form.value.client_classification_settings.brand_color = form.value.brand_color || form.value.branding?.design_color || '#6366f1'
+    }
+    await fetchIikoWallets()
+
     if (form.value.is_analytics_enabled) {
       await loadPresets()
     }
@@ -2734,6 +3300,10 @@ async function saveSettings() {
       whatsapp_link: form.value.whatsapp_link || null,
       is_web_onboarding_enabled: form.value.is_web_onboarding_enabled,
       web_onboarding_settings: form.value.web_onboarding_settings,
+      is_client_classification_enabled: form.value.is_client_classification_enabled,
+      client_classification_settings: form.value.client_classification_settings,
+      brand_color: brandColor.value,
+      branding: form.value.branding,
     })
     auth.updateOrganization({
       name: form.value.name,
@@ -3575,6 +4145,8 @@ watch(activeTab, (newTab) => {
     fetchPrograms()
   } else if (newTab === 'waba') {
     loadWabaData()
+  } else if (newTab === 'card_tiers') {
+    fetchIikoWallets()
   }
 })
 
@@ -3606,6 +4178,48 @@ onMounted(load)
 }
 .form-input::placeholder {
   color: #64748b;
+}
+
+/* 3D Loyalty Card Flip Animation */
+.card-perspective {
+  perspective: 1200px;
+  -webkit-perspective: 1200px;
+}
+
+.card-flipper {
+  position: relative;
+  width: 100%;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  transition: transform 0.65s cubic-bezier(0.4, 0.2, 0.2, 1);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card-flipper.is-flipped {
+  transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
+}
+
+.card-face {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  width: 100%;
+}
+
+.card-front {
+  position: relative;
+  z-index: 2;
+  transform: rotateY(0deg);
+  -webkit-transform: rotateY(0deg);
+}
+
+.card-back {
+  position: absolute;
+  inset: 0;
+  transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
 }
 </style>
 

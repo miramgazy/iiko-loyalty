@@ -12,8 +12,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.core.models import Organization
 from apps.core.utils import normalize_phone
-from apps.loyalty.models import Customer, IikoWebhookLog, LoyaltyProgram, OnboardingVerificationCode
+from apps.loyalty.models import Customer, IikoWebhookLog, LoyaltyProgram, OnboardingVerificationCode, CustomerWallet
 from apps.loyalty.serializers import CustomerSerializer, LoyaltyProgramSerializer
+from apps.loyalty.utils import resolve_customer_tier
 from apps.loyalty.views_utils import validate_tg_init_data, get_tokens_for_customer
 from apps.accounts.permissions import IsOrgEmployee
 from asgiref.sync import async_to_sync
@@ -110,7 +111,10 @@ class TmaAuthView(APIView):
                 "id": org.id,
                 "slug": org.slug,
                 "name": org.name,
+                "brand_color": org.brand_color,
                 "branding": org.branding,
+                "is_client_classification_enabled": org.is_client_classification_enabled,
+                "client_classification_settings": org.client_classification_settings,
                 "is_google_wallet_enabled": org.is_google_wallet_enabled,
                 "is_apple_wallet_enabled": org.is_apple_wallet_enabled,
                 "instagram_link": org.instagram_link,
@@ -846,6 +850,10 @@ class WebOnboardingInfoView(APIView):
             'id', 'title', 'title_kz', 'description', 'description_kz'
         )
 
+        branding = org.branding or {}
+        onboarding_settings = org.web_onboarding_settings or {}
+        brand_color = org.brand_color
+
         return Response({
             "organization_name": org.name,
             "slug": org.slug,
@@ -854,13 +862,16 @@ class WebOnboardingInfoView(APIView):
             "is_google_wallet_enabled": org.is_google_wallet_enabled,
             "is_apple_wallet_enabled": org.is_apple_wallet_enabled,
             "tma_link": org.get_tma_link(),
+            "brand_color": brand_color,
+            "is_client_classification_enabled": org.is_client_classification_enabled,
+            "client_classification_settings": org.client_classification_settings,
             "branding": {
                 "logo_url": branding.get('logo_url', ''),
-                "design_color": branding.get('design_color', '#6366f1'),
+                "design_color": brand_color,
             },
             "settings": {
                 "banner_url": onboarding_settings.get('banner_url', ''),
-                "accent_color": onboarding_settings.get('accent_color', '#6366f1'),
+                "accent_color": brand_color,
                 "title_kz": onboarding_settings.get('title_kz', 'Лоялдық картасын алыңыз'),
                 "title_ru": onboarding_settings.get('title_ru', 'Получите карту лояльности'),
                 "subtitle_kz": onboarding_settings.get('subtitle_kz', 'Тіркеліп, әрбір тапсырыстан бонустар жинаңыз!'),
@@ -903,6 +914,7 @@ class WebOnboardingCheckPhoneView(APIView):
                     "balance": float(customer.loyalty_balance),
                     "card_number": customer.iiko_card_number,
                     "wallet_type": customer.wallet_type,
+                    "tier": resolve_customer_tier(customer, org),
                 },
                 "message": "Клиент уже зарегистрирован"
             })
@@ -1096,6 +1108,7 @@ class WebOnboardingVerifyView(APIView):
                 "balance": float(customer.loyalty_balance),
                 "card_number": customer.iiko_card_number,
                 "wallet_type": customer.wallet_type,
+                "tier": resolve_customer_tier(customer, org),
             }
         })
 
@@ -1172,5 +1185,34 @@ class WebOnboardingWalletView(APIView):
             })
 
         return Response({"error": "Неизвестный тип кошелька"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class OrganizationIikoWalletsView(APIView):
+    """
+    Returns unique iiko wallet names present for the current organization
+    to populate the tier constructor dropdown.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        from apps.accounts.models import UserOrganization
+        membership = UserOrganization.objects.filter(user=user).select_related('organization').first()
+        if not membership and not user.is_superuser:
+            return Response({"error": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+
+        org = membership.organization if membership else Organization.objects.first()
+        if not org:
+            return Response({"wallets": []})
+
+        wallets = list(
+            CustomerWallet.objects.filter(customer__organization=org)
+            .exclude(name__isnull=True)
+            .exclude(name__exact='')
+            .values_list('name', flat=True)
+            .distinct()
+        )
+        return Response({"wallets": sorted(wallets)})
+
 
 

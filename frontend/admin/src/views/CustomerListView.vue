@@ -193,11 +193,12 @@
       </div>
       <div v-else>
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[1240px] divide-y divide-slate-800 text-left border-collapse">
+          <table class="w-full min-w-[1380px] divide-y divide-slate-800 text-left border-collapse">
           <thead>
             <tr class="border-b border-slate-800 bg-slate-900/60">
               <th class="text-left px-5 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[240px] min-w-[220px]">Клиент</th>
               <th class="text-left px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[160px] min-w-[150px] whitespace-nowrap">Телефон</th>
+              <th class="text-left px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[140px] min-w-[130px] whitespace-nowrap">Ранг</th>
               <th class="text-left px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[160px] min-w-[150px] whitespace-nowrap">Баллы / Кошельки</th>
               <th class="text-left px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[150px] min-w-[140px] whitespace-nowrap">Тип карты</th>
               <th class="text-left px-4 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider w-[140px] min-w-[130px] whitespace-nowrap">Онбординг</th>
@@ -225,6 +226,27 @@
               <td class="px-4 py-4 w-[160px] min-w-[150px] whitespace-nowrap">
                 <span v-if="c.phone" class="text-sm text-slate-300 font-mono">{{ c.phone }}</span>
                 <span v-else class="text-xs text-amber-500 bg-amber-950/40 border border-amber-800/60 px-2 py-0.5 rounded-full">Не подтверждён</span>
+              </td>
+              <td class="px-4 py-4 w-[140px] min-w-[130px] whitespace-nowrap">
+                <span
+                  v-if="c.tier?.is_classified"
+                  class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border font-semibold shadow-sm"
+                  :style="{
+                    backgroundColor: (c.tier.color || '#6366f1') + '25',
+                    borderColor: (c.tier.color || '#6366f1') + '70',
+                    color: c.tier.color || '#6366f1'
+                  }"
+                >
+                  <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: c.tier.color || '#6366f1' }"></span>
+                  {{ c.tier.name || c.tier.badge }}
+                </span>
+                <span
+                  v-else
+                  class="inline-flex items-center gap-1.5 text-xs px-2 py-0.5 rounded-full bg-slate-800/60 text-slate-400 border border-slate-700/50"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full" :style="{ backgroundColor: c.tier?.color || '#6366f1' }"></span>
+                  {{ c.tier?.name || 'Базовый' }}
+                </span>
               </td>
               <td class="px-4 py-4 w-[160px] min-w-[150px]">
                 <!-- Total balance -->
