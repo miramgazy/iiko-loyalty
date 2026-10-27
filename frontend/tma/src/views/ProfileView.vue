@@ -36,7 +36,7 @@
       <div class="card-luxury text-left flex flex-col shadow-sm gap-4" :style="{ marginBottom: 0, marginTop: '24px' }">
         
         <!-- First Name -->
-        <div class="flex flex-col">
+        <div class="flex flex-col min-w-0 w-full">
           <label class="sheet-label">{{ t('firstName') }}</label>
           <input
             v-model="form.first_name"
@@ -48,7 +48,7 @@
         </div>
 
         <!-- Last Name -->
-        <div class="flex flex-col">
+        <div class="flex flex-col min-w-0 w-full">
           <label class="sheet-label">{{ t('lastName') }}</label>
           <input
             v-model="form.last_name"
@@ -59,18 +59,20 @@
         </div>
 
         <!-- Birthday -->
-        <div class="flex flex-col">
+        <div class="flex flex-col min-w-0 w-full">
           <label class="sheet-label">{{ t('birthday') }}</label>
-          <input
-            v-model="form.birthday"
-            type="date"
-            class="sheet-input"
-            :max="maxDate"
-          />
+          <div class="relative w-full min-w-0">
+            <input
+              v-model="form.birthday"
+              type="date"
+              class="sheet-input"
+              :max="maxDate"
+            />
+          </div>
         </div>
 
         <!-- Phone (Read Only) -->
-        <div class="flex flex-col opacity-60">
+        <div class="flex flex-col min-w-0 w-full opacity-60">
           <label class="sheet-label">{{ t('phoneLabel') }}</label>
           <input
             :value="auth.customer?.phone || ''"

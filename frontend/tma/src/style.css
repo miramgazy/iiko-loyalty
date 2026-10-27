@@ -336,7 +336,7 @@ h3, .section-title {
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.card-luxury:active {
+.card-luxury:not(:has(input, select, textarea)):active {
   transform: scale(0.98);
 }
 
@@ -534,21 +534,78 @@ h3, .section-title {
 }
 
 .sheet-input {
+  display: block;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  height: 48px;
+  min-height: 48px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px 16px;
   font-size: 15px;
+  font-family: inherit;
   color: var(--text);
+  line-height: 22px;
   transition: all 0.2s;
   outline: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
 }
 
 .sheet-input:focus {
   border-color: var(--gold);
   background: var(--bg);
   box-shadow: 0 0 0 1px var(--gold);
+}
+
+/* Date input specific normalization across iOS Safari & Android Chrome */
+.sheet-input[type="date"] {
+  display: flex;
+  align-items: center;
+  position: relative;
+  line-height: normal;
+  padding: 0 16px;
+  color-scheme: light;
+}
+
+/* iOS Safari WebKit date text alignment */
+.sheet-input::-webkit-date-and-time-value {
+  min-height: 1.2em;
+  height: 46px;
+  line-height: 46px;
+  text-align: left;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* WebKit calendar icon indicator (Chrome, Android, Edge) */
+.sheet-input::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 4px;
+  margin: 0;
+  transition: opacity 0.2s;
+}
+
+.sheet-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
+/* Dark theme calendar icon & color scheme */
+.tg-theme-dark .sheet-input[type="date"],
+:root[class*="dark"] .sheet-input[type="date"] {
+  color-scheme: dark;
+}
+
+.tg-theme-dark .sheet-input::-webkit-calendar-picker-indicator,
+:root[class*="dark"] .sheet-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
 }
 
 /* Pulse Animations (Original and New support) */
