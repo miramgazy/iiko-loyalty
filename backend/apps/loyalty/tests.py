@@ -9,6 +9,8 @@ import hmac
 import hashlib
 import json
 import time
+import datetime
+from django.utils import timezone
 
 from django.test import override_settings
 
@@ -710,8 +712,7 @@ class WebOnboardingTests(TestCase):
         self.organization.is_web_onboarding_enabled = True
         self.organization.save()
 
-        # Existing customer
-        Customer.objects.create(
+        customer = Customer.objects.create(
             organization=self.organization,
             phone="+77071112233",
             first_name="Марат",
@@ -720,6 +721,7 @@ class WebOnboardingTests(TestCase):
             iiko_card_number="7788990011"
         )
 
+        # 1. Existing customer on UNTRUSTED device: returns exists=True, is_trusted_device=False, masked_phone
         res = self.client.post(
             f"/api/loyalty/public/onboarding/{self.organization.slug}/check-phone/",
             data={"phone": "+7 (707) 111-22-33"},
@@ -727,10 +729,39 @@ class WebOnboardingTests(TestCase):
         )
         self.assertEqual(res.status_code, 200)
         self.assertTrue(res.data['exists'])
-        self.assertEqual(res.data['customer']['first_name'], "Марат")
-        self.assertEqual(res.data['customer']['balance'], 1500.00)
+        self.assertFalse(res.data['is_trusted_device'])
+        self.assertIn('masked_phone', res.data)
+        self.assertNotIn('customer', res.data)
 
-        # Non-existing phone
+        # 2. Existing customer with TRUSTED device: returns is_trusted_device=True and customer details
+        from apps.loyalty.models import CustomerTrustedDevice
+        trusted_dev = CustomerTrustedDevice.objects.create(
+            customer=customer,
+            token="test_device_token_marat_12345",
+            expires_at=timezone.now() + datetime.timedelta(days=180)
+        )
+        res_trusted = self.client.post(
+            f"/api/loyalty/public/onboarding/{self.organization.slug}/check-phone/",
+            data={"phone": "+7 (707) 111-22-33", "device_token": trusted_dev.token},
+            content_type="application/json"
+        )
+        self.assertEqual(res_trusted.status_code, 200)
+        self.assertTrue(res_trusted.data['exists'])
+        self.assertTrue(res_trusted.data['is_trusted_device'])
+        self.assertEqual(res_trusted.data['customer']['first_name'], "Марат")
+        self.assertEqual(res_trusted.data['customer']['balance'], 1500.00)
+
+        # 3. Session endpoint test
+        res_session = self.client.post(
+            f"/api/loyalty/public/onboarding/{self.organization.slug}/session/",
+            data={"device_token": trusted_dev.token},
+            content_type="application/json"
+        )
+        self.assertEqual(res_session.status_code, 200)
+        self.assertTrue(res_session.data['authenticated'])
+        self.assertEqual(res_session.data['customer']['first_name'], "Марат")
+
+        # 4. Non-existing phone
         res_new = self.client.post(
             f"/api/loyalty/public/onboarding/{self.organization.slug}/check-phone/",
             data={"phone": "87079998877"},

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Customer, IikoWebhookLog, LoyaltyProgram, Visit, CustomerWallet, OnboardingVerificationCode
+from .models import Customer, IikoWebhookLog, LoyaltyProgram, Visit, CustomerWallet, OnboardingVerificationCode, CustomerTrustedDevice
 
 class CustomerWalletInline(admin.TabularInline):
     model = CustomerWallet
@@ -82,3 +82,12 @@ class OnboardingVerificationCodeAdmin(admin.ModelAdmin):
     search_fields = ('phone', 'code')
     raw_id_fields = ('organization',)
     readonly_fields = ('created_at',)
+
+@admin.register(CustomerTrustedDevice)
+class CustomerTrustedDeviceAdmin(admin.ModelAdmin):
+    list_display = ('customer', 'token', 'device_info', 'created_at', 'last_used_at', 'expires_at')
+    list_filter = ('expires_at', 'created_at')
+    search_fields = ('customer__phone', 'customer__first_name', 'customer__last_name', 'token', 'device_info')
+    readonly_fields = ('token', 'created_at', 'last_used_at')
+    raw_id_fields = ('customer',)
+

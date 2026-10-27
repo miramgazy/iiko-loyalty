@@ -903,10 +903,96 @@ class WebOnboardingInfoView(APIView):
         })
 
 
+import secrets
+from apps.loyalty.models import CustomerTrustedDevice
+
+def create_trusted_device(customer, request=None, days=180):
+    token = secrets.token_urlsafe(32)
+    device_info = ''
+    ip_address = None
+    if request:
+        device_info = str(request.META.get('HTTP_USER_AGENT', ''))[:250]
+        ip_addr = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', ''))
+        if ip_addr:
+            ip_address = ip_addr.split(',')[0].strip()[:45]
+
+    expires_at = timezone.now() + datetime.timedelta(days=days)
+    trusted = CustomerTrustedDevice.objects.create(
+        customer=customer,
+        token=token,
+        device_info=device_info,
+        ip_address=ip_address or None,
+        expires_at=expires_at
+    )
+    return trusted
+
+def get_customer_from_device_token(org, token):
+    if not token or not isinstance(token, str):
+        return None
+    device = CustomerTrustedDevice.objects.filter(
+        token=token,
+        customer__organization=org,
+        expires_at__gt=timezone.now()
+    ).select_related('customer').first()
+
+    if device:
+        device.last_used_at = timezone.now()
+        device.save(update_fields=['last_used_at'])
+        return device.customer
+    return None
+
+def mask_phone_number(phone):
+    digits = re.sub(r'\D', '', str(phone or ''))
+    if len(digits) == 11 and digits.startswith('7'):
+        return f"+7 ({digits[1:4]}) •••-••-{digits[9:11]}"
+    if len(digits) >= 10:
+        return f"+{digits[:-4]}••-••-{digits[-2:]}"
+    return phone
+
+def serialize_onboarding_customer(customer, org):
+    return {
+        "id": customer.id,
+        "first_name": customer.first_name,
+        "last_name": customer.last_name,
+        "phone": customer.phone,
+        "balance": float(customer.loyalty_balance),
+        "card_number": customer.iiko_card_number,
+        "wallet_type": customer.wallet_type,
+        "tier": resolve_customer_tier(customer, org),
+    }
+
+
+class WebOnboardingSessionView(APIView):
+    """
+    Public view to validate a stored device_token and return customer session
+    without requiring re-entering phone number (Zero-Click Login for 180 days).
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, slug, *args, **kwargs):
+        org = Organization.objects.filter(slug=slug, is_active=True).first()
+        if not org or not org.is_web_onboarding_enabled:
+            return Response({"error": "Страница онбординга недоступна"}, status=status.HTTP_404_NOT_FOUND)
+
+        token = request.data.get('device_token')
+        customer = get_customer_from_device_token(org, token)
+        if not customer:
+            return Response({"authenticated": False})
+
+        return Response({
+            "authenticated": True,
+            "customer": serialize_onboarding_customer(customer, org)
+        })
+
+
 class WebOnboardingCheckPhoneView(APIView):
     """
     Public view to check if a phone number is already registered in the loyalty database.
-    If customer exists, returns their data directly so OTP can be skipped.
+    - If customer exists and device_token is valid for this customer (Trusted Device):
+      returns customer data skipping OTP.
+    - If customer exists but device is new/untrusted: returns exists=True, is_trusted_device=False.
+      Confidential card/balance/QR data is withheld until OTP verification.
+    - If customer does not exist: returns exists=False.
     """
     permission_classes = [permissions.AllowAny]
 
@@ -922,26 +1008,41 @@ class WebOnboardingCheckPhoneView(APIView):
         if not digits or len(digits) < 11:
             return Response({"error": "Введите корректный номер телефона"}, status=status.HTTP_400_BAD_REQUEST)
 
+        device_token = request.data.get('device_token')
         customer = Customer.objects.filter(organization=org, phone=clean_phone).first()
+
         if customer:
-            return Response({
-                "exists": True,
-                "customer": {
-                    "id": customer.id,
-                    "first_name": customer.first_name,
-                    "last_name": customer.last_name,
-                    "phone": customer.phone,
-                    "balance": float(customer.loyalty_balance),
-                    "card_number": customer.iiko_card_number,
-                    "wallet_type": customer.wallet_type,
-                    "tier": resolve_customer_tier(customer, org),
-                },
-                "message": "Клиент уже зарегистрирован"
-            })
+            is_trusted = False
+            if device_token:
+                device = CustomerTrustedDevice.objects.filter(
+                    token=device_token,
+                    customer=customer,
+                    expires_at__gt=timezone.now()
+                ).first()
+                if device:
+                    is_trusted = True
+                    device.last_used_at = timezone.now()
+                    device.save(update_fields=['last_used_at'])
+
+            if is_trusted:
+                return Response({
+                    "exists": True,
+                    "is_trusted_device": True,
+                    "customer": serialize_onboarding_customer(customer, org),
+                    "message": "Устройство подтверждено"
+                })
+            else:
+                return Response({
+                    "exists": True,
+                    "is_trusted_device": False,
+                    "masked_phone": mask_phone_number(customer.phone),
+                    "message": "Для входа с нового устройства требуется подтверждение через WhatsApp"
+                })
 
         return Response({
             "exists": False
         })
+
 
 
 class WebOnboardingSendOtpView(APIView):
@@ -1058,21 +1159,12 @@ class WebOnboardingVerifyView(APIView):
         verification.is_used = True
         verification.save(update_fields=['is_used'])
 
-        # Validate name
+        # Validate name if provided
         first_name = str(request.data.get('first_name', '')).strip()
         last_name = str(request.data.get('last_name', '')).strip()
         birthday = request.data.get('birthday') or None
 
         from apps.loyalty.utils import is_valid_name, generate_unique_card_number
-        if not is_valid_name(first_name, required=True):
-            return Response({
-                "error": "Имя не должно содержать цифр, точек, эмодзи или спецсимволов и должно состоять минимум из 2 букв."
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        if last_name and not is_valid_name(last_name, required=False):
-            return Response({
-                "error": "Фамилия не должна содержать цифр, точек, эмодзи или спецсимволов."
-            }, status=status.HTTP_400_BAD_REQUEST)
 
         if birthday:
             try:
@@ -1081,28 +1173,39 @@ class WebOnboardingVerifyView(APIView):
             except ValueError:
                 birthday = None
 
-        customer, created = Customer.objects.get_or_create(
-            organization=org,
-            phone=clean_phone,
-            defaults={
-                'first_name': first_name,
-                'last_name': last_name,
-                'birthday': birthday,
-                'language': request.data.get('language') or 'kz',
-                'onboarding_source': 'web',
-                'iiko_card_number': generate_unique_card_number(org),
-            }
-        )
+        customer = Customer.objects.filter(organization=org, phone=clean_phone).first()
+        if not customer:
+            # New customer: first_name is required
+            if not is_valid_name(first_name, required=True):
+                return Response({
+                    "error": "Имя не должно содержать цифр, точек, эмодзи или спецсимволов и должно состоять минимум из 2 букв."
+                }, status=status.HTTP_400_BAD_REQUEST)
 
-        if not created:
+            if last_name and not is_valid_name(last_name, required=False):
+                return Response({
+                    "error": "Фамилия не должна содержать цифр, точек, эмодзи или спецсимволов."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            customer = Customer.objects.create(
+                organization=org,
+                phone=clean_phone,
+                first_name=first_name,
+                last_name=last_name,
+                birthday=birthday,
+                language=request.data.get('language') or 'kz',
+                onboarding_source='web',
+                iiko_card_number=generate_unique_card_number(org),
+            )
+        else:
+            # Existing customer confirming from a new device:
             updated_fields = []
-            if not customer.first_name and first_name:
+            if first_name and not customer.first_name and is_valid_name(first_name, required=False):
                 customer.first_name = first_name
                 updated_fields.append('first_name')
-            if not customer.last_name and last_name:
+            if last_name and not customer.last_name and is_valid_name(last_name, required=False):
                 customer.last_name = last_name
                 updated_fields.append('last_name')
-            if not customer.birthday and birthday:
+            if birthday and not customer.birthday:
                 customer.birthday = birthday
                 updated_fields.append('birthday')
             if not customer.iiko_card_number:
@@ -1110,6 +1213,9 @@ class WebOnboardingVerifyView(APIView):
                 updated_fields.append('iiko_card_number')
             if updated_fields:
                 customer.save(update_fields=updated_fields)
+
+        # Issue trusted device token for 180 days
+        trusted_device = create_trusted_device(customer, request=request, days=180)
 
         # Trigger iiko sync
         try:
@@ -1120,22 +1226,15 @@ class WebOnboardingVerifyView(APIView):
 
         return Response({
             "status": "success",
-            "customer": {
-                "id": customer.id,
-                "first_name": customer.first_name,
-                "last_name": customer.last_name,
-                "phone": customer.phone,
-                "balance": float(customer.loyalty_balance),
-                "card_number": customer.iiko_card_number,
-                "wallet_type": customer.wallet_type,
-                "tier": resolve_customer_tier(customer, org),
-            }
+            "device_token": trusted_device.token,
+            "customer": serialize_onboarding_customer(customer, org)
         })
 
 
 class WebOnboardingWalletView(APIView):
     """
     Public view to generate wallet link (Google) or activate wallet (Apple) for an onboarded customer.
+    Secured with device_token for trusted device verification.
     """
     permission_classes = [permissions.AllowAny]
 
@@ -1144,19 +1243,26 @@ class WebOnboardingWalletView(APIView):
         if not org or not org.is_web_onboarding_enabled:
             return Response({"error": "Онбординг отключен"}, status=status.HTTP_404_NOT_FOUND)
 
-        customer_id = request.data.get('customer_id')
-        raw_phone = request.data.get('phone', '')
-        clean_phone = normalize_phone(raw_phone) if raw_phone else ''
         wallet_type = request.data.get('wallet_type')
-
+        device_token = request.data.get('device_token')
         customer = None
-        if customer_id:
-            customer = Customer.objects.filter(id=customer_id, organization=org).first()
-        if not customer and clean_phone:
-            customer = Customer.objects.filter(organization=org, phone=clean_phone).first()
+        if device_token:
+            customer = get_customer_from_device_token(org, device_token)
 
         if not customer:
-            return Response({"error": "Клиент не найден"}, status=status.HTTP_404_NOT_FOUND)
+            customer_id = request.data.get('customer_id')
+            raw_phone = request.data.get('phone', '')
+            clean_phone = normalize_phone(raw_phone) if raw_phone else ''
+            if customer_id:
+                customer = Customer.objects.filter(id=customer_id, organization=org).first()
+            elif clean_phone:
+                customer = Customer.objects.filter(organization=org, phone=clean_phone).first()
+
+        if not customer:
+            return Response({
+                "error": "Сессия устройства не подтверждена. Пожалуйста, подтвердите вход по номеру телефона."
+            }, status=status.HTTP_403_FORBIDDEN)
+
 
         if not customer.iiko_card_number:
             from apps.loyalty.utils import generate_unique_card_number

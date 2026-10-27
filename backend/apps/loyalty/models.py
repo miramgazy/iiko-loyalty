@@ -161,3 +161,35 @@ class OnboardingVerificationCode(models.Model):
 
     def __str__(self):
         return f"{self.organization.name} - {self.phone}: {self.code} ({'Использован' if self.is_used else 'Активен'})"
+
+
+class CustomerTrustedDevice(models.Model):
+    """
+    Trusted device token for web onboarding allowing zero-click access for 180 days.
+    """
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='trusted_devices')
+    token = models.CharField("Токен устройства", max_length=64, unique=True, db_index=True)
+    device_info = models.CharField("Информация об устройстве", max_length=255, blank=True)
+    ip_address = models.GenericIPAddressField("IP адрес", null=True, blank=True)
+    created_at = models.DateTimeField("Создан", auto_now_add=True)
+    last_used_at = models.DateTimeField("Последнее использование", auto_now=True)
+    expires_at = models.DateTimeField("Истекает", db_index=True)
+
+    class Meta:
+        verbose_name = "Доверенное устройство клиента"
+        verbose_name_plural = "Доверенные устройства клиентов"
+        ordering = ['-last_used_at']
+
+    def is_valid(self):
+        from django.utils import timezone
+        return self.expires_at > timezone.now()
+
+    def extend_validity(self, days=180):
+        from django.utils import timezone
+        import datetime
+        self.expires_at = timezone.now() + datetime.timedelta(days=days)
+        self.save(update_fields=['expires_at', 'last_used_at'])
+
+    def __str__(self):
+        return f"{self.customer} - {self.device_info or 'Unknown'} (до {self.expires_at.strftime('%Y-%m-%d')})"
+

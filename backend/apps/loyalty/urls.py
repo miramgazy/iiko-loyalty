@@ -11,12 +11,14 @@ from apps.loyalty.views import (
     LoyaltyProgramViewSet,
     OwnerDashboardView,
     WebOnboardingInfoView,
+    WebOnboardingSessionView,
     WebOnboardingCheckPhoneView,
     WebOnboardingSendOtpView,
     WebOnboardingVerifyView,
     WebOnboardingWalletView,
     OrganizationIikoWalletsView
 )
+
 
 urlpatterns = [
     path('organizations/iiko-wallets/', OrganizationIikoWalletsView.as_view(), name='org_iiko_wallets'),
@@ -50,8 +52,10 @@ urlpatterns = [
 
     # Public Web Onboarding endpoints
     path('public/onboarding/<str:slug>/info/', WebOnboardingInfoView.as_view(), name='web_onboarding_info'),
+    path('public/onboarding/<str:slug>/session/', WebOnboardingSessionView.as_view(), name='web_onboarding_session'),
     path('public/onboarding/<str:slug>/check-phone/', WebOnboardingCheckPhoneView.as_view(), name='web_onboarding_check_phone'),
     path('public/onboarding/<str:slug>/send-otp/', WebOnboardingSendOtpView.as_view(), name='web_onboarding_send_otp'),
     path('public/onboarding/<str:slug>/verify/', WebOnboardingVerifyView.as_view(), name='web_onboarding_verify'),
     path('public/onboarding/<str:slug>/wallet/', WebOnboardingWalletView.as_view(), name='web_onboarding_wallet'),
 ]
+

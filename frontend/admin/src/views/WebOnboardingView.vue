@@ -341,12 +341,33 @@
         >
           <div class="space-y-1">
             <h2 class="text-sm font-bold text-white flex items-center gap-2">
-              <span class="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs">3</span>
-              {{ lang === 'kz' ? 'Растау кодын енгізіңіз' : 'Введите код подтверждения' }}
+              <span class="w-6 h-6 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs">
+                {{ isUntrustedExistingLogin ? '🔒' : '3' }}
+              </span>
+              {{ isUntrustedExistingLogin
+                ? (lang === 'kz' ? 'Жаңа құрылғыдан кіруді растау' : 'Подтверждение входа с нового устройства')
+                : (lang === 'kz' ? 'Растау кодын енгізіңіз' : 'Введите код подтверждения')
+              }}
             </h2>
             <p class="text-xs text-slate-400 leading-relaxed">
               {{ lang === 'kz' ? 'Біз мына нөмірдегі WhatsApp-қа 4-таңбалы код жібердік:' : 'Мы отправили 4-значный проверочный код в WhatsApp на номер:' }}
               <span class="font-mono text-white font-semibold block mt-0.5">{{ formattedPhoneNumber }}</span>
+            </p>
+          </div>
+
+          <!-- Untrusted device explanation callout -->
+          <div
+            v-if="isUntrustedExistingLogin"
+            class="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-2xl flex items-center gap-3"
+          >
+            <div class="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-sm flex-shrink-0">
+              🛡️
+            </div>
+            <p class="text-[11px] text-indigo-200/90 leading-tight">
+              {{ lang === 'kz'
+                ? 'Сіз жүйеде тіркелгенсіз. Қауіпсіздік үшін және картаңызды осы құрылғыға 180 күнге бекіту үшін WhatsApp-тағы кодты енгізіңіз.'
+                : 'Вы уже зарегистрированы. В целях безопасности и для привязки карты к этому устройству на 180 дней введите проверочный код.'
+              }}
             </p>
           </div>
 
@@ -389,10 +410,10 @@
             <div class="flex gap-2 pt-2">
               <button
                 type="button"
-                @click="step = 'details'"
+                @click="handleOtpBack"
                 class="py-3 px-4 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-700 transition-all cursor-pointer"
               >
-                ← {{ lang === 'kz' ? 'Өзгерту' : 'Изменить' }}
+                ← {{ lang === 'kz' ? 'Артқа' : 'Назад' }}
               </button>
 
               <button
@@ -404,7 +425,7 @@
               >
                 <span v-if="verifyingOtp" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
                 <span v-else>
-                  ✓ {{ lang === 'kz' ? 'Тіркелуді аяқтау' : 'Подтвердить и выпустить' }}
+                  ✓ {{ isUntrustedExistingLogin ? (lang === 'kz' ? 'Кіру және бекіту' : 'Подтвердить и войти') : (lang === 'kz' ? 'Тіркелуді аяқтау' : 'Подтвердить и выпустить') }}
                 </span>
               </button>
             </div>
@@ -605,8 +626,30 @@
           <div class="space-y-3 pt-2">
             <!-- 1. iOS: ONLY Apple Wallet -->
             <template v-if="deviceOS === 'ios'">
+              <!-- If already added to Apple Wallet -->
+              <div v-if="customerData?.wallet_type === 'apple'" class="space-y-2">
+                <div class="py-3 px-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 flex items-center justify-center gap-2 text-xs font-semibold">
+                  <span>✓</span>
+                  <span>{{ lang === 'kz' ? 'Карта Apple Wallet-ке қосылған' : 'Карта уже добавлена в Apple Wallet' }}</span>
+                </div>
+                <button
+                  id="btn-readd-apple-wallet"
+                  type="button"
+                  @click="handleAddWallet('apple')"
+                  :disabled="loadingWallet"
+                  class="w-full py-2.5 px-4 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white font-medium text-xs border border-slate-700/60 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <span v-if="loadingWallet" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  <template v-else>
+                    <span>↺</span>
+                    <span>{{ lang === 'kz' ? 'Қайта қосу / жаңарту' : 'Переустановить / обновить карту' }}</span>
+                  </template>
+                </button>
+              </div>
+
+              <!-- If Apple Wallet is enabled but not yet added -->
               <button
-                v-if="info.is_apple_wallet_enabled"
+                v-else-if="info.is_apple_wallet_enabled"
                 id="btn-add-apple-wallet"
                 type="button"
                 @click="handleAddWallet('apple')"
@@ -642,8 +685,30 @@
 
             <!-- 2. Android: ONLY Google Wallet -->
             <template v-else-if="deviceOS === 'android'">
+              <!-- If already added to Google Wallet -->
+              <div v-if="customerData?.wallet_type === 'google'" class="space-y-2">
+                <div class="py-3 px-4 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-300 flex items-center justify-center gap-2 text-xs font-semibold">
+                  <span>✓</span>
+                  <span>{{ lang === 'kz' ? 'Карта Google Wallet-ке қосылған' : 'Карта уже добавлена в Google Кошелек' }}</span>
+                </div>
+                <button
+                  id="btn-readd-google-wallet"
+                  type="button"
+                  @click="handleAddWallet('google')"
+                  :disabled="loadingWallet"
+                  class="w-full py-2.5 px-4 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white font-medium text-xs border border-slate-700/60 flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <span v-if="loadingWallet" class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  <template v-else>
+                    <span>↺</span>
+                    <span>{{ lang === 'kz' ? 'Қайта қосу / ашу' : 'Переустановить / открыть карту' }}</span>
+                  </template>
+                </button>
+              </div>
+
+              <!-- If Google Wallet is enabled but not yet added -->
               <button
-                v-if="info.is_google_wallet_enabled"
+                v-else-if="info.is_google_wallet_enabled"
                 id="btn-add-google-wallet"
                 type="button"
                 @click="handleAddWallet('google')"
@@ -714,6 +779,19 @@
                 <span>{{ lang === 'kz' ? 'Telegram Mini App-та ашу' : 'Открыть в Telegram Mini App' }}</span>
               </a>
             </div>
+
+            <!-- Logout / Switch Account Action -->
+            <div class="pt-2 text-center">
+              <button
+                id="btn-logout-device"
+                type="button"
+                @click="handleLogoutDevice"
+                class="text-[11px] text-slate-500 hover:text-slate-300 transition-colors underline cursor-pointer inline-flex items-center gap-1.5"
+              >
+                <span>⇄</span>
+                <span>{{ lang === 'kz' ? 'Басқа телефон нөмірімен кіру' : 'Войти под другим номером' }}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -773,6 +851,7 @@ const walletMessage = ref('')
 
 // Customer result
 const isExistingCustomer = ref(false)
+const isUntrustedExistingLogin = ref(false)
 const customerData = ref(null)
 
 // 3D Card Flip & QR Code
@@ -951,16 +1030,97 @@ function changePhoneAfterNoWhatsapp() {
   step.value = 'phone'
 }
 
+// Trusted Device Storage & Helpers (180 days)
+const storageKey = computed(() => `loyalty_device_token_${slug.value}`)
+
+function getStoredDeviceToken() {
+  try {
+    return localStorage.getItem(storageKey.value) || ''
+  } catch (e) {
+    return ''
+  }
+}
+
+function setStoredDeviceToken(tok) {
+  try {
+    if (tok) {
+      localStorage.setItem(storageKey.value, tok)
+    } else {
+      localStorage.removeItem(storageKey.value)
+    }
+  } catch (e) {}
+}
+
+function handleLogoutDevice() {
+  setStoredDeviceToken('')
+  customerData.value = null
+  isExistingCustomer.value = false
+  isUntrustedExistingLogin.value = false
+  phoneInput.value = ''
+  otpCode.value = ''
+  errorMessage.value = ''
+  step.value = 'phone'
+}
+
+function handleOtpBack() {
+  errorMessage.value = ''
+  otpCode.value = ''
+  if (isUntrustedExistingLogin.value) {
+    step.value = 'phone'
+  } else {
+    step.value = 'details'
+  }
+}
+
 async function loadInfo() {
   loading.value = true
   errorMessage.value = ''
   try {
     const res = await axios.get(`/api/loyalty/public/onboarding/${slug.value}/info/`)
     info.value = res.data
+
+    // Check trusted device session for instant zero-click return
+    const storedToken = getStoredDeviceToken()
+    if (storedToken && info.value?.is_web_onboarding_enabled) {
+      try {
+        const sessionRes = await axios.post(`/api/loyalty/public/onboarding/${slug.value}/session/`, {
+          device_token: storedToken
+        })
+        if (sessionRes.data?.authenticated && sessionRes.data?.customer) {
+          customerData.value = sessionRes.data.customer
+          isExistingCustomer.value = true
+          step.value = 'success'
+        } else {
+          setStoredDeviceToken('')
+        }
+      } catch (e) {
+        setStoredDeviceToken('')
+      }
+    }
   } catch (e) {
     errorMessage.value = e.response?.data?.error || 'Заведение не найдено'
   } finally {
     loading.value = false
+  }
+}
+
+// Reusable WhatsApp OTP dispatcher
+async function sendOtpForPhone(fullPhone) {
+  sendingOtp.value = true
+  try {
+    await axios.post(`/api/loyalty/public/onboarding/${slug.value}/send-otp/`, {
+      phone: fullPhone
+    })
+    step.value = 'otp'
+    startCountdown(60)
+  } catch (e) {
+    if (e.response?.data?.error_code === 'NO_WHATSAPP') {
+      noWhatsappError.value = true
+    } else {
+      errorMessage.value = e.response?.data?.error || (lang.value === 'kz' ? 'Код жіберу мүмкін болмады' : 'Не удалось отправить код')
+    }
+  } finally {
+    sendingOtp.value = false
   }
 }
 
@@ -978,17 +1138,27 @@ async function handlePhoneSubmit() {
   checkingPhone.value = true
   try {
     const res = await axios.post(`/api/loyalty/public/onboarding/${slug.value}/check-phone/`, {
-      phone: fullPhone
+      phone: fullPhone,
+      device_token: getStoredDeviceToken()
     })
 
     if (res.data.exists) {
-      // Existing customer: SKIP OTP, go straight to success / wallet screen!
-      isExistingCustomer.value = true
-      customerData.value = res.data.customer
-      step.value = 'success'
+      if (res.data.is_trusted_device && res.data.customer) {
+        // Trusted device: Instant login without OTP!
+        isExistingCustomer.value = true
+        isUntrustedExistingLogin.value = false
+        customerData.value = res.data.customer
+        step.value = 'success'
+      } else {
+        // Untrusted device: Customer already exists, protect data and request OTP confirmation
+        isExistingCustomer.value = true
+        isUntrustedExistingLogin.value = true
+        await sendOtpForPhone(fullPhone)
+      }
     } else {
       // New customer: ask for Name & details first
       isExistingCustomer.value = false
+      isUntrustedExistingLogin.value = false
       step.value = 'details'
     }
   } catch (e) {
@@ -1008,22 +1178,7 @@ async function handleDetailsSubmit() {
   }
 
   const fullPhone = `+7${cleanPhoneDigits.value}`
-  sendingOtp.value = true
-  try {
-    await axios.post(`/api/loyalty/public/onboarding/${slug.value}/send-otp/`, {
-      phone: fullPhone
-    })
-    step.value = 'otp'
-    startCountdown(60)
-  } catch (e) {
-    if (e.response?.data?.error_code === 'NO_WHATSAPP') {
-      noWhatsappError.value = true
-    } else {
-      errorMessage.value = e.response?.data?.error || (lang.value === 'kz' ? 'Код жіберу мүмкін болмады' : 'Не удалось отправить код')
-    }
-  } finally {
-    sendingOtp.value = false
-  }
+  await sendOtpForPhone(fullPhone)
 }
 
 // Resend OTP
@@ -1032,21 +1187,7 @@ async function resendOtp() {
   errorMessage.value = ''
   noWhatsappError.value = false
   const fullPhone = `+7${cleanPhoneDigits.value}`
-  sendingOtp.value = true
-  try {
-    await axios.post(`/api/loyalty/public/onboarding/${slug.value}/send-otp/`, {
-      phone: fullPhone
-    })
-    startCountdown(60)
-  } catch (e) {
-    if (e.response?.data?.error_code === 'NO_WHATSAPP') {
-      noWhatsappError.value = true
-    } else {
-      errorMessage.value = e.response?.data?.error || (lang.value === 'kz' ? 'Код жіберу мүмкін болмады' : 'Не удалось отправить код')
-    }
-  } finally {
-    sendingOtp.value = false
-  }
+  await sendOtpForPhone(fullPhone)
 }
 
 function startCountdown(sec) {
@@ -1061,7 +1202,7 @@ function startCountdown(sec) {
   }, 1000)
 }
 
-// 3. Verify OTP & Create Customer
+// 3. Verify OTP & Issue 180-Day Trusted Device Token
 async function handleVerifyOtp() {
   errorMessage.value = ''
   const fullPhone = `+7${cleanPhoneDigits.value}`
@@ -1076,8 +1217,12 @@ async function handleVerifyOtp() {
       language: lang.value
     })
 
+    if (res.data.device_token) {
+      setStoredDeviceToken(res.data.device_token)
+    }
+
     customerData.value = res.data.customer
-    isExistingCustomer.value = false
+    isUntrustedExistingLogin.value = false
     step.value = 'success'
   } catch (e) {
     errorMessage.value = e.response?.data?.error || (lang.value === 'kz' ? 'Қате растау коды' : 'Неверный код подтверждения')
@@ -1096,7 +1241,8 @@ async function handleAddWallet(walletType) {
     const res = await axios.post(`/api/loyalty/public/onboarding/${slug.value}/wallet/`, {
       customer_id: customerData.value.id,
       phone: fullPhone,
-      wallet_type: walletType
+      wallet_type: walletType,
+      device_token: getStoredDeviceToken()
     })
 
     if (customerData.value) {
