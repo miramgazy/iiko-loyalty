@@ -440,124 +440,122 @@
               :class="{ 'is-flipped': isCardFlipped }"
               @click="toggleCardFlip"
             >
-              <!-- FRONT FACE: Digital Loyalty Card -->
+              <!-- FRONT FACE: Digital Loyalty Card (Matching TMA layout) -->
               <div
-                class="card-face card-front relative rounded-3xl p-5 text-white overflow-hidden flex flex-col justify-between min-h-[300px] border border-white/20 select-none shadow-2xl"
+                class="card-face card-front relative rounded-3xl p-5 text-white overflow-hidden flex flex-col justify-between h-[240px] border border-white/20 select-none shadow-2xl transition-all duration-300"
                 :style="cardBackgroundStyle"
               >
-                <!-- Background specular glare effects -->
-                <div class="absolute -top-20 -left-20 w-52 h-52 rounded-full bg-white/15 blur-2xl pointer-events-none"></div>
-                <div class="absolute -bottom-20 -right-20 w-52 h-52 rounded-full bg-black/35 blur-2xl pointer-events-none"></div>
-                <div class="absolute inset-0 opacity-[0.03] pointer-events-none bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
+                <!-- Shiny element for premium card feeling -->
+                <div class="absolute top-0 -left-[60%] w-[50%] h-full bg-gradient-to-r from-transparent via-white/15 to-transparent skew-x-[-20deg] animate-card-shine pointer-events-none"></div>
 
-                <!-- Top Row: Logo, Org Name, Loyalty Badge & Interactive QR Pill -->
-                <div class="relative z-10 flex items-center justify-between">
-                  <div class="flex items-center gap-2.5 min-w-0 pr-2">
-                    <div class="w-8 h-8 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center font-black text-xs text-white shadow-sm flex-shrink-0 overflow-hidden">
-                      <img
-                        v-if="info?.branding?.logo_url"
-                        :src="info.branding.logo_url"
-                        alt="Logo"
-                        class="w-full h-full object-cover"
-                      />
-                      <span v-else>{{ (info?.organization_name || 'R').charAt(0) }}</span>
-                    </div>
-                    <span class="text-xs font-bold tracking-wider uppercase truncate opacity-95">
-                      {{ info?.organization_name }}
-                    </span>
-                  </div>
-
-                  <div class="flex items-center gap-2 flex-shrink-0">
-                    <span class="text-[10px] uppercase font-mono px-2 py-0.5 bg-black/35 backdrop-blur-sm rounded-full border border-white/15 text-white/90 font-bold">
-                      {{ customerData?.tier?.badge || customerData?.tier?.name || 'Loyalty Pass' }}
-                    </span>
-                    <button
-                      type="button"
-                      @click.stop="toggleCardFlip"
-                      class="px-2.5 py-1 rounded-full bg-white/25 hover:bg-white/35 active:scale-95 text-white text-[11px] font-semibold flex items-center gap-1 backdrop-blur-md border border-white/30 shadow-sm transition-all cursor-pointer"
-                      title="QR-код"
-                    >
-                      <span class="text-xs">↺</span>
-                      <span>QR</span>
-                    </button>
-                  </div>
-                </div>
-
-                <!-- Middle Row: EMV Chip & Contactless Wave Icon -->
-                <div class="relative z-10 flex items-center justify-between my-2">
-                  <div class="w-11 h-8 rounded-lg bg-gradient-to-br from-amber-300 via-amber-200 to-amber-500 border border-amber-600/40 p-1 flex flex-col justify-between shadow-inner relative overflow-hidden">
-                    <div class="absolute inset-0 opacity-40 bg-[linear-gradient(45deg,transparent_40%,rgba(255,255,255,0.8)_50%,transparent_60%)]"></div>
-                    <div class="w-full h-[1px] bg-amber-700/40"></div>
-                    <div class="flex justify-between items-center px-1">
-                      <div class="w-2.5 h-3 border border-amber-700/50 rounded-sm"></div>
-                      <div class="w-2.5 h-3 border border-amber-700/50 rounded-sm"></div>
-                    </div>
-                    <div class="w-full h-[1px] bg-amber-700/40"></div>
-                  </div>
-
-                  <div class="text-white/70 flex items-center pr-1">
-                    <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-                      <path d="M8.5 16.5a5 5 0 0 1 0-9" />
-                      <path d="M12 19a8.5 8.5 0 0 0 0-14" />
-                      <path d="M15.5 21.5a12 12 0 0 0 0-19" />
-                    </svg>
-                  </div>
-                </div>
-
-                <!-- Bottom Area: Name, Balance, Card Number & Flip Hint -->
-                <div class="relative z-10 space-y-2">
-                  <div class="flex justify-between items-end">
-                    <div>
-                      <p class="text-[10px] uppercase text-white/75 font-medium tracking-wider">
+                <!-- Top row: Owner Name, Tier Badge & Branding Icon -->
+                <div class="flex justify-between items-start z-10">
+                  <div class="flex flex-col text-left">
+                    <div class="flex items-center gap-1.5 mb-1">
+                      <span class="text-[9px] opacity-75 uppercase tracking-wider font-extrabold">
                         {{ lang === 'kz' ? 'Карта иесі' : 'Владелец' }}
-                      </p>
-                      <p class="text-sm font-bold tracking-wide">
-                        {{ customerData?.first_name }} {{ customerData?.last_name || '' }}
-                      </p>
+                      </span>
+                      <span v-if="resolvedTierBadge" class="text-[9px] uppercase font-mono px-2 py-0.5 bg-black/35 backdrop-blur-sm rounded-full border border-white/20 text-white font-bold">
+                        {{ resolvedTierBadge }}
+                      </span>
                     </div>
-                    <div class="text-right">
-                      <p class="text-[10px] uppercase text-white/75 font-medium tracking-wider">
-                        {{ customerData?.tier?.cashback_percent ? `Кэшбэк ${customerData.tier.cashback_percent}%` : (lang === 'kz' ? 'Баланс' : 'Баланс') }}
-                      </p>
-                      <p class="text-lg font-black font-mono leading-tight">
-                        {{ customerData?.balance || 0 }} <span class="text-xs font-normal opacity-80">{{ lang === 'kz' ? 'бонус' : 'баллов' }}</span>
-                      </p>
+                    <span class="text-[17px] font-extrabold tracking-tight leading-none truncate max-w-[200px] mb-1">
+                      {{ customerName }}
+                    </span>
+                    <span class="text-[11px] opacity-80 font-semibold tracking-wider font-mono">
+                      {{ customerData?.phone || '' }}
+                    </span>
+                  </div>
+                  
+                  <!-- Small branding logo/icon -->
+                  <div class="w-12 h-12 rounded-xl overflow-hidden bg-white/10 border border-white/10 flex items-center justify-center p-0.5 flex-shrink-0">
+                    <img
+                      v-if="info?.branding?.logo_url"
+                      :src="info.branding.logo_url"
+                      alt="Logo"
+                      class="w-full h-full object-contain"
+                    />
+                    <span v-else class="text-sm font-black">{{ (info?.organization_name || 'L').charAt(0) }}</span>
+                  </div>
+                </div>
+
+                <!-- Middle row: Balance & QR Flip button -->
+                <div class="flex justify-between items-center z-10 my-auto">
+                  <div class="flex flex-col">
+                    <span class="text-[9px] opacity-75 uppercase tracking-wider font-bold mb-0.5">
+                      {{ customerData?.tier?.cashback_percent ? `Кэшбэк ${customerData.tier.cashback_percent}%` : (lang === 'kz' ? 'Карта балансы' : 'Баланс карты') }}
+                    </span>
+                    <div class="flex items-baseline gap-1">
+                      <span class="text-2xl font-black tracking-tight leading-none">
+                        {{ customerData?.balance || 0 }}
+                      </span>
+                      <span class="text-[10px] font-bold uppercase tracking-wider opacity-75">{{ lang === 'kz' ? 'бонус' : 'баллов' }}</span>
                     </div>
                   </div>
 
-                  <div class="pt-2 border-t border-white/20 flex items-center justify-between text-[11px] font-mono text-white/85">
-                    <span>№ {{ customerData?.card_number || '•••• ••••' }}</span>
-                    <span>●●●● {{ customerData?.phone ? customerData.phone.slice(-4) : '' }}</span>
+                  <!-- QR Flip Button on right of middle row -->
+                  <button
+                    type="button"
+                    @click.stop="toggleCardFlip"
+                    class="px-2.5 py-1 rounded-full bg-white/15 hover:bg-white/25 active:scale-95 border border-white/15 text-white text-[11px] font-bold flex items-center gap-1.5 backdrop-blur-md shadow-sm transition-all cursor-pointer"
+                    title="QR-код"
+                  >
+                    <span class="text-xs">↺</span>
+                    <span>QR</span>
+                  </button>
+                </div>
+
+                <!-- Bottom row: Card Number (Left) & Flip Action (Right) -->
+                <div class="flex justify-between items-end z-10">
+                  <!-- Card Number & Copy action -->
+                  <div class="flex flex-col text-left">
+                    <span class="text-[9px] opacity-75 uppercase tracking-wider font-bold mb-1">
+                      {{ lang === 'kz' ? 'Карта нөмірі' : 'Номер карты' }}
+                    </span>
+                    <div class="flex items-center gap-2">
+                      <span class="font-mono text-xs font-bold tracking-wider">
+                        № {{ customerData?.card_number || customerData?.phone || '•••• ••••' }}
+                      </span>
+                      <button
+                        type="button"
+                        @click.stop="copyCardNumber"
+                        class="px-2 py-0.5 text-[9px] font-bold rounded bg-white/10 hover:bg-white/20 active:scale-95 border border-white/10 text-white cursor-pointer transition-all duration-200"
+                      >
+                        {{ isCopied ? (lang === 'kz' ? 'Көшірілді' : 'Скопировано') : (lang === 'kz' ? 'Көшіру' : 'Скопировать') }}
+                      </button>
+                    </div>
                   </div>
 
-                  <!-- Flip Hint Badge -->
-                  <div class="pt-1.5 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-white/95">
-                    <span class="inline-block animate-spin-slow">↺</span>
-                    <span>{{ lang === 'kz' ? 'QR-кодты ашу үшін картаны басыңыз' : 'Нажмите на карту, чтобы открыть QR-код' }}</span>
+                  <!-- Flip Hint Button (Right side, hinting to flip to QR) -->
+                  <div
+                    @click.stop="toggleCardFlip"
+                    class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 border border-white/10 text-white text-[10px] font-semibold transition-all cursor-pointer active:scale-95 shadow-sm"
+                  >
+                    <span>↺</span>
+                    <span>{{ lang === 'kz' ? 'QR-кодты ашу' : 'Открыть QR' }}</span>
                   </div>
                 </div>
               </div>
 
               <!-- BACK FACE: High Contrast QR Code for Cashier -->
               <div
-                class="card-face card-back absolute inset-0 rounded-3xl p-5 text-white overflow-hidden flex flex-col justify-between min-h-[300px] border border-white/20 select-none shadow-2xl"
+                class="card-face card-back absolute inset-0 rounded-3xl p-4 text-white overflow-hidden flex flex-col justify-between h-[240px] border border-white/20 select-none shadow-2xl transition-all duration-300"
                 :style="cardBackgroundStyle"
               >
-                <!-- Background specular glare effects -->
-                <div class="absolute -top-20 -right-20 w-52 h-52 rounded-full bg-white/15 blur-2xl pointer-events-none"></div>
-                <div class="absolute -bottom-20 -left-20 w-52 h-52 rounded-full bg-black/35 blur-2xl pointer-events-none"></div>
+                <!-- Shiny element for premium card feeling -->
+                <div class="absolute top-0 -left-[60%] w-[50%] h-full bg-gradient-to-r from-transparent via-white/15 to-transparent skew-x-[-20deg] animate-card-shine pointer-events-none"></div>
 
                 <!-- Top Row: Org branding & Flip back button -->
                 <div class="relative z-10 flex items-center justify-between">
                   <div class="flex items-center gap-2 min-w-0 pr-2">
-                    <div class="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center font-black text-xs text-white overflow-hidden">
+                    <div class="w-6 h-6 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center font-black text-xs text-white overflow-hidden flex-shrink-0">
                       <img
                         v-if="info?.branding?.logo_url"
                         :src="info.branding.logo_url"
                         alt="Logo"
-                        class="w-full h-full object-cover"
+                        class="w-full h-full object-contain"
                       />
-                      <span v-else>{{ (info?.organization_name || 'R').charAt(0) }}</span>
+                      <span v-else>{{ (info?.organization_name || 'L').charAt(0) }}</span>
                     </div>
                     <span class="text-xs font-bold tracking-wider uppercase truncate opacity-95">
                       {{ info?.organization_name }}
@@ -567,36 +565,36 @@
                   <button
                     type="button"
                     @click.stop="toggleCardFlip"
-                    class="px-2.5 py-1 rounded-full bg-white/25 hover:bg-white/35 active:scale-95 text-white text-[11px] font-semibold flex items-center gap-1 backdrop-blur-md border border-white/30 shadow-sm transition-all cursor-pointer"
+                    class="px-2.5 py-0.5 rounded-full bg-white/25 hover:bg-white/35 active:scale-95 text-white text-[10px] font-semibold flex items-center gap-1 backdrop-blur-md border border-white/30 shadow-sm transition-all cursor-pointer"
                   >
                     <span>↺</span>
-                    <span>{{ lang === 'kz' ? 'Алдыңғы жағы' : 'Лицевая' }}</span>
+                    <span>{{ lang === 'kz' ? 'Лицевая' : 'Лицевая' }}</span>
                   </button>
                 </div>
 
                 <!-- Center Area: Crisp White QR Box -->
-                <div class="relative z-10 my-auto py-1">
-                  <div class="bg-white rounded-2xl p-3 shadow-2xl flex flex-col items-center justify-center mx-auto max-w-[210px] w-full border border-black/10">
-                    <div v-if="cardQrCodeDataUrl" class="w-32 h-32 flex items-center justify-center">
+                <div class="relative z-10 my-auto py-0.5">
+                  <div class="bg-white rounded-xl p-2 shadow-xl flex flex-col items-center justify-center mx-auto max-w-[175px] w-full border border-black/10">
+                    <div v-if="cardQrCodeDataUrl" class="w-24 h-24 flex items-center justify-center">
                       <img :src="cardQrCodeDataUrl" alt="Card QR Code" class="w-full h-full object-contain" />
                     </div>
-                    <div v-else class="w-32 h-32 flex items-center justify-center">
-                      <div class="w-8 h-8 border-3 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>
+                    <div v-else class="w-24 h-24 flex items-center justify-center">
+                      <div class="w-6 h-6 border-2 border-slate-300 border-t-slate-800 rounded-full animate-spin"></div>
                     </div>
-                    <span class="text-xs font-mono font-bold text-slate-900 tracking-wider mt-1">
+                    <span class="text-[11px] font-mono font-bold text-slate-900 tracking-wider mt-0.5">
                       № {{ customerData?.card_number || customerData?.phone }}
                     </span>
                   </div>
                 </div>
 
                 <!-- Bottom Area: Cashier Scan Guidance & Flip Hint -->
-                <div class="relative z-10 space-y-1.5 text-center">
-                  <p class="text-[11px] text-white/90 leading-tight max-w-xs mx-auto font-medium">
-                    {{ lang === 'kz' ? 'Бонустарды жинау немесе есептен шығару үшін QR-кодты кассирге көрсетіңіз' : 'Покажите QR-код кассиру для начисления или списания бонусов' }}
+                <div class="relative z-10 space-y-0.5 text-center">
+                  <p class="text-[10px] text-white/90 leading-tight max-w-xs mx-auto font-medium">
+                    {{ lang === 'kz' ? 'Бонустар үшін QR-кодты кассирге көрсетіңіз' : 'Покажите QR-код кассиру для начисления или списания бонусов' }}
                   </p>
-                  <div class="pt-1.5 border-t border-white/20 flex items-center justify-center gap-1.5 text-[10px] font-semibold text-white/80">
+                  <div class="pt-0.5 border-t border-white/15 flex items-center justify-center gap-1 text-[9px] font-semibold text-white/80">
                     <span>↺</span>
-                    <span>{{ lang === 'kz' ? 'Алдыңғы бетке оралу үшін картаны басыңыз' : 'Нажмите, чтобы вернуться на лицевую сторону' }}</span>
+                    <span>{{ lang === 'kz' ? 'Алдыңғы бетке оралу үшін басыңыз' : 'Нажмите, чтобы вернуться на лицевую сторону' }}</span>
                   </div>
                 </div>
               </div>
@@ -785,6 +783,32 @@ function toggleCardFlip() {
   isCardFlipped.value = !isCardFlipped.value
 }
 
+const customerName = computed(() => {
+  if (!customerData.value) return lang.value === 'kz' ? 'Қонақ' : 'Гость'
+  return [customerData.value.first_name, customerData.value.last_name].filter(Boolean).join(' ') || (lang.value === 'kz' ? 'Қонақ' : 'Гость')
+})
+
+const resolvedTierBadge = computed(() => {
+  return customerData.value?.tier?.badge || customerData.value?.tier?.name || null
+})
+
+const isCopied = ref(false)
+
+function copyCardNumber() {
+  if (isCopied.value) return
+  const numToCopy = customerData.value?.card_number || customerData.value?.phone || ''
+  if (!numToCopy) return
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(numToCopy).then(() => {
+      isCopied.value = true
+      setTimeout(() => {
+        isCopied.value = false
+      }, 1500)
+    }).catch(() => {})
+  }
+}
+
 async function generateCardQr() {
   const codeValue = customerData.value?.card_number || customerData.value?.phone || ''
   if (!codeValue) return
@@ -837,18 +861,25 @@ const cardBackgroundStyle = computed(() => {
   if (customerData.value?.tier?.gradient) {
     return {
       background: customerData.value.tier.gradient,
-      boxShadow: `0 20px 45px -12px rgba(0, 0, 0, 0.6), 0 0 35px -10px ${customerData.value.tier.color || '#000'}, inset 0 1px 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 2px 0 rgba(0, 0, 0, 0.35)`
+      color: '#ffffff',
+      borderColor: 'rgba(255,255,255,0.2)',
+      boxShadow: `0 20px 45px -12px rgba(0, 0, 0, 0.6), 0 0 35px -10px ${customerData.value.tier.color || '#000'}`
+    }
+  }
+  if (customerData.value?.tier?.color) {
+    return {
+      background: `linear-gradient(135deg, ${customerData.value.tier.color} 0%, #09090b 100%)`,
+      color: '#ffffff',
+      borderColor: 'rgba(255,255,255,0.2)',
+      boxShadow: `0 20px 45px -12px rgba(0, 0, 0, 0.6), 0 0 35px -10px ${customerData.value.tier.color}`
     }
   }
   const color = accentColor.value || '#6366f1'
   return {
-    backgroundColor: color,
-    backgroundImage: `
-      radial-gradient(circle at 12% 15%, rgba(255, 255, 255, 0.28) 0%, transparent 45%),
-      radial-gradient(circle at 88% 85%, rgba(0, 0, 0, 0.42) 0%, transparent 55%),
-      linear-gradient(135deg, rgba(255, 255, 255, 0.14) 0%, rgba(0, 0, 0, 0.3) 100%)
-    `,
-    boxShadow: `0 20px 45px -12px rgba(0, 0, 0, 0.6), 0 0 35px -10px ${color}, inset 0 1px 1px 0 rgba(255, 255, 255, 0.45), inset 0 -1px 2px 0 rgba(0, 0, 0, 0.35)`
+    background: `linear-gradient(135deg, ${color} 0%, #09090b 100%)`,
+    color: '#ffffff',
+    borderColor: 'rgba(255,255,255,0.2)',
+    boxShadow: `0 20px 45px -12px rgba(0, 0, 0, 0.6), 0 0 35px -10px ${color}`
   }
 })
 
@@ -1119,6 +1150,7 @@ onUnmounted(() => {
 .card-flipper {
   position: relative;
   width: 100%;
+  height: 240px;
   transform-style: preserve-3d;
   -webkit-transform-style: preserve-3d;
   transition: transform 0.65s cubic-bezier(0.4, 0.2, 0.2, 1);
@@ -1136,6 +1168,7 @@ onUnmounted(() => {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   width: 100%;
+  height: 240px;
 }
 
 .card-front {
@@ -1151,6 +1184,14 @@ onUnmounted(() => {
   transform: rotateY(180deg);
   -webkit-transform: rotateY(180deg);
   z-index: 1;
+}
+
+@keyframes cardShine {
+  0%, 100% { left: -60%; }
+  50% { left: 120%; }
+}
+.animate-card-shine {
+  animation: cardShine 4s ease-in-out infinite;
 }
 
 @keyframes spinSlow {
