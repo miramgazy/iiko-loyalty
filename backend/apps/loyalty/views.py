@@ -814,12 +814,32 @@ class OwnerDashboardView(APIView):
         # New registrations today
         new_registrations_today = Customer.objects.filter(organization=org, created_at__date=today).count()
         
+        # Web onboarding users
+        web_onboarding_users = Customer.objects.filter(
+            organization=org,
+            onboarding_source='web'
+        ).count()
+
+        # Google Wallet users
+        google_wallet_users = Customer.objects.filter(
+            organization=org
+        ).filter(Q(wallet_type='google') | Q(google_wallet_object_id__isnull=False)).count()
+
+        # Apple Wallet users
+        apple_wallet_users = Customer.objects.filter(
+            organization=org,
+            wallet_type='apple'
+        ).count()
+
         return Response({
             "used_today": used_today,
             "accumulated_points": accumulated_points,
             "total_users": total_users,
             "telegram_users": telegram_users,
-            "new_registrations_today": new_registrations_today
+            "new_registrations_today": new_registrations_today,
+            "web_onboarding_users": web_onboarding_users,
+            "google_wallet_users": google_wallet_users,
+            "apple_wallet_users": apple_wallet_users,
         })
 
 

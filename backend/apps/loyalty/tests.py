@@ -457,6 +457,9 @@ class OwnerDashboardTests(TestCase):
         self.assertIn('used_today', res.data)
         self.assertIn('accumulated_points', res.data)
         self.assertEqual(res.data['total_users'], 1)
+        self.assertIn('web_onboarding_users', res.data)
+        self.assertIn('google_wallet_users', res.data)
+        self.assertIn('apple_wallet_users', res.data)
 
     def test_owner_dashboard_user_org_manager(self):
         from apps.accounts.models import User, UserOrganization
