@@ -450,9 +450,9 @@ class AppleWalletService:
         lang = getattr(customer, 'language', 'ru') or 'ru'
         templates = aw_settings.get('push_templates', {})
         tpl = templates.get(lang) or templates.get('ru', {})
-        change_msg = tpl.get('change_message') or "Баланс бонусов обновлен: %@ баллов"
+        change_msg = tpl.get('change_message') or "Баланс бонусов обновлен: %@ ₸"
         if '%@' not in change_msg:
-            change_msg = f"{change_msg}: %@ баллов"
+            change_msg = f"{change_msg}: %@ ₸"
 
         program_title = aw_settings.get('class_name') or org.name
 
@@ -473,8 +473,8 @@ class AppleWalletService:
                 "headerFields": [
                     {
                         "key": "balance",
-                        "label": "БОНУСЫ",
-                        "value": balance_str,
+                        "label": "БАЛАНС",
+                        "value": f"{balance_str} ₸",
                         "changeMessage": change_msg
                     }
                 ],

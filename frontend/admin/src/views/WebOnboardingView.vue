@@ -507,7 +507,7 @@
                       <span class="text-2xl font-black tracking-tight leading-none">
                         {{ customerData?.balance || 0 }}
                       </span>
-                      <span class="text-[10px] font-bold uppercase tracking-wider opacity-75">{{ lang === 'kz' ? 'бонус' : 'баллов' }}</span>
+                      <span class="text-lg font-bold opacity-85">₸</span>
                     </div>
                   </div>
 

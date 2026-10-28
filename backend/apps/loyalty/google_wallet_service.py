@@ -254,7 +254,7 @@ class GoogleWalletService:
         if current_balance is None:
             balance_num = customer.loyalty_balance
             balance_str = str(int(balance_num)) if balance_num == int(balance_num) else str(balance_num)
-            current_balance = f"{balance_str} баллов"
+            current_balance = f"{balance_str} ₸"
 
         patch_payload = {
             "loyaltyPoints": {

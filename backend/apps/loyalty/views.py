@@ -640,7 +640,7 @@ class CustomerGoogleWalletLinkView(APIView):
         try:
             service = GoogleWalletService()
             balance_str = str(int(customer.loyalty_balance)) if customer.loyalty_balance == int(customer.loyalty_balance) else str(customer.loyalty_balance)
-            url = service.generate_google_wallet_link(customer, f"{balance_str} баллов")
+            url = service.generate_google_wallet_link(customer, f"{balance_str} ₸")
             if customer.wallet_type != 'google':
                 customer.wallet_type = 'google'
                 customer.save(update_fields=['wallet_type'])
@@ -1318,7 +1318,7 @@ class WebOnboardingWalletView(APIView):
                 from apps.loyalty.google_wallet_service import GoogleWalletService
                 service = GoogleWalletService()
                 balance_str = str(int(customer.loyalty_balance)) if customer.loyalty_balance == int(customer.loyalty_balance) else str(customer.loyalty_balance)
-                url = service.generate_google_wallet_link(customer, f"{balance_str} баллов")
+                url = service.generate_google_wallet_link(customer, f"{balance_str} ₸")
             except Exception as e:
                 logger.warning(f"Could not generate Google Wallet JWT link: {e}")
 
