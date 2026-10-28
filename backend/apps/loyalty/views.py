@@ -151,6 +151,81 @@ class CustomerMeView(APIView):
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+def merge_customers(primary: Customer, secondary: Customer) -> Customer:
+    """
+    Safely merges `secondary` customer into `primary` customer.
+    Preserves cards, wallets, device registrations, and profile info without data loss.
+    """
+    if not primary or not secondary or primary.id == secondary.id:
+        return primary
+
+    # Priority: if secondary has Apple Wallet registrations/pass and primary does not, swap so the pass owner is primary
+    sec_has_apple = secondary.apple_wallet_registrations.exists() or secondary.wallet_type == 'apple'
+    pri_has_apple = primary.apple_wallet_registrations.exists() or primary.wallet_type == 'apple'
+    if sec_has_apple and not pri_has_apple:
+        primary, secondary = secondary, primary
+
+    # Also if secondary has platform card number and primary doesn't, swap
+    if secondary.iiko_card_number and not primary.iiko_card_number:
+        primary, secondary = secondary, primary
+
+    # Scalar fields
+    if not primary.telegram_id and secondary.telegram_id:
+        primary.telegram_id = secondary.telegram_id
+    if secondary.is_bot_subscribed:
+        primary.is_bot_subscribed = True
+    if not primary.phone and secondary.phone:
+        primary.phone = secondary.phone
+    if not primary.wallet_type and secondary.wallet_type:
+        primary.wallet_type = secondary.wallet_type
+    if not primary.google_wallet_object_id and secondary.google_wallet_object_id:
+        primary.google_wallet_object_id = secondary.google_wallet_object_id
+    if not primary.wallet_barcode and secondary.wallet_barcode:
+        primary.wallet_barcode = secondary.wallet_barcode
+    if not primary.iiko_customer_id and secondary.iiko_customer_id:
+        primary.iiko_customer_id = secondary.iiko_customer_id
+    if not primary.iiko_card_number and secondary.iiko_card_number:
+        primary.iiko_card_number = secondary.iiko_card_number
+    if not primary.iiko_card_id and secondary.iiko_card_id:
+        primary.iiko_card_id = secondary.iiko_card_id
+    if not primary.iiko_categories and secondary.iiko_categories:
+        primary.iiko_categories = secondary.iiko_categories
+    if not primary.first_name and secondary.first_name:
+        primary.first_name = secondary.first_name
+    if not primary.last_name and secondary.last_name:
+        primary.last_name = secondary.last_name
+    if not primary.email and secondary.email:
+        primary.email = secondary.email
+    if not primary.birthday and secondary.birthday:
+        primary.birthday = secondary.birthday
+    if not primary.onboarding_source and secondary.onboarding_source:
+        primary.onboarding_source = secondary.onboarding_source
+    if not primary.loyalty_balance and secondary.loyalty_balance:
+        primary.loyalty_balance = secondary.loyalty_balance
+
+    # Re-point related objects
+    secondary.apple_wallet_registrations.all().update(customer=primary)
+    if hasattr(secondary, 'google_wallet_passes'):
+        secondary.google_wallet_passes.all().update(customer=primary)
+    if hasattr(secondary, 'wallets'):
+        secondary.wallets.all().update(customer=primary)
+    if hasattr(secondary, 'visits'):
+        secondary.visits.all().update(customer=primary)
+    if hasattr(secondary, 'trusted_devices'):
+        secondary.trusted_devices.all().update(customer=primary)
+
+    if primary.apple_wallet_registrations.exists():
+        primary.wallet_type = 'apple'
+
+    try:
+        secondary.delete()
+    except Exception as e:
+        logger.warning(f"Failed to delete merged secondary customer {secondary.id}: {e}")
+
+    primary.save()
+    return primary
+
+
 class CustomerPhoneUpdateView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -166,6 +241,8 @@ class CustomerPhoneUpdateView(APIView):
         
         customer = request.user
         org = customer.organization
+        customer.phone = normalized_phone
+        customer.save(update_fields=['phone'])
         
         existing_iiko_customer = Customer.objects.filter(
             organization=org,
@@ -173,32 +250,7 @@ class CustomerPhoneUpdateView(APIView):
         ).exclude(id=customer.id).first()
 
         if existing_iiko_customer:
-            if not customer.iiko_customer_id and existing_iiko_customer.iiko_customer_id:
-                customer.iiko_customer_id = existing_iiko_customer.iiko_customer_id
-            if not customer.iiko_card_number and existing_iiko_customer.iiko_card_number:
-                customer.iiko_card_number = existing_iiko_customer.iiko_card_number
-            if not customer.iiko_card_id and existing_iiko_customer.iiko_card_id:
-                customer.iiko_card_id = existing_iiko_customer.iiko_card_id
-            if existing_iiko_customer.iiko_categories:
-                customer.iiko_categories = existing_iiko_customer.iiko_categories
-            if existing_iiko_customer.loyalty_balance:
-                customer.loyalty_balance = existing_iiko_customer.loyalty_balance
-            if existing_iiko_customer.wallet_barcode and not customer.wallet_barcode:
-                customer.wallet_barcode = existing_iiko_customer.wallet_barcode
-
-            if not customer.first_name and existing_iiko_customer.first_name:
-                customer.first_name = existing_iiko_customer.first_name
-            if not customer.last_name and existing_iiko_customer.last_name:
-                customer.last_name = existing_iiko_customer.last_name
-            if not customer.email and existing_iiko_customer.email:
-                customer.email = existing_iiko_customer.email
-            if not customer.birthday and existing_iiko_customer.birthday:
-                customer.birthday = existing_iiko_customer.birthday
-
-            existing_iiko_customer.delete()
-        
-        customer.phone = normalized_phone
-        customer.save()
+            customer = merge_customers(primary=existing_iiko_customer, secondary=customer)
         
         from apps.loyalty.tasks import sync_customer_to_iiko
         sync_customer_to_iiko.delay(customer.id, push=True)
@@ -339,33 +391,10 @@ class TmaWebhookView(APIView):
         ).exclude(id=customer.id).first()
 
         if existing_iiko_customer:
-            if not customer.iiko_customer_id and existing_iiko_customer.iiko_customer_id:
-                customer.iiko_customer_id = existing_iiko_customer.iiko_customer_id
-            if not customer.iiko_card_number and existing_iiko_customer.iiko_card_number:
-                customer.iiko_card_number = existing_iiko_customer.iiko_card_number
-            if not customer.iiko_card_id and existing_iiko_customer.iiko_card_id:
-                customer.iiko_card_id = existing_iiko_customer.iiko_card_id
-            if existing_iiko_customer.iiko_categories:
-                customer.iiko_categories = existing_iiko_customer.iiko_categories
-            if existing_iiko_customer.loyalty_balance:
-                customer.loyalty_balance = existing_iiko_customer.loyalty_balance
-            if existing_iiko_customer.wallet_barcode and not customer.wallet_barcode:
-                customer.wallet_barcode = existing_iiko_customer.wallet_barcode
-
-            # Copy profile details from existing iiko customer if they exist
-            if not customer.first_name and existing_iiko_customer.first_name:
-                customer.first_name = existing_iiko_customer.first_name
-            if not customer.last_name and existing_iiko_customer.last_name:
-                customer.last_name = existing_iiko_customer.last_name
-            if not customer.email and existing_iiko_customer.email:
-                customer.email = existing_iiko_customer.email
-            if not customer.birthday and existing_iiko_customer.birthday:
-                customer.birthday = existing_iiko_customer.birthday
-
-            existing_iiko_customer.delete()
-
-        customer.phone = normalized_phone
-        customer.save()
+            customer = merge_customers(primary=existing_iiko_customer, secondary=customer)
+        else:
+            customer.phone = normalized_phone
+            customer.save(update_fields=['phone'])
 
         from apps.loyalty.tasks import sync_customer_to_iiko
         sync_customer_to_iiko.delay(customer.id, push=False)
@@ -454,8 +483,16 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
             )
         wallet_type = self.request.query_params.get('wallet_type', '').strip()
         if wallet_type:
-            if wallet_type == 'none':
-                queryset = queryset.filter(Q(wallet_type__isnull=True) | Q(wallet_type=''))
+            if wallet_type == 'apple':
+                queryset = queryset.filter(Q(wallet_type='apple') | Q(apple_wallet_registrations__isnull=False)).distinct()
+            elif wallet_type == 'google':
+                queryset = queryset.filter(Q(wallet_type='google') | Q(google_wallet_object_id__isnull=False)).distinct()
+            elif wallet_type == 'none':
+                queryset = queryset.filter(
+                    (Q(wallet_type__isnull=True) | Q(wallet_type='')) &
+                    Q(apple_wallet_registrations__isnull=True) &
+                    (Q(google_wallet_object_id__isnull=True) | Q(google_wallet_object_id=''))
+                ).distinct()
             else:
                 queryset = queryset.filter(wallet_type=wallet_type)
         return queryset
@@ -464,15 +501,17 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
     def stats(self, request, organization_id=None):
         """Return aggregated statistics for all customers of the organization."""
         qs = Customer.objects.filter(organization_id=organization_id)
+        has_apple = Q(wallet_type='apple') | Q(apple_wallet_registrations__isnull=False)
+        has_google = (Q(wallet_type='google') | Q(google_wallet_object_id__isnull=False)) & ~has_apple
         metrics = qs.aggregate(
             total_count=Count('id'),
             with_telegram=Count('id', filter=Q(telegram_id__isnull=False)),
             with_phone=Count('id', filter=Q(phone__isnull=False) & ~Q(phone='')),
             synced_iiko=Count('id', filter=Q(iiko_customer_id__isnull=False)),
             bot_subscribed=Count('id', filter=Q(is_bot_subscribed=True)),
-            google_wallet=Count('id', filter=Q(wallet_type='google')),
-            apple_wallet=Count('id', filter=Q(wallet_type='apple')),
-            no_wallet=Count('id', filter=Q(wallet_type__isnull=True) | Q(wallet_type='')),
+            google_wallet=Count('id', filter=has_google, distinct=True),
+            apple_wallet=Count('id', filter=has_apple, distinct=True),
+            no_wallet=Count('id', filter=~has_apple & ~has_google, distinct=True),
         )
         return Response(metrics)
 
@@ -1405,10 +1444,15 @@ class AppleWalletDeviceRegistrationView(APIView):
         from apps.loyalty.apple_wallet_service import AppleWalletService
 
         org_slug, customer_id = _parse_serial_number(serial_number)
-        if not customer_id:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+        customer = Customer.objects.filter(id=customer_id).select_related('organization').first() if customer_id else None
+        if not customer:
+            reg = AppleWalletDeviceRegistration.objects.filter(
+                pass_type_identifier=pass_type_id,
+                serial_number=serial_number
+            ).select_related('customer', 'customer__organization').first()
+            if reg:
+                customer = reg.customer
 
-        customer = Customer.objects.filter(id=customer_id).select_related('organization').first()
         if not customer or not customer.organization.is_apple_wallet_enabled:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
@@ -1516,10 +1560,16 @@ class AppleWalletPassDetailView(APIView):
         import email.utils
 
         org_slug, customer_id = _parse_serial_number(serial_number)
-        if not customer_id:
-            return Response(status=status.HTTP_404_NOT_FOUND)
+        customer = Customer.objects.filter(id=customer_id).select_related('organization').first() if customer_id else None
+        if not customer:
+            from apps.loyalty.models import AppleWalletDeviceRegistration
+            reg = AppleWalletDeviceRegistration.objects.filter(
+                pass_type_identifier=pass_type_id,
+                serial_number=serial_number
+            ).select_related('customer', 'customer__organization').first()
+            if reg:
+                customer = reg.customer
 
-        customer = Customer.objects.filter(id=customer_id).select_related('organization').first()
         if not customer or not customer.organization.is_active or not customer.organization.is_apple_wallet_enabled:
             return Response(status=status.HTTP_404_NOT_FOUND)
 

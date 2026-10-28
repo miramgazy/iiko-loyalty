@@ -435,13 +435,16 @@ class AppleWalletService:
             except Exception:
                 broadcast_msg = None
 
-        if broadcast_msg:
-            back_fields.insert(0, {
-                "key": "broadcast_notice",
-                "label": "НОВОСТИ И АКЦИИ",
-                "value": broadcast_msg,
-                "changeMessage": "%@"
-            })
+        # Marketing / broadcast announcement field
+        # Note: In Apple PassKit, changeMessage alerts are ONLY displayed if the field already existed
+        # on the pass before the update. Hence broadcast_notice is always included.
+        notice_value = broadcast_msg or "Актуальные акции и новости заведения"
+        back_fields.insert(0, {
+            "key": "broadcast_notice",
+            "label": "НОВОСТИ И АКЦИИ",
+            "value": notice_value,
+            "changeMessage": "%@"
+        })
 
         # Change message template for APNs pass updates
         lang = getattr(customer, 'language', 'ru') or 'ru'

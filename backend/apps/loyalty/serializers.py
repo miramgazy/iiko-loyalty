@@ -17,6 +17,19 @@ class CustomerSerializer(serializers.ModelSerializer):
         from apps.loyalty.utils import resolve_customer_tier
         return resolve_customer_tier(obj)
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Fallback for wallet_type if not set on the model
+        if not data.get('wallet_type'):
+            try:
+                if instance.apple_wallet_registrations.exists():
+                    data['wallet_type'] = 'apple'
+                elif instance.google_wallet_object_id:
+                    data['wallet_type'] = 'google'
+            except Exception:
+                pass
+        return data
+
     class Meta:
         model = Customer
         fields = [
