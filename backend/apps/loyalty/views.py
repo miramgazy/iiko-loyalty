@@ -1408,7 +1408,7 @@ class AppleWalletDeviceRegistrationView(APIView):
         if not customer_id:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        customer = Customer.objects.filter(id=customer_id, organization__slug=org_slug).select_related('organization').first()
+        customer = Customer.objects.filter(id=customer_id).select_related('organization').first()
         if not customer or not customer.organization.is_apple_wallet_enabled:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
@@ -1487,7 +1487,8 @@ class AppleWalletDevicePassesView(APIView):
                 dt = parse_datetime(passes_updated_since)
                 if not dt:
                     dt = datetime.datetime.fromtimestamp(float(passes_updated_since), tz=datetime.timezone.utc)
-                qs = qs.filter(customer__updated_at__gt=dt)
+                from django.db.models import Q
+                qs = qs.filter(Q(customer__updated_at__gt=dt) | Q(updated_at__gt=dt))
             except Exception:
                 pass
 
@@ -1518,7 +1519,7 @@ class AppleWalletPassDetailView(APIView):
         if not customer_id:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        customer = Customer.objects.filter(id=customer_id, organization__slug=org_slug).select_related('organization').first()
+        customer = Customer.objects.filter(id=customer_id).select_related('organization').first()
         if not customer or not customer.organization.is_active or not customer.organization.is_apple_wallet_enabled:
             return Response(status=status.HTTP_404_NOT_FOUND)
 

@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, re_path
 from apps.loyalty.views import (
     TmaAuthView, 
     CustomerMeView, 
@@ -26,11 +26,11 @@ from apps.loyalty.views import (
 
 
 urlpatterns = [
-    # Apple PassKit Web Service Protocol (v1)
-    path('apple-wallet/v1/devices/<str:device_id>/registrations/<str:pass_type_id>/<str:serial_number>', AppleWalletDeviceRegistrationView.as_view(), name='apple_device_registration'),
-    path('apple-wallet/v1/devices/<str:device_id>/passes/<str:pass_type_id>', AppleWalletDevicePassesView.as_view(), name='apple_device_passes'),
-    path('apple-wallet/v1/passes/<str:pass_type_id>/<str:serial_number>', AppleWalletPassDetailView.as_view(), name='apple_pass_detail'),
-    path('apple-wallet/v1/log', AppleWalletLogView.as_view(), name='apple_pass_log'),
+    # Apple PassKit Web Service Protocol (v1) - supports with and without trailing slash
+    re_path(r'^apple-wallet/v1/devices/(?P<device_id>[^/]+)/registrations/(?P<pass_type_id>[^/]+)/(?P<serial_number>[^/]+)/?$', AppleWalletDeviceRegistrationView.as_view(), name='apple_device_registration'),
+    re_path(r'^apple-wallet/v1/devices/(?P<device_id>[^/]+)/passes/(?P<pass_type_id>[^/]+)/?$', AppleWalletDevicePassesView.as_view(), name='apple_device_passes'),
+    re_path(r'^apple-wallet/v1/passes/(?P<pass_type_id>[^/]+)/(?P<serial_number>[^/]+)/?$', AppleWalletPassDetailView.as_view(), name='apple_pass_detail'),
+    re_path(r'^apple-wallet/v1/log/?$', AppleWalletLogView.as_view(), name='apple_pass_log'),
 
     path('organizations/iiko-wallets/', OrganizationIikoWalletsView.as_view(), name='org_iiko_wallets'),
     path('tma/auth/', TmaAuthView.as_view(), name='tma_auth'),

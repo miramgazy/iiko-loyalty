@@ -154,6 +154,7 @@ def sync_customer_to_iiko(self, customer_id, push=False):
                     update_fields.append('iiko_card_number')
 
             if update_fields:
+                update_fields.append('updated_at')
                 customer.save(update_fields=list(set(update_fields)))
                 if ('loyalty_balance' in update_fields or 'iiko_card_number' in update_fields):
                     if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
@@ -287,7 +288,7 @@ def sync_all_customers_points():
                     points = service.get_customer_balance(customer.iiko_customer_id)
                     if customer.loyalty_balance != points:
                         customer.loyalty_balance = points
-                        customer.save(update_fields=['loyalty_balance'])
+                        customer.save(update_fields=['loyalty_balance', 'updated_at'])
                         if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
                             update_google_wallet_pass_task.delay(customer.id)
                         if customer.organization.is_apple_wallet_enabled:
@@ -455,7 +456,7 @@ def process_iiko_webhook(log_id):
                 total_active_balance = sum(float(w.balance) for w in customer.wallets.filter(wallet_type=1))
                 if customer.loyalty_balance != total_active_balance:
                     customer.loyalty_balance = total_active_balance
-                    customer.save(update_fields=['loyalty_balance'])
+                    customer.save(update_fields=['loyalty_balance', 'updated_at'])
                     if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled and customer.wallet_type != 'apple':
                         update_google_wallet_pass_task.delay(customer.id)
                         if change_amount != 0:
@@ -465,7 +466,7 @@ def process_iiko_webhook(log_id):
             else:
                 if customer.loyalty_balance != balance:
                     customer.loyalty_balance = balance
-                    customer.save(update_fields=['loyalty_balance'])
+                    customer.save(update_fields=['loyalty_balance', 'updated_at'])
                     if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled and customer.wallet_type != 'apple':
                         update_google_wallet_pass_task.delay(customer.id)
                         if change_amount != 0:

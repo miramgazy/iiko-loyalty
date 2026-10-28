@@ -151,51 +151,100 @@ class AppleWalletService:
         from apps.loyalty.models import AppleWalletDeviceRegistration
         registrations = list(AppleWalletDeviceRegistration.objects.filter(customer=customer))
         if not registrations:
+            logger.info(f"Apple Wallet: no registered devices found for customer id={customer.id}. Push skipped.")
             return 0
 
-        if not self.is_signing_configured:
+        if not self.is_signing_configured or not self.cert_pem:
             logger.info(f"Apple Wallet certs not configured. Mocking APNs push to {len(registrations)} device(s).")
             return len(registrations)
+
+        # Bump timestamps so PassKit protocol detects changes
+        from django.utils import timezone
+        now = timezone.now()
+        AppleWalletDeviceRegistration.objects.filter(customer=customer).update(updated_at=now)
+        Customer.objects.filter(id=customer.id).update(updated_at=now)
 
         success_count = 0
         use_sandbox = getattr(settings, 'APPLE_APNS_SANDBOX', False)
         apns_host = "api.sandbox.push.apple.com" if use_sandbox else "api.push.apple.com"
 
         import tempfile
+        import subprocess
+
         try:
-            with tempfile.NamedTemporaryFile('wb') as cert_file:
+            with tempfile.NamedTemporaryFile('wb', suffix='.pem') as cert_file, \
+                 tempfile.NamedTemporaryFile('wb', suffix='.pem') as key_file:
+
                 cert_file.write(self.cert_pem)
                 cert_file.flush()
 
                 key_data = self.key_pem or self.cert_pem
-                with tempfile.NamedTemporaryFile('wb') as key_file:
-                    key_file.write(key_data)
-                    key_file.flush()
+                key_file.write(key_data)
+                key_file.flush()
 
+                httpx_client = None
+                try:
                     import httpx
-                    with httpx.Client(
+                    httpx_client = httpx.Client(
                         cert=(cert_file.name, key_file.name),
                         http2=True,
                         timeout=5.0
-                    ) as client:
-                        for reg in registrations:
-                            url = f"https://{apns_host}/3/device/{reg.push_token}"
-                            headers = {
-                                "apns-topic": reg.pass_type_identifier,
-                                "apns-push-type": "background",
-                                "apns-priority": "5"
-                            }
-                            try:
-                                resp = client.post(url, headers=headers, json={})
-                                if resp.status_code == 200:
-                                    success_count += 1
-                                elif resp.status_code in (410, 404):
-                                    logger.info(f"Device {reg.device_library_identifier} unregistered. Removing registration.")
-                                    reg.delete()
-                                else:
-                                    logger.warning(f"APNs response {resp.status_code} for device {reg.device_library_identifier}: {resp.text}")
-                            except Exception as e:
-                                logger.warning(f"Failed to post to APNs for device {reg.device_library_identifier}: {e}")
+                    )
+                except Exception as ex_client:
+                    logger.debug(f"httpx HTTP/2 client unavailable ({ex_client}), falling back to curl --http2")
+
+                for reg in registrations:
+                    url = f"https://{apns_host}/3/device/{reg.push_token}"
+                    topic = reg.pass_type_identifier
+
+                    if httpx_client:
+                        headers = {
+                            "apns-topic": topic,
+                            "apns-push-type": "background",
+                            "apns-priority": "5"
+                        }
+                        try:
+                            resp = httpx_client.post(url, headers=headers, json={})
+                            if resp.status_code == 200:
+                                success_count += 1
+                                logger.info(f"APNs push delivered to device {reg.device_library_identifier[:8]}...")
+                            elif resp.status_code in (410, 404):
+                                logger.info(f"Device {reg.device_library_identifier} unregistered by APNs. Removing.")
+                                reg.delete()
+                            else:
+                                logger.warning(f"APNs response {resp.status_code} for device {reg.device_library_identifier}: {resp.text}")
+                        except Exception as e:
+                            logger.warning(f"Failed to post to APNs via httpx for device {reg.device_library_identifier}: {e}")
+                    else:
+                        # Fallback to system curl with native HTTP/2
+                        try:
+                            cmd = [
+                                "curl", "-s", "-i", "--http2",
+                                "-d", "{}",
+                                "-H", f"apns-topic: {topic}",
+                                "-H", "apns-push-type: background",
+                                "-H", "apns-priority: 5",
+                                "--cert", cert_file.name,
+                                "--key", key_file.name,
+                                "--max-time", "5",
+                                url
+                            ]
+                            proc = subprocess.run(cmd, capture_output=True, text=True)
+                            status_line = proc.stdout.splitlines()[0] if proc.stdout else ""
+                            if "200" in status_line:
+                                success_count += 1
+                                logger.info(f"APNs push delivered via curl to device {reg.device_library_identifier[:8]}...")
+                            elif "410" in status_line or "404" in status_line:
+                                logger.info(f"Device {reg.device_library_identifier} unregistered by APNs. Removing.")
+                                reg.delete()
+                            else:
+                                logger.warning(f"curl APNs output for device {reg.device_library_identifier}: {status_line}")
+                        except Exception as e:
+                            logger.warning(f"Failed to post to APNs via curl for device {reg.device_library_identifier}: {e}")
+
+                if httpx_client:
+                    httpx_client.close()
+
         except Exception as ex:
             logger.warning(f"Error setting up APNs push client: {ex}")
 
