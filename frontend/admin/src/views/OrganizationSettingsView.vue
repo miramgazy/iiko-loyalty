@@ -1054,15 +1054,14 @@
                       </div>
                     </div>
 
-                    <!-- Middle row: Guest Name (Left) & Balance (Right, under banner, larger font) -->
-                    <div class="relative z-10 flex items-end justify-between my-3">
-                      <!-- Left: карта иесі: / Имя гостя -->
-                      <div class="text-left">
-                        <p class="text-[9px] text-white/70 font-medium tracking-wide lowercase">карта иесі:</p>
-                        <p class="text-sm font-bold leading-tight drop-shadow-sm">Азамат Сериков</p>
-                      </div>
+                    <!-- On-banner Primary Field: Guest Name (as originally right on the banner) -->
+                    <div class="relative z-10 my-auto py-2 text-left">
+                      <p class="text-[9px] uppercase text-white/75 font-semibold tracking-wider">Гость</p>
+                      <p class="text-base sm:text-lg font-bold leading-tight drop-shadow-sm">Азамат Сериков</p>
+                    </div>
 
-                      <!-- Right: Баланс: / 1 500 ₸ (выровненный вправо, крупная цифра) -->
+                    <!-- Under-banner Row: Balance on the right (where phone stood previously, larger font) -->
+                    <div class="relative z-10 flex justify-end items-end mb-1">
                       <div class="text-right flex flex-col items-end">
                         <p class="text-[9px] text-white/70 font-medium tracking-wide">Баланс:</p>
                         <p class="text-2xl sm:text-[26px] font-black font-mono leading-none flex items-baseline gap-1 drop-shadow-sm text-white">
