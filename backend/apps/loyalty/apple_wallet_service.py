@@ -285,9 +285,28 @@ class AppleWalletService:
         card_number = str(customer.iiko_card_number)
         serial_number = f"{org.slug}_{customer.id}"
 
-        # Resolve tier & cashback %
+        # Resolve loyalty program name from iiko card / customer wallets / iiko categories / tier
+        loyalty_program_name = None
+        try:
+            primary_wallet = customer.wallets.order_by('-balance').first()
+            if primary_wallet and primary_wallet.name and primary_wallet.name.strip():
+                loyalty_program_name = primary_wallet.name.strip()
+        except Exception:
+            pass
+
+        if not loyalty_program_name and customer.iiko_categories and isinstance(customer.iiko_categories, list):
+            for cat in customer.iiko_categories:
+                if isinstance(cat, dict) and cat.get('name') and str(cat.get('name')).strip():
+                    loyalty_program_name = str(cat.get('name')).strip()
+                    break
+                elif isinstance(cat, str) and cat.strip():
+                    loyalty_program_name = cat.strip()
+                    break
+
         tier_info = resolve_customer_tier(customer, org)
-        tier_name = tier_info.get('name') if tier_info else "Базовый"
+        if not loyalty_program_name:
+            loyalty_program_name = (tier_info.get('name') if tier_info else None) or "Базовый"
+
         cashback_percent = tier_info.get('cashback_percent') if tier_info else None
 
         # Colors from tier or organization settings or brand color
@@ -338,22 +357,23 @@ class AppleWalletService:
             }
         ]
 
-        # Header field (Top right): Деңгей: / Название программы (категория) right-aligned
+        # Header field (Top right): ДЕҢГЕЙ: / Название программы лояльности из iiko card right-aligned
         header_fields = [
             {
                 "key": "tier",
-                "label": "Деңгей:",
-                "value": tier_name,
+                "label": "ДЕҢГЕЙ:",
+                "value": loyalty_program_name,
                 "textAlignment": "PKTextAlignmentRight"
             }
         ]
 
-        # Primary fields: Guest name right on the banner (as originally)
+        # Primary fields: Company name (in place of client name)
+        company_name = getattr(org, 'name', '') or aw_settings.get('class_name', '')
         primary_fields = [
             {
-                "key": "guest",
-                "label": "КАРТА ИЕСІ",
-                "value": guest_name
+                "key": "company",
+                "label": "",
+                "value": company_name
             }
         ]
 
@@ -365,12 +385,19 @@ class AppleWalletService:
         if '%@' not in change_msg:
             change_msg = f"{change_msg}: %@ ₸"
 
-        # Secondary fields (Under banner):
-        # Balance on the right (where phone stood previously, prominent font) with changeMessage
+        # Secondary fields (On banner):
+        # Left: КАРТА ИЕСІ (label on top) and Guest name (value below)
+        # Right: БАЛАНС: (label on top) and Balance (value below, right-aligned)
         secondary_fields = [
             {
+                "key": "guest",
+                "label": "КАРТА ИЕСІ",
+                "value": guest_name,
+                "textAlignment": "PKTextAlignmentLeft"
+            },
+            {
                 "key": "balance",
-                "label": "Баланс:",
+                "label": "БАЛАНС:",
                 "value": f"{balance_str} ₸",
                 "textAlignment": "PKTextAlignmentRight",
                 "changeMessage": change_msg
@@ -480,7 +507,7 @@ class AppleWalletService:
             "teamIdentifier": team_id,
             "organizationName": org.name,
             "description": f"Карта лояльности {org.name}",
-            "logoText": program_title,
+            "logoText": "",
             "backgroundColor": background_color,
             "foregroundColor": foreground_color,
             "labelColor": label_color,

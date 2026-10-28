@@ -1022,49 +1022,52 @@
                     <div class="absolute -top-16 -left-16 w-40 h-40 rounded-full bg-white/15 blur-2xl pointer-events-none"></div>
                     <div class="absolute -bottom-16 -right-16 w-40 h-40 rounded-full bg-black/35 blur-2xl pointer-events-none"></div>
 
-                    <!-- Top row: Logo & Company Name (Left, stacked), Деңгей: & Category (Right, right-aligned) -->
+                    <!-- Top row: Logo only on Left, ДЕҢГЕЙ: & Program Name on Right -->
                     <div class="relative z-10 flex items-start justify-between">
-                      <!-- Left: Logo on top, Company Name below logo -->
-                      <div class="flex flex-col items-start gap-1 max-w-[55%]">
-                        <div class="h-8 max-w-[120px] rounded-lg overflow-hidden flex items-center justify-start">
-                          <img
-                            v-if="appleWalletForm.logo_url || form.branding?.logo_url"
-                            :src="appleWalletForm.logo_url || form.branding?.logo_url"
-                            alt="Logo"
-                            class="max-h-8 max-w-[120px] object-contain drop-shadow"
-                          />
-                          <div
-                            v-else
-                            class="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center font-black text-xs text-white shadow"
-                          >
-                            {{ (form.name || 'R').charAt(0) }}
-                          </div>
+                      <!-- Left: Logo only without establishment name -->
+                      <div class="h-8 max-w-[120px] rounded-lg overflow-hidden flex items-center justify-start">
+                        <img
+                          v-if="appleWalletForm.logo_url || form.branding?.logo_url"
+                          :src="appleWalletForm.logo_url || form.branding?.logo_url"
+                          alt="Logo"
+                          class="max-h-8 max-w-[120px] object-contain drop-shadow"
+                        />
+                        <div
+                          v-else
+                          class="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center font-black text-xs text-white shadow"
+                        >
+                          {{ (form.name || 'R').charAt(0) }}
                         </div>
-                        <span class="text-[11px] font-bold tracking-wider uppercase truncate opacity-95 text-left leading-tight drop-shadow-sm">
-                          {{ appleWalletForm.class_name || form.name || 'Название заведения' }}
-                        </span>
                       </div>
 
-                      <!-- Right: Деңгей: on top, Tier/Category name below (Right-aligned) -->
-                      <div class="text-right flex flex-col items-end max-w-[42%]">
-                        <span class="text-[9px] font-medium text-white/75 uppercase tracking-wider">Деңгей:</span>
+                      <!-- Right: ДЕҢГЕЙ: on top, Program name from iiko card below (Right-aligned) -->
+                      <div class="text-right flex flex-col items-end max-w-[55%]">
+                        <span class="text-[9px] font-medium text-white/75 uppercase tracking-wider">ДЕҢГЕЙ:</span>
                         <span class="text-xs font-black text-white tracking-wide uppercase truncate drop-shadow-sm">
-                          {{ activePreviewTier?.name || form.client_classification_settings?.tiers?.[0]?.name || 'Базовый' }}
+                          {{ activePreviewTier?.name || form.client_classification_settings?.tiers?.[0]?.name || 'Программа лояльности' }}
                         </span>
                       </div>
                     </div>
 
-                    <!-- On-banner Primary Field: Guest Name (as originally right on the banner) -->
-                    <div class="relative z-10 my-auto py-2 text-left">
-                      <p class="text-[9px] uppercase text-white/75 font-semibold tracking-wider">КАРТА ИЕСІ</p>
-                      <p class="text-base sm:text-lg font-bold leading-tight drop-shadow-sm">Азамат Сериков</p>
+                    <!-- Primary row: Company name in place of client name -->
+                    <div class="relative z-10 text-left my-1">
+                      <p class="text-lg sm:text-xl font-black tracking-tight text-white drop-shadow-md truncate">
+                        {{ appleWalletForm.class_name || form.name || 'Название компании' }}
+                      </p>
                     </div>
 
-                    <!-- Under-banner Row: Balance on the right (where phone stood previously, larger font) -->
-                    <div class="relative z-10 flex justify-end items-end mb-1">
+                    <!-- Secondary row on banner: Cardholder (Left) & Balance (Right) -->
+                    <div class="relative z-10 flex items-end justify-between my-2">
+                      <!-- Left: КАРТА ИЕСІ on top, Guest name below -->
+                      <div class="text-left">
+                        <p class="text-[9px] uppercase text-white/75 font-semibold tracking-wider">КАРТА ИЕСІ</p>
+                        <p class="text-sm sm:text-base font-bold leading-tight drop-shadow-sm text-white">Азамат Сериков</p>
+                      </div>
+
+                      <!-- Right: БАЛАНС: on top, Balance amount below (Right-aligned, prominent) -->
                       <div class="text-right flex flex-col items-end">
-                        <p class="text-[9px] text-white/70 font-medium tracking-wide">Баланс:</p>
-                        <p class="text-2xl sm:text-[26px] font-black font-mono leading-none flex items-baseline gap-1 drop-shadow-sm text-white">
+                        <p class="text-[9px] uppercase text-white/75 font-semibold tracking-wider">БАЛАНС:</p>
+                        <p class="text-xl sm:text-2xl font-black font-mono leading-none flex items-baseline gap-1 drop-shadow-sm text-white">
                           <span>1 500</span>
                           <span class="text-sm font-bold opacity-85">₸</span>
                         </p>
