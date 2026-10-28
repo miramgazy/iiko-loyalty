@@ -437,11 +437,8 @@
           v-else-if="step === 'success'"
           class="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 backdrop-blur-xl shadow-2xl space-y-6 animate-fade-in"
         >
-          <!-- Celebratory Header -->
-          <div class="text-center space-y-2">
-            <div class="w-16 h-16 mx-auto rounded-3xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-3xl shadow-lg border border-emerald-500/30">
-              🎉
-            </div>
+          <!-- Header -->
+          <div class="text-center space-y-2 pt-1">
             <h2 class="text-xl font-bold text-white tracking-tight">
               {{ isExistingCustomer ? (lang === 'kz' ? 'Қайта оралуыңызбен!' : 'С возвращением!') : (lang === 'kz' ? 'Құттықтаймыз!' : 'Поздравляем!') }}
             </h2>
@@ -758,9 +755,15 @@
             </template>
 
             <!-- Notice when wallet added or link opened -->
-            <p v-if="walletMessage" class="text-xs text-center text-emerald-400 font-medium">
-              ✓ {{ walletMessage }}
-            </p>
+            <div v-if="walletMessage" class="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-center space-y-1 animate-fade-in shadow-lg">
+              <div class="flex items-center justify-center gap-2 font-bold text-xs">
+                <span class="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-[10px]">✓</span>
+                <span>{{ walletMessage }}</span>
+              </div>
+              <p class="text-[11px] text-emerald-400/80">
+                {{ lang === 'kz' ? 'Карта смартфон кошелегінде сақталды' : 'Карта сохранена в приложении вашего смартфона' }}
+              </p>
+            </div>
 
             <!-- Telegram Mini App link (Always visible after registration) -->
             <div class="pt-3 border-t border-slate-800 text-center space-y-2">
@@ -796,6 +799,60 @@
         </div>
       </div>
     </main>
+
+    <!-- Modal: Wallet Card Added Success -->
+    <div
+      v-if="showWalletModal"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in"
+      @click.self="showWalletModal = false"
+    >
+      <div
+        class="w-full max-w-sm bg-slate-900 border border-slate-700/80 rounded-3xl p-6 text-center space-y-4 shadow-2xl relative overflow-hidden"
+      >
+        <!-- Background subtle glow -->
+        <div class="absolute -top-12 -right-12 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+        <!-- Success Icon -->
+        <div class="w-16 h-16 mx-auto rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center text-2xl shadow-lg">
+          ✓
+        </div>
+
+        <div class="space-y-1.5">
+          <h3 class="text-lg font-bold text-white">
+            {{ walletModalType === 'apple'
+              ? (lang === 'kz' ? 'Apple Wallet-ке қосылды!' : 'Карта добавлена в Apple Wallet!')
+              : (lang === 'kz' ? 'Google Кошелекке қосылды!' : 'Карта добавлена в Google Кошелек!')
+            }}
+          </h3>
+          <p class="text-xs text-slate-400 leading-relaxed max-w-xs mx-auto">
+            {{ lang === 'kz'
+              ? 'Лоялдық картаңыз сәтті сақталды. Оны кассада кез келген уақытта кошелек қосымшасынан көрсете аласыз.'
+              : 'Ваша карта лояльности успешно сохранена. Вы можете открывать её в приложении кошелька и показывать на кассе для накопления и списания бонусов.'
+            }}
+          </p>
+        </div>
+
+        <div class="pt-2 space-y-2">
+          <button
+            type="button"
+            @click="showWalletModal = false"
+            class="w-full py-3 px-4 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-900/30 transition-all cursor-pointer"
+          >
+            {{ lang === 'kz' ? 'Жақсы, түсінікті' : 'Отлично, понятно' }}
+          </button>
+
+          <button
+            v-if="walletModalUrl"
+            type="button"
+            @click="reopenWalletUrl"
+            class="w-full py-2.5 px-4 rounded-xl text-xs font-medium text-slate-400 hover:text-white bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+          >
+            <span>↺</span>
+            <span>{{ lang === 'kz' ? 'Картаны қайта ашу' : 'Открыть карту повторно' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Footer -->
     <footer class="relative z-10 w-full max-w-md mx-auto px-4 py-4 text-center text-[11px] text-slate-500 space-y-1">
@@ -1232,6 +1289,16 @@ async function handleVerifyOtp() {
 }
 
 // 4. Add to Wallet
+const showWalletModal = ref(false)
+const walletModalType = ref('')
+const walletModalUrl = ref('')
+
+function reopenWalletUrl() {
+  if (walletModalUrl.value) {
+    window.location.href = walletModalUrl.value
+  }
+}
+
 async function handleAddWallet(walletType) {
   if (!customerData.value?.id) return
   loadingWallet.value = true
@@ -1249,14 +1316,19 @@ async function handleAddWallet(walletType) {
       customerData.value.wallet_type = walletType
     }
 
-    if (walletType === 'google' && res.data.url) {
-      window.location.href = res.data.url
-    } else if (walletType === 'apple' && res.data.url) {
-      window.location.href = res.data.url
-    } else if (walletType === 'google') {
-      walletMessage.value = lang.value === 'kz' ? 'Google Wallet картасы белгіленді!' : 'Карта Google Wallet успешно выбрана!'
-    } else if (walletType === 'apple') {
-      walletMessage.value = lang.value === 'kz' ? 'Apple Wallet картасы сәтті қосылды!' : 'Карта Apple Wallet успешно активирована!'
+    const isApple = walletType === 'apple'
+    walletMessage.value = isApple
+      ? (lang.value === 'kz' ? 'Карта Apple Wallet-ке сәтті қосылды!' : 'Карта успешно добавлена в Apple Wallet!')
+      : (lang.value === 'kz' ? 'Карта Google Wallet-ке сәтті қосылды!' : 'Карта успешно добавлена в Google Кошелек!')
+
+    walletModalType.value = walletType
+    walletModalUrl.value = res.data?.url || ''
+    showWalletModal.value = true
+
+    if (res.data?.url) {
+      setTimeout(() => {
+        window.location.href = res.data.url
+      }, 350)
     }
   } catch (e) {
     errorMessage.value = e.response?.data?.error || (lang.value === 'kz' ? 'Кошелекке қосу мүмкін болмады' : 'Не удалось добавить карту в кошелек')
