@@ -928,6 +928,54 @@
                     />
                   </div>
                 </div>
+
+                <!-- Tier Banner (Apple Wallet strip & Google Wallet hero image) -->
+                <div class="pt-3 border-t border-slate-800/80 space-y-2.5">
+                  <div class="flex items-center justify-between">
+                    <label class="form-label text-xs flex items-center gap-1.5 mb-0 font-semibold text-white">
+                      <span>🖼️</span> Баннер карты для ранга (Apple Wallet & Google Wallet)
+                    </label>
+                    <span v-if="tier.banner_url" class="text-[10px] text-emerald-400 font-medium">✓ Баннер загружен</span>
+                  </div>
+
+                  <!-- Banner preview if uploaded -->
+                  <div v-if="tier.banner_url" class="space-y-2">
+                    <div class="relative w-full aspect-[2.6/1] max-h-28 rounded-xl overflow-hidden border border-slate-700 shadow-md bg-slate-900 group">
+                      <img :src="tier.banner_url" alt="Banner" class="w-full h-full object-cover" />
+                      <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <label class="px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg border border-slate-600 cursor-pointer transition-all shadow">
+                          <span>Заменить</span>
+                          <input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" @change="uploadTierBanner(tier, $event)" />
+                        </label>
+                        <button
+                          type="button"
+                          @click="tier.banner_url = ''"
+                          class="px-3 py-1.5 bg-rose-950/90 hover:bg-rose-900 text-rose-300 text-xs font-semibold rounded-lg border border-rose-800 cursor-pointer transition-all shadow"
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Upload button if no banner -->
+                  <div v-else class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                    <label class="cursor-pointer bg-slate-900 hover:bg-slate-850 border border-slate-700/80 hover:border-slate-600 text-slate-200 px-3.5 py-2 rounded-xl text-xs font-medium transition-all inline-flex items-center gap-2 shadow-sm">
+                      <span v-if="uploadingTierBannerId === tier.id" class="w-3.5 h-3.5 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin"></span>
+                      <span>{{ uploadingTierBannerId === tier.id ? 'Загрузка...' : '📁 Загрузить баннер' }}</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        class="hidden"
+                        @change="uploadTierBanner(tier, $event)"
+                        :disabled="uploadingTierBannerId === tier.id"
+                      />
+                    </label>
+                    <p class="text-[11px] text-slate-400 leading-tight">
+                      Рекомендуемый размер: <strong class="text-slate-300">1125 × 432 px</strong>. Отображается на картах Apple Wallet (strip) и Google Wallet.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1013,7 +1061,7 @@
                           <p class="text-[9px] uppercase text-white/70 font-semibold tracking-wider">
                             {{ activePreviewTier?.cashback_percent ? `Кэшбэк ${activePreviewTier.cashback_percent}%` : 'Баланс' }}
                           </p>
-                          <p class="text-lg font-black font-mono leading-none">1 500 <span class="text-xs font-normal opacity-80">бонус</span></p>
+                          <p class="text-lg font-black font-mono leading-none">1 500 <span class="text-xs font-bold opacity-85">₸</span></p>
                         </div>
                       </div>
                       <div class="pt-1.5 border-t border-white/20 flex items-center justify-between text-[10px] font-mono text-white/80">
@@ -1047,6 +1095,22 @@
                     </p>
                   </div>
                 </div>
+              </div>
+
+              <!-- Wallet Banner Preview -->
+              <div v-if="activePreviewTier?.banner_url" class="p-3.5 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2">
+                <div class="flex items-center justify-between text-xs">
+                  <span class="font-semibold text-white flex items-center gap-1.5">
+                    <span> / G</span> Баннер ранга в Apple & Google Wallet
+                  </span>
+                  <span class="text-[10px] text-slate-400">1125 × 432 px</span>
+                </div>
+                <div class="w-full aspect-[2.6/1] rounded-xl overflow-hidden border border-slate-700/80 bg-black/40 shadow-inner">
+                  <img :src="activePreviewTier.banner_url" alt="Tier Wallet Banner" class="w-full h-full object-cover" />
+                </div>
+                <p class="text-[10px] text-slate-400 text-center">
+                  Этот баннер отображается в кошельке гостя при получении ранга «{{ activePreviewTier?.name }}»
+                </p>
               </div>
             </div>
           </div>
@@ -3602,6 +3666,7 @@ function addTier() {
     cashback_percent: nextNum * 5,
     iiko_wallet_name: '',
     keywords: '',
+    banner_url: '',
   }
   form.value.client_classification_settings.tiers.push(newTier)
   previewTierId.value = newId
@@ -3665,6 +3730,28 @@ function applyPresetToTier(tier, preset) {
   tier.color = preset.color
 }
 
+const uploadingTierBannerId = ref(null)
+
+async function uploadTierBanner(tier, event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  uploadingTierBannerId.value = tier.id
+  try {
+    const fd = new FormData()
+    fd.append('image', file)
+    const res = await api.post(`/core/organizations/${auth.currentOrgId}/upload-tier-banner/`, fd)
+    if (res.data?.banner_url) {
+      tier.banner_url = res.data.banner_url
+    }
+  } catch (err) {
+    console.error('Failed to upload tier banner:', err)
+  } finally {
+    uploadingTierBannerId.value = null
+    event.target.value = ''
+  }
+}
+
 const activePreviewTier = computed(() => {
   if (previewTierId.value === 'base') return null
   const tiers = form.value.client_classification_settings?.tiers || []
@@ -3673,6 +3760,11 @@ const activePreviewTier = computed(() => {
 
 const previewCardStyle = computed(() => {
   if (activePreviewTier.value) {
+    if (activePreviewTier.value.banner_url) {
+      return {
+        background: `linear-gradient(rgba(0, 0, 0, 0.35), rgba(0, 0, 0, 0.75)), url(${activePreviewTier.value.banner_url}) center/cover no-repeat`
+      }
+    }
     if (activePreviewTier.value.gradient) {
       return { background: activePreviewTier.value.gradient }
     }

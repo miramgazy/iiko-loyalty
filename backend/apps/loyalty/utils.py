@@ -59,6 +59,7 @@ def resolve_customer_tier(customer, org=None, active_wallet_name=None):
         return None
 
     brand_color = org.brand_color or '#6366f1'
+    org_banner_url = (org.apple_wallet_settings or {}).get('strip_url') or (org.google_wallet_settings or {}).get('hero_image_url')
 
     # If classification is disabled, return base default pass using unified brand_color
     if not org.is_client_classification_enabled:
@@ -71,7 +72,8 @@ def resolve_customer_tier(customer, org=None, active_wallet_name=None):
             "color": brand_color,
             "gradient_preset": "brand",
             "cashback_percent": None,
-            "description": ""
+            "description": "",
+            "banner_url": org_banner_url
         }
 
     settings = org.client_classification_settings or {}
@@ -87,7 +89,8 @@ def resolve_customer_tier(customer, org=None, active_wallet_name=None):
             "color": brand_color,
             "gradient_preset": "brand",
             "cashback_percent": None,
-            "description": ""
+            "description": "",
+            "banner_url": org_banner_url
         }
 
     # Gather search candidate strings from customer
@@ -115,6 +118,8 @@ def resolve_customer_tier(customer, org=None, active_wallet_name=None):
         if not isinstance(tier, dict):
             continue
 
+        tier_banner = tier.get('banner_url') or tier.get('strip_url') or tier.get('hero_image_url') or org_banner_url
+
         # Match 1: By exact or substring iiko wallet name
         iiko_w_name = tier.get('iiko_wallet_name')
         if iiko_w_name and str(iiko_w_name).strip():
@@ -129,7 +134,8 @@ def resolve_customer_tier(customer, org=None, active_wallet_name=None):
                     "color": tier.get('color') or brand_color,
                     "gradient_preset": tier.get('gradient_preset', 'brand'),
                     "cashback_percent": tier.get('cashback_percent'),
-                    "description": tier.get('description', '')
+                    "description": tier.get('description', ''),
+                    "banner_url": tier_banner
                 }
 
         # Match 2: By comma-separated or list of keywords
@@ -149,7 +155,8 @@ def resolve_customer_tier(customer, org=None, active_wallet_name=None):
                         "color": tier.get('color') or brand_color,
                         "gradient_preset": tier.get('gradient_preset', 'brand'),
                         "cashback_percent": tier.get('cashback_percent'),
-                        "description": tier.get('description', '')
+                        "description": tier.get('description', ''),
+                        "banner_url": tier_banner
                     }
 
     # If no tier matched, fallback to default base tier
@@ -162,5 +169,6 @@ def resolve_customer_tier(customer, org=None, active_wallet_name=None):
         "color": brand_color,
         "gradient_preset": "brand",
         "cashback_percent": None,
-        "description": ""
+        "description": "",
+        "banner_url": org_banner_url
     }

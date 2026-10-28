@@ -129,6 +129,35 @@ class OrganizationBannerUploadView(APIView):
             "banner_url": banner_url
         }, status=status.HTTP_200_OK)
 
+class OrganizationTierBannerUploadView(APIView):
+    """
+    View for OrgManager to upload loyalty tier banner image.
+    Used for Apple Wallet strip banner, Google Wallet hero image, and TMA/Web card background.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        image_file = request.FILES.get('image') or request.FILES.get('banner')
+        if not image_file:
+            return Response({"error": "No image file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        ext = os.path.splitext(image_file.name)[1].lower()
+        if ext not in ['.jpg', '.jpeg', '.png', '.webp']:
+            return Response({"error": "Invalid image format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        import uuid
+        uid = uuid.uuid4().hex[:10]
+        filename = f"tier_banners/tier_{org.slug}_{uid}{ext}"
+        path = default_storage.save(filename, ContentFile(image_file.read()))
+        banner_url = f"/media/{path}"
+
+        return Response({
+            "status": "success",
+            "banner_url": banner_url
+        }, status=status.HTTP_200_OK)
+
 class OrganizationOnboardingBannerUploadView(APIView):
     """
     View for OrgManager to upload organization Web Onboarding hero image (banner).

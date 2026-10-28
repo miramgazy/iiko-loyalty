@@ -290,9 +290,10 @@ class AppleWalletService:
         tier_name = tier_info.get('name') if tier_info else "Базовый"
         cashback_percent = tier_info.get('cashback_percent') if tier_info else None
 
-        # Colors from organization settings or brand color
+        # Colors from tier or organization settings or brand color
         aw_settings = org.apple_wallet_settings or {}
-        bg_hex = aw_settings.get('background_color') or org.brand_color or "#18181b"
+        tier_color = tier_info.get('color') if (tier_info and tier_info.get('color')) else None
+        bg_hex = tier_color or aw_settings.get('background_color') or org.brand_color or "#18181b"
         fg_hex = aw_settings.get('foreground_color') or "#ffffff"
         label_hex = aw_settings.get('label_color') or "#a1a1aa"
 
@@ -519,18 +520,24 @@ class AppleWalletService:
 
         return pass_data
 
-    def get_pass_assets(self, org: Organization) -> Dict[str, bytes]:
+    def get_pass_assets(self, org: Organization, customer: Optional[Customer] = None) -> Dict[str, bytes]:
         """
         Retrieves or generates image assets for the pass:
         icon.png, icon@2x.png, logo.png, logo@2x.png, strip.png.
-        Uses organization logo if available, otherwise generates clean branded PNG fallbacks.
+        Supports tier-specific strip banners with fallback to organization defaults.
         """
         assets: Dict[str, bytes] = {}
 
         # Parse brand color for fallback icons
         aw_settings = org.apple_wallet_settings or {}
         gw_settings = org.google_wallet_settings or {}
-        bg_hex = aw_settings.get('background_color') or org.brand_color or "#18181b"
+
+        tier_info = None
+        if customer:
+            tier_info = resolve_customer_tier(customer, org)
+
+        tier_color = tier_info.get('color') if (tier_info and tier_info.get('color')) else None
+        bg_hex = tier_color or aw_settings.get('background_color') or org.brand_color or "#18181b"
         s = bg_hex.strip().lstrip('#')
         r, g, b = 24, 24, 27
         if len(s) == 6:
@@ -563,8 +570,14 @@ class AppleWalletService:
         assets["logo.png"] = custom_logo_bytes or default_logo
         assets["logo@2x.png"] = custom_logo_bytes or default_logo_2x
 
-        # Provide strip banner if available (Apple Wallet -> Google Wallet Hero Image)
-        strip_url = aw_settings.get('strip_url') or gw_settings.get('hero_image_url')
+        # Provide strip banner: tier banner has priority over organization default
+        strip_url = None
+        if tier_info:
+            strip_url = tier_info.get('banner_url')
+
+        if not strip_url:
+            strip_url = aw_settings.get('strip_url') or gw_settings.get('hero_image_url')
+
         if strip_url:
             strip_path = strip_url.replace('/media/', '', 1).lstrip('/')
             try:
@@ -661,7 +674,7 @@ class AppleWalletService:
         pass_data = self.build_pass_json(customer)
         pass_json_bytes = json.dumps(pass_data, ensure_ascii=False, indent=2).encode('utf-8')
 
-        assets = self.get_pass_assets(customer.organization)
+        assets = self.get_pass_assets(customer.organization, customer=customer)
         files_to_hash: Dict[str, bytes] = {
             "pass.json": pass_json_bytes,
             **assets

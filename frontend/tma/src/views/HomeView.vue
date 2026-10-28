@@ -551,6 +551,14 @@ const resolvedTierBadge = computed(() => {
 
 const cardStyle = computed(() => {
   if (activeTier.value) {
+    if (activeTier.value.banner_url) {
+      return {
+        background: `linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.75)), url(${activeTier.value.banner_url}) center/cover no-repeat`,
+        color: '#ffffff',
+        borderColor: 'rgba(255,255,255,0.25)',
+        boxShadow: `0 20px 45px -12px rgba(0, 0, 0, 0.6), 0 0 35px -10px ${activeTier.value.color || '#000'}`
+      }
+    }
     if (activeTier.value.gradient) {
       return {
         background: activeTier.value.gradient,

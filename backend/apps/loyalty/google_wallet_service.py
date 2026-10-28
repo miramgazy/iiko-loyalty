@@ -218,6 +218,25 @@ class GoogleWalletService:
             ]
         }
 
+        # Resolve tier styling & banner for Google Wallet
+        from apps.loyalty.utils import resolve_customer_tier
+        tier_info = resolve_customer_tier(customer, customer.organization)
+        if tier_info:
+            tier_color = tier_info.get('color')
+            if tier_color and str(tier_color).startswith('#'):
+                loyalty_object["hexBackgroundColor"] = tier_color
+
+            tier_banner = tier_info.get('banner_url')
+            if tier_banner:
+                domain = getattr(settings, 'WEBHOOK_DOMAIN', 'https://loyalty.mevent.kz').rstrip('/')
+                if tier_banner.startswith('/'):
+                    tier_banner = f"{domain}{tier_banner}"
+                loyalty_object["heroImage"] = {
+                    "sourceUri": {
+                        "uri": tier_banner
+                    }
+                }
+
         # Build JWT
         claims = {
             "iss": self.client_email,
@@ -281,6 +300,25 @@ class GoogleWalletService:
                 "value": card_num,
                 "alternateText": card_num
             }
+
+        # Sync tier styling & banner if configured
+        from apps.loyalty.utils import resolve_customer_tier
+        tier_info = resolve_customer_tier(customer, org)
+        if tier_info:
+            tier_color = tier_info.get('color')
+            if tier_color and str(tier_color).startswith('#'):
+                patch_payload["hexBackgroundColor"] = tier_color
+
+            tier_banner = tier_info.get('banner_url')
+            if tier_banner:
+                domain = getattr(settings, 'WEBHOOK_DOMAIN', 'https://loyalty.mevent.kz').rstrip('/')
+                if tier_banner.startswith('/'):
+                    tier_banner = f"{domain}{tier_banner}"
+                patch_payload["heroImage"] = {
+                    "sourceUri": {
+                        "uri": tier_banner
+                    }
+                }
 
         try:
             token = self.get_access_token()

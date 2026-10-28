@@ -64,7 +64,7 @@
           🔒
         </div>
         <h2 class="text-lg font-bold text-white">
-          {{ lang === 'kz' ? 'Онбординг парақшасы уақытша өшірілген' : 'Страница онбординга временно отключена' }}
+          {{ lang === 'kz' ? 'Тіркелу парақшасы уақытша өшірілген' : 'Страница регистрации временно отключена' }}
         </h2>
         <p class="text-xs text-slate-400 max-w-xs">
           {{ lang === 'kz' ? 'Бұл мекеме онлайн тіркелуді тоқтатты. Сұрақтар бойынша әкімшіге хабарласыңыз.' : 'Ресторан временно приостановил онлайн-регистрацию. Пожалуйста, обратитесь к персоналу.' }}
@@ -994,6 +994,15 @@ const accentColor = computed(() => {
 
 // Premium Card Background Style driven by resolved tier or unified brand color
 const cardBackgroundStyle = computed(() => {
+  if (customerData.value?.tier?.banner_url) {
+    const banner = customerData.value.tier.banner_url
+    return {
+      background: `linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.75)), url(${banner}) center/cover no-repeat`,
+      color: '#ffffff',
+      borderColor: 'rgba(255,255,255,0.25)',
+      boxShadow: `0 20px 45px -12px rgba(0, 0, 0, 0.6), 0 0 35px -10px ${customerData.value.tier.color || '#000'}`
+    }
+  }
   if (customerData.value?.tier?.gradient) {
     return {
       background: customerData.value.tier.gradient,
