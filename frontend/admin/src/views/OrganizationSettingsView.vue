@@ -1016,82 +1016,144 @@
                 >
                   <!-- Front Face Preview -->
                   <div
-                    class="card-face card-front relative rounded-3xl p-5 text-white overflow-hidden flex flex-col justify-between min-h-[260px] border border-white/20 select-none shadow-2xl"
+                    class="card-face card-front relative rounded-3xl p-5 text-white overflow-hidden flex flex-col justify-between min-h-[290px] border border-white/20 select-none shadow-2xl"
                     :style="previewCardStyle"
                   >
                     <div class="absolute -top-16 -left-16 w-40 h-40 rounded-full bg-white/15 blur-2xl pointer-events-none"></div>
                     <div class="absolute -bottom-16 -right-16 w-40 h-40 rounded-full bg-black/35 blur-2xl pointer-events-none"></div>
 
-                    <!-- Top row -->
-                    <div class="relative z-10 flex items-center justify-between">
-                      <div class="flex items-center gap-2">
-                        <div class="w-7 h-7 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center font-black text-xs text-white">
-                          {{ (form.name || 'R').charAt(0) }}
+                    <!-- Top row: Logo & Company Name (Left, stacked), Деңгей: & Category (Right, right-aligned) -->
+                    <div class="relative z-10 flex items-start justify-between">
+                      <!-- Left: Logo on top, Company Name below logo -->
+                      <div class="flex flex-col items-start gap-1 max-w-[55%]">
+                        <div class="h-8 max-w-[120px] rounded-lg overflow-hidden flex items-center justify-start">
+                          <img
+                            v-if="appleWalletForm.logo_url || form.branding?.logo_url"
+                            :src="appleWalletForm.logo_url || form.branding?.logo_url"
+                            alt="Logo"
+                            class="max-h-8 max-w-[120px] object-contain drop-shadow"
+                          />
+                          <div
+                            v-else
+                            class="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center font-black text-xs text-white shadow"
+                          >
+                            {{ (form.name || 'R').charAt(0) }}
+                          </div>
                         </div>
-                        <span class="text-xs font-bold tracking-wider uppercase truncate opacity-95">
-                          {{ form.name || 'Название заведения' }}
+                        <span class="text-[11px] font-bold tracking-wider uppercase truncate opacity-95 text-left leading-tight drop-shadow-sm">
+                          {{ appleWalletForm.class_name || form.name || 'Название заведения' }}
                         </span>
                       </div>
-                      <span class="text-[10px] uppercase font-mono px-2.5 py-0.5 bg-black/35 backdrop-blur-sm rounded-full border border-white/15 text-white/90 font-bold">
-                        {{ activePreviewTier?.badge || 'Loyalty Pass' }}
-                      </span>
+
+                      <!-- Right: Деңгей: on top, Tier/Category name below (Right-aligned) -->
+                      <div class="text-right flex flex-col items-end max-w-[42%]">
+                        <span class="text-[9px] font-medium text-white/75 uppercase tracking-wider">Деңгей:</span>
+                        <span class="text-xs font-black text-white tracking-wide uppercase truncate drop-shadow-sm">
+                          {{ activePreviewTier?.name || form.client_classification_settings?.tiers?.[0]?.name || 'Базовый' }}
+                        </span>
+                      </div>
                     </div>
 
-                    <!-- Chip & contactless -->
-                    <div class="relative z-10 flex items-center justify-between my-2">
-                      <div class="w-10 h-7 rounded-lg bg-gradient-to-br from-amber-300 via-amber-200 to-amber-500 border border-amber-600/40 p-1 flex flex-col justify-between shadow-inner">
-                        <div class="w-full h-[1px] bg-amber-700/40"></div>
-                        <div class="flex justify-between items-center px-1">
-                          <div class="w-2 h-2.5 border border-amber-700/50 rounded-sm"></div>
-                          <div class="w-2 h-2.5 border border-amber-700/50 rounded-sm"></div>
-                        </div>
-                        <div class="w-full h-[1px] bg-amber-700/40"></div>
+                    <!-- Middle row: Guest Name & Balance (Left-aligned, stacked) -->
+                    <div class="relative z-10 space-y-2 my-2">
+                      <!-- Cardholder Name -->
+                      <div class="text-left">
+                        <p class="text-[9px] text-white/70 font-medium tracking-wide lowercase">карта иесі:</p>
+                        <p class="text-sm font-bold leading-tight drop-shadow-sm">Азамат Сериков</p>
                       </div>
-                      <span class="text-white/60 text-xs font-mono">● ● ● ●</span>
+
+                      <!-- Balance -->
+                      <div class="text-left">
+                        <p class="text-[9px] text-white/70 font-medium tracking-wide">Баланс:</p>
+                        <p class="text-lg font-black font-mono leading-none flex items-baseline gap-1 drop-shadow-sm">
+                          <span>1 500</span>
+                          <span class="text-xs font-bold opacity-85">₸</span>
+                        </p>
+                      </div>
                     </div>
 
-                    <!-- Bottom row -->
-                    <div class="relative z-10 space-y-1">
-                      <div class="flex justify-between items-end">
-                        <div>
-                          <p class="text-[9px] uppercase text-white/70 font-semibold tracking-wider">Гость</p>
-                          <p class="text-sm font-bold">Азамат Сериков</p>
+                    <!-- Bottom row: Barcode (Code128) or QR code element -->
+                    <div class="relative z-10 pt-1 flex flex-col items-center justify-center">
+                      <div class="bg-white rounded-xl p-2 shadow-xl flex flex-col items-center justify-center w-full max-w-[260px] border border-black/5">
+                        <!-- Barcode (Code 128) format -->
+                        <div v-if="appleWalletForm.barcode_type !== 'qr'" class="w-full flex flex-col items-center">
+                          <div class="w-full h-10 flex items-center justify-center overflow-hidden px-1">
+                            <svg viewBox="0 0 180 40" class="w-full h-full fill-black">
+                              <rect x="0" y="0" width="2" height="40" />
+                              <rect x="4" y="0" width="4" height="40" />
+                              <rect x="10" y="0" width="2" height="40" />
+                              <rect x="14" y="0" width="6" height="40" />
+                              <rect x="22" y="0" width="2" height="40" />
+                              <rect x="26" y="0" width="4" height="40" />
+                              <rect x="32" y="0" width="8" height="40" />
+                              <rect x="42" y="0" width="2" height="40" />
+                              <rect x="46" y="0" width="6" height="40" />
+                              <rect x="54" y="0" width="4" height="40" />
+                              <rect x="60" y="0" width="2" height="40" />
+                              <rect x="64" y="0" width="8" height="40" />
+                              <rect x="74" y="0" width="4" height="40" />
+                              <rect x="80" y="0" width="2" height="40" />
+                              <rect x="84" y="0" width="6" height="40" />
+                              <rect x="92" y="0" width="4" height="40" />
+                              <rect x="98" y="0" width="2" height="40" />
+                              <rect x="102" y="0" width="6" height="40" />
+                              <rect x="110" y="0" width="4" height="40" />
+                              <rect x="116" y="0" width="2" height="40" />
+                              <rect x="120" y="0" width="8" height="40" />
+                              <rect x="130" y="0" width="2" height="40" />
+                              <rect x="134" y="0" width="6" height="40" />
+                              <rect x="142" y="0" width="4" height="40" />
+                              <rect x="148" y="0" width="2" height="40" />
+                              <rect x="152" y="0" width="8" height="40" />
+                              <rect x="162" y="0" width="4" height="40" />
+                              <rect x="168" y="0" width="2" height="40" />
+                              <rect x="172" y="0" width="4" height="40" />
+                              <rect x="178" y="0" width="2" height="40" />
+                            </svg>
+                          </div>
+                          <span class="text-[10px] font-mono font-bold text-slate-800 mt-0.5 tracking-wider">77019990011</span>
                         </div>
-                        <div class="text-right">
-                          <p class="text-[9px] uppercase text-white/70 font-semibold tracking-wider">
-                            {{ activePreviewTier?.cashback_percent ? `Кэшбэк ${activePreviewTier.cashback_percent}%` : 'Баланс' }}
-                          </p>
-                          <p class="text-lg font-black font-mono leading-none">1 500 <span class="text-xs font-bold opacity-85">₸</span></p>
+
+                        <!-- QR Code format -->
+                        <div v-else class="flex flex-col items-center py-0.5">
+                          <div class="w-16 h-16 bg-slate-900 rounded-lg flex items-center justify-center text-white text-xl shadow-inner">
+                            <svg viewBox="0 0 24 24" class="w-14 h-14 fill-white">
+                              <path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm13-2h3v2h-3v-2zm-5 0h2v3h-2v-3zm3 3h3v3h-3v-3zm-3 2h2v1h-2v-1zm5 1h1v2h-1v-2zm-8-3h2v1h-2v-1zm0 3h3v1h-3v-1zm5 0h1v1h-1v-1z"/>
+                            </svg>
+                          </div>
+                          <span class="text-[10px] font-mono font-bold text-slate-800 mt-0.5 tracking-wider">77019990011</span>
                         </div>
-                      </div>
-                      <div class="pt-1.5 border-t border-white/20 flex items-center justify-between text-[10px] font-mono text-white/80">
-                        <span>№ 7701 •••• 99</span>
-                        <span>↺ Нажмите для QR</span>
                       </div>
                     </div>
                   </div>
 
-                  <!-- Back Face Preview -->
+                  <!-- Back Face Preview (Apple Wallet Info) -->
                   <div
-                    class="card-face card-back absolute inset-0 rounded-3xl p-5 text-white overflow-hidden flex flex-col justify-between min-h-[260px] border border-white/20 select-none shadow-2xl"
+                    class="card-face card-back absolute inset-0 rounded-3xl p-5 text-white overflow-hidden flex flex-col justify-between min-h-[290px] border border-white/20 select-none shadow-2xl"
                     :style="previewCardStyle"
                   >
-                    <div class="flex items-center justify-between">
-                      <span class="text-xs font-bold uppercase tracking-wider">{{ form.name || 'Loyalty Pass' }}</span>
+                    <div class="flex items-center justify-between pb-2 border-b border-white/20">
+                      <span class="text-xs font-bold uppercase tracking-wider">{{ appleWalletForm.class_name || form.name || 'Loyalty Pass' }}</span>
                       <span class="text-[10px] text-white/80">↺ Лицевая</span>
                     </div>
 
-                    <div class="my-auto py-1 text-center">
-                      <div class="bg-white rounded-2xl p-2.5 shadow-2xl inline-flex flex-col items-center justify-center border border-black/10">
-                        <div class="w-24 h-24 bg-slate-900 rounded-lg flex items-center justify-center text-white text-3xl">
-                          🏁
-                        </div>
-                        <span class="text-[10px] font-mono font-bold text-slate-900 mt-1">№ 77019990011</span>
+                    <div class="my-auto space-y-2 text-left text-xs">
+                      <div>
+                        <p class="text-[9px] uppercase text-white/60 font-semibold tracking-wider">О заведении</p>
+                        <p class="text-xs text-white/90 line-clamp-2">{{ form.description || `Программа лояльности ${form.name || ''}` }}</p>
+                      </div>
+                      <div>
+                        <p class="text-[9px] uppercase text-white/60 font-semibold tracking-wider">Правила</p>
+                        <p class="text-[11px] text-white/80 line-clamp-2">Предъявляйте карту при каждом визите для начисления бонусов.</p>
+                      </div>
+                      <div class="flex items-center justify-between pt-1 text-[10px] text-white/70">
+                        <span>№ 77019990011</span>
+                        <span>+7 (777) •••-••••</span>
                       </div>
                     </div>
 
-                    <p class="text-[10px] text-white/90 text-center leading-tight">
-                      Покажите QR-код кассиру для начисления или списания бонусов
+                    <p class="text-[9px] text-white/60 text-center leading-tight pt-1 border-t border-white/15">
+                      Информация на обратной стороне карты в Apple Wallet
                     </p>
                   </div>
                 </div>

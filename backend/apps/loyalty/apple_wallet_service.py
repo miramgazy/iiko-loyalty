@@ -338,23 +338,37 @@ class AppleWalletService:
             }
         ]
 
-        # Secondary fields: Tier and Cashback
-        secondary_fields = [
+        # Header field (Top right): Деңгей: / Название программы (категория) right-aligned
+        header_fields = [
             {
                 "key": "tier",
-                "label": "УРОВЕНЬ",
-                "value": tier_name
+                "label": "Деңгей:",
+                "value": tier_name,
+                "textAlignment": "PKTextAlignmentRight"
             }
         ]
-        if cashback_percent is not None:
-            secondary_fields.append({
-                "key": "cashback",
-                "label": "КЭШБЭК",
-                "value": f"{cashback_percent}%"
-            })
 
-        # Auxiliary fields: Card Number & Phone
+        # Secondary fields: Guest name (карта иесі: / guest_name)
+        secondary_fields = [
+            {
+                "key": "guest",
+                "label": "карта иесі:",
+                "value": guest_name
+            }
+        ]
+
+        # Auxiliary fields: Balance (Баланс: / balance_str ₸) with changeMessage for push notifications
         auxiliary_fields = [
+            {
+                "key": "balance",
+                "label": "Баланс:",
+                "value": f"{balance_str} ₸",
+                "changeMessage": change_msg
+            }
+        ]
+
+        # Back fields: Card number, phone, contacts, info, rules
+        back_fields = [
             {
                 "key": "card_number",
                 "label": "НОМЕР КАРТЫ",
@@ -362,14 +376,12 @@ class AppleWalletService:
             }
         ]
         if customer.phone:
-            auxiliary_fields.append({
+            back_fields.append({
                 "key": "phone",
                 "label": "ТЕЛЕФОН",
                 "value": customer.phone
             })
-
-        # Back fields: contacts, info, rules
-        back_fields = [
+        back_fields.extend([
             {
                 "key": "org_info",
                 "label": "О ЗАВЕДЕНИИ",
@@ -380,7 +392,7 @@ class AppleWalletService:
                 "label": "ПРАВИЛА НАЧИСЛЕНИЯ",
                 "value": "Предъявляйте эту карту при каждом визите для начисления и списания бонусных баллов."
             }
-        ]
+        ])
         if getattr(org, 'address', None):
             back_fields.append({
                 "key": "address",
@@ -471,21 +483,7 @@ class AppleWalletService:
             "barcodes": barcodes_list,
             "barcode": barcode_dict,
             "storeCard": {
-                "headerFields": [
-                    {
-                        "key": "balance",
-                        "label": "БАЛАНС",
-                        "value": f"{balance_str} ₸",
-                        "changeMessage": change_msg
-                    }
-                ],
-                "primaryFields": [
-                    {
-                        "key": "guest",
-                        "label": "ГОСТЬ",
-                        "value": guest_name
-                    }
-                ],
+                "headerFields": header_fields,
                 "secondaryFields": secondary_fields,
                 "auxiliaryFields": auxiliary_fields,
                 "backFields": back_fields
