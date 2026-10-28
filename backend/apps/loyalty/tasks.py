@@ -155,8 +155,11 @@ def sync_customer_to_iiko(self, customer_id, push=False):
 
             if update_fields:
                 customer.save(update_fields=list(set(update_fields)))
-                if ('loyalty_balance' in update_fields or 'iiko_card_number' in update_fields) and customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
-                    update_google_wallet_pass_task.delay(customer.id)
+                if ('loyalty_balance' in update_fields or 'iiko_card_number' in update_fields):
+                    if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
+                        update_google_wallet_pass_task.delay(customer.id)
+                    if customer.organization.is_apple_wallet_enabled:
+                        send_apple_wallet_push_task.delay(customer.id)
 
     except Exception as exc:
         logger.error(f"Error syncing customer {customer_id} to iiko: {exc}")
@@ -247,6 +250,26 @@ def send_google_wallet_push_task(self, customer_id, new_balance, change_amount):
     except Exception as exc:
         logger.warning(f"Error sending Google Wallet push for customer {customer_id}: {exc}")
 
+
+@app.task(bind=True, max_retries=2, default_retry_delay=15)
+def send_apple_wallet_push_task(self, customer_id, new_balance=None, change_amount=None):
+    """
+    Background task to notify registered iOS devices via APNs to update their Apple Wallet pass.
+    """
+    try:
+        from apps.loyalty.models import Customer
+        customer = Customer.objects.filter(id=customer_id).select_related('organization').first()
+        if not customer or not customer.organization.is_apple_wallet_enabled:
+            return
+
+        from apps.loyalty.apple_wallet_service import AppleWalletService
+        service = AppleWalletService()
+        pushed = service.send_pass_update_push(customer)
+        logger.info(f"Sent Apple Wallet APNs push for customer {customer_id}: {pushed} device(s)")
+    except Exception as exc:
+        logger.error(f"Error sending Apple Wallet APNs push for customer {customer_id}: {exc}")
+
+
 @app.task
 def sync_all_customers_points():
     logger.info("Starting periodic sync of customer loyalty points...")
@@ -267,6 +290,8 @@ def sync_all_customers_points():
                         customer.save(update_fields=['loyalty_balance'])
                         if customer.google_wallet_object_id and customer.organization.is_google_wallet_enabled:
                             update_google_wallet_pass_task.delay(customer.id)
+                        if customer.organization.is_apple_wallet_enabled:
+                            send_apple_wallet_push_task.delay(customer.id)
                 except Exception as e:
                     logger.error(f"Failed to sync points for customer {customer.id}: {e}")
         except Exception as e:
@@ -435,6 +460,8 @@ def process_iiko_webhook(log_id):
                         update_google_wallet_pass_task.delay(customer.id)
                         if change_amount != 0:
                             send_google_wallet_push_task.delay(customer.id, float(customer.loyalty_balance), float(change_amount))
+                    if customer.organization.is_apple_wallet_enabled:
+                        send_apple_wallet_push_task.delay(customer.id, float(customer.loyalty_balance), float(change_amount))
             else:
                 if customer.loyalty_balance != balance:
                     customer.loyalty_balance = balance
@@ -443,6 +470,8 @@ def process_iiko_webhook(log_id):
                         update_google_wallet_pass_task.delay(customer.id)
                         if change_amount != 0:
                             send_google_wallet_push_task.delay(customer.id, float(customer.loyalty_balance), float(change_amount))
+                    if customer.organization.is_apple_wallet_enabled:
+                        send_apple_wallet_push_task.delay(customer.id, float(customer.loyalty_balance), float(change_amount))
 
             # Notify via Websockets if user has active session
             try:

@@ -870,6 +870,15 @@ async function addToAppleWallet() {
     }
     triggerHaptic('notification', 'success')
     walletSuccess.value = res.data?.message || 'Apple Wallet выбран'
+
+    if (res.data?.url) {
+      if (window.Telegram?.WebApp?.openLink) {
+        window.Telegram.WebApp.openLink(res.data.url)
+      } else {
+        window.open(res.data.url, '_blank')
+      }
+    }
+
     setTimeout(() => {
       walletSuccess.value = ''
     }, 4000)

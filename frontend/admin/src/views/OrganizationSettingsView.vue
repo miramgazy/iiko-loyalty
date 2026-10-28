@@ -1879,21 +1879,22 @@
 
       <!-- TAB: Apple Wallet -->
       <div v-show="activeTab === 'apple_wallet'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
+        <!-- Header with Toggle -->
         <div class="flex items-center justify-between pb-6 border-b border-slate-800">
           <div>
             <div class="flex items-center gap-2">
               <span class="text-2xl">🍏</span>
               <h2 class="text-lg font-bold text-white">Интеграция с Apple Wallet</h2>
               <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-zinc-700/50 text-zinc-300 border border-zinc-600/50">
-                Apple Wallet Passes
+                Apple Wallet Passes (iOS)
               </span>
             </div>
             <p class="text-slate-400 text-sm mt-1">
-              Отображение кнопки добавления карты в Apple Wallet и возможность отправки Push-уведомлений
+              Выпуск брендированных карт .pkpass с динамическим обновлением баланса и Push-уведомлениями по геолокации
             </p>
           </div>
           <label class="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" v-model="form.is_apple_wallet_enabled" class="sr-only peer">
+            <input type="checkbox" v-model="form.is_apple_wallet_enabled" @change="toggleAppleWallet" class="sr-only peer">
             <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
             <span class="ml-3 text-sm font-medium" :class="form.is_apple_wallet_enabled ? 'text-emerald-400' : 'text-slate-500'">
               {{ form.is_apple_wallet_enabled ? 'Включено' : 'Выключено' }}
@@ -1901,21 +1902,637 @@
           </label>
         </div>
 
-        <div class="space-y-4">
-          <div>
-            <label class="form-label">Pass Type Identifier (Pass ID)</label>
-            <input v-model="form.apple_pass_type_id" type="text" class="form-input" placeholder="pass.kz.loyalty.restaurant" />
-            <p class="text-xs text-slate-500 mt-1">Идентификатор карты из Apple Developer Portal</p>
+        <!-- 2 Columns Grid: Left Settings / Right Card Live Preview -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          <!-- LEFT: Settings Form (7 cols) -->
+          <div class="lg:col-span-7 space-y-5">
+            
+            <!-- Multi-tenant info banner -->
+            <div class="p-4 rounded-xl bg-indigo-950/30 border border-indigo-900/40 text-xs text-indigo-200/90 space-y-1">
+              <div class="flex items-center gap-2 font-bold text-indigo-300">
+                <span>ℹ️</span>
+                <span>Мультитенантная платформа (Single Issuer)</span>
+              </div>
+              <p class="text-indigo-200/80 leading-relaxed">
+                Карты выпускаются под единым аккаунтом разработчика платформы. Заведению не нужен собственный аккаунт Apple. Если у заведения есть индивидуальный аккаунт Apple, укажите Pass ID и Team ID ниже.
+              </p>
+            </div>
+
+            <!-- Pass ID & Team ID -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">Pass Type Identifier (Pass ID)</label>
+                <input v-model="appleWalletForm.pass_type_id" type="text" class="form-input text-xs font-mono" placeholder="По умолчанию (из платформы)" />
+                <p class="text-[11px] text-slate-500 mt-1">Оставьте пустым для мастер-эмитента</p>
+              </div>
+              <div>
+                <label class="form-label">Apple Team ID</label>
+                <input v-model="appleWalletForm.team_id" type="text" class="form-input text-xs font-mono" placeholder="По умолчанию (из платформы)" />
+                <p class="text-[11px] text-slate-500 mt-1">10-значный ID команды разработчика</p>
+              </div>
+            </div>
+
+            <!-- Program name -->
+            <div>
+              <label class="form-label">Название программы на карте</label>
+              <input v-model="appleWalletForm.class_name" type="text" class="form-input" :placeholder="form.name || 'Например: Ресторан Del Mar'" />
+              <p class="text-[11px] text-slate-500 mt-1">Отображается в заголовке карты рядом с логотипом</p>
+            </div>
+
+            <!-- Logo Upload -->
+            <div>
+              <label class="form-label">Логотип карты (Logo)</label>
+              <div class="flex items-center gap-3 mb-2">
+                <input v-model="appleWalletForm.logo_url" type="text" class="form-input flex-1 text-xs" placeholder="https://... или загрузите файл с компьютера" />
+                <label class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center gap-2 whitespace-nowrap">
+                  <span v-if="uploadingAppleLogo" class="w-4 h-4 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin"></span>
+                  <span v-else>📁</span>
+                  {{ uploadingAppleLogo ? 'Загрузка...' : 'Загрузить PNG' }}
+                  <input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" @change="uploadAppleLogo" :disabled="uploadingAppleLogo" />
+                </label>
+              </div>
+              <p class="text-xs text-slate-500">
+                Рекомендуется прозрачный PNG до 320 × 100 px. Отображается в левом верхнем углу карты. Если не задано, берётся логотип заведения.
+              </p>
+              <div v-if="appleLogoPreview || appleWalletForm.logo_url" class="mt-2.5 flex items-center gap-3 p-2.5 bg-slate-950/60 rounded-xl border border-slate-800 w-fit">
+                <div class="h-10 px-3 py-1 bg-slate-900 rounded-lg border border-slate-800 flex items-center justify-center">
+                  <img :src="appleLogoPreview || appleWalletForm.logo_url" alt="Apple logo preview" class="max-h-8 max-w-[120px] object-contain" />
+                </div>
+                <button type="button" @click="appleWalletForm.logo_url = ''; appleLogoPreview = null" class="text-xs text-rose-400 hover:text-rose-300 bg-transparent border-none cursor-pointer">
+                  ✕ Удалить логотип
+                </button>
+              </div>
+            </div>
+
+            <!-- Strip Banner Upload -->
+            <div>
+              <label class="form-label">Баннер карты (Strip Image)</label>
+              <div class="flex items-center gap-3 mb-2">
+                <input v-model="appleWalletForm.strip_url" type="text" class="form-input flex-1 text-xs" placeholder="https://... или загрузите файл с компьютера" />
+                <label class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-sm font-medium transition-colors cursor-pointer flex items-center gap-2 whitespace-nowrap">
+                  <span v-if="uploadingAppleStrip" class="w-4 h-4 border-2 border-indigo-400/30 border-t-indigo-400 rounded-full animate-spin"></span>
+                  <span v-else>📁</span>
+                  {{ uploadingAppleStrip ? 'Загрузка...' : 'Загрузить баннер' }}
+                  <input type="file" accept="image/png,image/jpeg,image/webp" class="hidden" @change="uploadAppleStrip" :disabled="uploadingAppleStrip" />
+                </label>
+              </div>
+              <p class="text-xs text-slate-500">
+                Широкий баннер по центру карты (соотношение 3:1, 1125 × 369 px или 750 × 246 px). Фото интерьера, блюд или графический паттерн.
+              </p>
+              <div v-if="appleStripPreview || appleWalletForm.strip_url" class="mt-2.5 relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950 max-w-md h-24 flex items-center justify-center">
+                <img :src="appleStripPreview || appleWalletForm.strip_url" alt="Strip banner preview" class="w-full h-full object-cover" />
+                <button type="button" @click="appleWalletForm.strip_url = ''; appleStripPreview = null" class="absolute top-2 right-2 bg-black/70 hover:bg-black/90 text-white rounded-full p-1 text-xs transition-colors">
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <!-- Barcode Format Selection (Barcode vs QR) -->
+            <div>
+              <label class="form-label mb-2">Формат отображения кода на карте</label>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <!-- Option 1: Barcode (Code 128) - Default -->
+                <label 
+                  class="relative flex items-center p-3.5 rounded-xl border cursor-pointer transition-all select-none"
+                  :class="appleWalletForm.barcode_type === 'barcode' ? 'bg-indigo-950/40 border-indigo-500/80 shadow-[0_0_15px_rgba(99,102,241,0.15)]' : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'"
+                >
+                  <input type="radio" value="barcode" v-model="appleWalletForm.barcode_type" class="sr-only" />
+                  <div class="flex items-center gap-3 w-full">
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" :class="appleWalletForm.barcode_type === 'barcode' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'">
+                      <svg viewBox="0 0 24 24" class="w-6 h-6 fill-current">
+                        <rect x="2" y="4" width="2" height="16" />
+                        <rect x="5" y="4" width="1" height="16" />
+                        <rect x="7" y="4" width="3" height="16" />
+                        <rect x="11" y="4" width="1" height="16" />
+                        <rect x="13" y="4" width="2" height="16" />
+                        <rect x="16" y="4" width="3" height="16" />
+                        <rect x="20" y="4" width="2" height="16" />
+                      </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-white">Штрих-код (Code 128)</span>
+                        <span class="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">По умолчанию</span>
+                      </div>
+                      <p class="text-[11px] text-slate-400 mt-0.5">Линейный штрих-код для стандартных кассовых сканеров</p>
+                    </div>
+                    <div class="w-4 h-4 rounded-full border flex items-center justify-center shrink-0" :class="appleWalletForm.barcode_type === 'barcode' ? 'border-indigo-400 bg-indigo-500' : 'border-slate-600'">
+                      <div v-if="appleWalletForm.barcode_type === 'barcode'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                    </div>
+                  </div>
+                </label>
+
+                <!-- Option 2: QR Code -->
+                <label 
+                  class="relative flex items-center p-3.5 rounded-xl border cursor-pointer transition-all select-none"
+                  :class="appleWalletForm.barcode_type === 'qr' ? 'bg-indigo-950/40 border-indigo-500/80 shadow-[0_0_15px_rgba(99,102,241,0.15)]' : 'bg-slate-950/60 border-slate-800 hover:border-slate-700'"
+                >
+                  <input type="radio" value="qr" v-model="appleWalletForm.barcode_type" class="sr-only" />
+                  <div class="flex items-center gap-3 w-full">
+                    <div class="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" :class="appleWalletForm.barcode_type === 'qr' ? 'bg-indigo-600/30 text-indigo-300 border border-indigo-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'">
+                      <svg viewBox="0 0 24 24" class="w-6 h-6 fill-current">
+                        <path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm13-2h3v2h-3v-2zm-5 0h2v3h-2v-3zm3 3h3v3h-3v-3zm-3 2h2v1h-2v-1zm5 1h1v2h-1v-2zm-8-3h2v1h-2v-1zm0 3h3v1h-3v-1zm5 0h1v1h-1v-1z"/>
+                      </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-white">QR-код</span>
+                      </div>
+                      <p class="text-[11px] text-slate-400 mt-0.5">Двумерный код для 2D-сканеров и мобильных камер</p>
+                    </div>
+                    <div class="w-4 h-4 rounded-full border flex items-center justify-center shrink-0" :class="appleWalletForm.barcode_type === 'qr' ? 'border-indigo-400 bg-indigo-500' : 'border-slate-600'">
+                      <div v-if="appleWalletForm.barcode_type === 'qr'" class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Colors -->
+            <div>
+              <label class="form-label mb-2">Цветовая палитра карты Apple Wallet</label>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1.5">
+                  <span class="text-xs font-semibold text-slate-400 block">Фон карты</span>
+                  <div class="flex items-center gap-2">
+                    <input type="color" v-model="appleWalletForm.background_color" class="w-9 h-9 rounded-lg border border-slate-700 cursor-pointer bg-transparent p-0.5" />
+                    <input type="text" v-model="appleWalletForm.background_color" class="form-input text-xs font-mono uppercase" placeholder="#18181B" />
+                  </div>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1.5">
+                  <span class="text-xs font-semibold text-slate-400 block">Цвет текста</span>
+                  <div class="flex items-center gap-2">
+                    <input type="color" v-model="appleWalletForm.foreground_color" class="w-9 h-9 rounded-lg border border-slate-700 cursor-pointer bg-transparent p-0.5" />
+                    <input type="text" v-model="appleWalletForm.foreground_color" class="form-input text-xs font-mono uppercase" placeholder="#FFFFFF" />
+                  </div>
+                </div>
+                <div class="p-3 rounded-xl bg-slate-950/60 border border-slate-800 space-y-1.5">
+                  <span class="text-xs font-semibold text-slate-400 block">Цвет подписей</span>
+                  <div class="flex items-center gap-2">
+                    <input type="color" v-model="appleWalletForm.label_color" class="w-9 h-9 rounded-lg border border-slate-700 cursor-pointer bg-transparent p-0.5" />
+                    <input type="text" v-model="appleWalletForm.label_color" class="form-input text-xs font-mono uppercase" placeholder="#94A3B8" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex items-center justify-between pt-4 border-t border-slate-800">
+              <button
+                type="button"
+                @click="openAppleAdvancedModal"
+                class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-semibold flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <span>⚙️</span>
+                <span>Геолокация и Push-уведомления</span>
+                <span v-if="appleWalletForm.locations?.length" class="px-2 py-0.5 rounded-full text-xs bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                  {{ appleWalletForm.locations.length }}
+                </span>
+              </button>
+              <SaveButton :saving="savingAppleWallet" @save="saveAppleWalletSettings" />
+            </div>
+
           </div>
-          <div>
-            <label class="form-label">Apple Team ID</label>
-            <input v-model="form.apple_team_id" type="text" class="form-input" placeholder="ABCDE12345" />
-            <p class="text-xs text-slate-500 mt-1">Идентификатор команды разработчика Apple</p>
+
+          <!-- RIGHT: Interactive Card Live Preview (5 cols) -->
+          <div class="lg:col-span-5 flex flex-col items-center">
+            <div class="sticky top-6 w-full max-w-sm space-y-3">
+              <div class="flex items-center justify-between px-1">
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>📱</span> Предпросмотр карты Apple Wallet
+                </span>
+                <span class="text-[11px] text-emerald-400 font-medium">StoreCard iOS</span>
+              </div>
+
+              <!-- Pass Canvas Container -->
+              <div 
+                class="w-full rounded-[28px] p-5 shadow-2xl border border-white/10 transition-all duration-300 relative overflow-hidden flex flex-col justify-between"
+                :style="{ backgroundColor: appleWalletForm.background_color || '#18181b', minHeight: '380px' }"
+              >
+                <!-- Top Row: Logo & Header Balance -->
+                <div class="flex items-center justify-between gap-2 z-10">
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <img 
+                      v-if="appleLogoPreview || appleWalletForm.logo_url" 
+                      :src="appleLogoPreview || appleWalletForm.logo_url" 
+                      alt="Logo" 
+                      class="max-h-7 max-w-[100px] object-contain flex-shrink-0"
+                    />
+                    <span v-else class="text-xl">🍏</span>
+                    <span 
+                      class="font-bold text-sm truncate leading-tight" 
+                      :style="{ color: appleWalletForm.foreground_color || '#ffffff' }"
+                    >
+                      {{ appleWalletForm.class_name || form.name || 'Ваш ресторан' }}
+                    </span>
+                  </div>
+                  <div class="text-right flex-shrink-0">
+                    <span 
+                      class="block text-[10px] font-bold uppercase tracking-wider leading-none" 
+                      :style="{ color: appleWalletForm.label_color || '#94a3b8' }"
+                    >
+                      БОНУСЫ
+                    </span>
+                    <span 
+                      class="text-xl font-black leading-tight tracking-tight" 
+                      :style="{ color: appleWalletForm.foreground_color || '#ffffff' }"
+                    >
+                      1 500
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Middle Strip Banner -->
+                <div class="my-3 rounded-2xl overflow-hidden border border-black/20 h-28 bg-black/20 flex items-center justify-center relative shadow-inner">
+                  <img 
+                    v-if="appleStripPreview || appleWalletForm.strip_url" 
+                    :src="appleStripPreview || appleWalletForm.strip_url" 
+                    alt="Strip Banner" 
+                    class="w-full h-full object-cover"
+                  />
+                  <div v-else class="w-full h-full flex items-center justify-center bg-gradient-to-tr from-black/40 via-white/5 to-white/10 text-center px-4">
+                    <span class="text-xs font-semibold text-white/50">Баннер-полоса карты (Strip)</span>
+                  </div>
+                </div>
+
+                <!-- Secondary Fields Row (Guest & Status) -->
+                <div class="grid grid-cols-2 gap-2 py-1 z-10">
+                  <div>
+                    <span 
+                      class="block text-[10px] font-bold uppercase tracking-wider leading-none" 
+                      :style="{ color: appleWalletForm.label_color || '#94a3b8' }"
+                    >
+                      ГОСТЬ
+                    </span>
+                    <span 
+                      class="text-xs font-bold leading-tight block truncate mt-0.5" 
+                      :style="{ color: appleWalletForm.foreground_color || '#ffffff' }"
+                    >
+                      Алихан Нурланов
+                    </span>
+                  </div>
+                  <div class="text-right">
+                    <span 
+                      class="block text-[10px] font-bold uppercase tracking-wider leading-none" 
+                      :style="{ color: appleWalletForm.label_color || '#94a3b8' }"
+                    >
+                      СТАТУС
+                    </span>
+                    <span 
+                      class="text-xs font-bold leading-tight block truncate mt-0.5 text-amber-300"
+                    >
+                      Gold (5% кэшбэк)
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Barcode Container (White Apple Wallet Barcode Pad) -->
+                <div class="mt-3 bg-white rounded-2xl p-3 shadow-lg flex flex-col items-center justify-center text-center transition-all">
+                  <!-- QR Code Mode -->
+                  <div v-if="appleWalletForm.barcode_type === 'qr'" class="w-20 h-20 bg-neutral-900 rounded-lg p-1.5 flex items-center justify-center shadow-inner">
+                    <svg viewBox="0 0 24 24" class="w-full h-full text-white fill-current">
+                      <path d="M3 3h6v6H3V3zm2 2v2h2V5H5zm8-2h6v6h-6V3zm2 2v2h2V5h-2zM3 13h6v6H3v-6zm2 2v2h2v-2H5zm13-2h3v2h-3v-2zm-5 0h2v3h-2v-3zm3 3h3v3h-3v-3zm-3 2h2v1h-2v-1zm5 1h1v2h-1v-2zm-8-3h2v1h-2v-1zm0 3h3v1h-3v-1zm5 0h1v1h-1v-1z"/>
+                    </svg>
+                  </div>
+
+                  <!-- 1D Barcode (Code 128) Mode - Default -->
+                  <div v-else class="w-full max-w-[220px] h-12 flex items-center justify-center py-1">
+                    <svg viewBox="0 0 160 48" class="w-full h-full text-neutral-900 fill-current" preserveAspectRatio="none">
+                      <rect x="0" y="0" width="3" height="48" />
+                      <rect x="5" y="0" width="2" height="48" />
+                      <rect x="9" y="0" width="4" height="48" />
+                      <rect x="16" y="0" width="1" height="48" />
+                      <rect x="19" y="0" width="3" height="48" />
+                      <rect x="25" y="0" width="2" height="48" />
+                      <rect x="29" y="0" width="5" height="48" />
+                      <rect x="36" y="0" width="2" height="48" />
+                      <rect x="40" y="0" width="1" height="48" />
+                      <rect x="43" y="0" width="4" height="48" />
+                      <rect x="49" y="0" width="2" height="48" />
+                      <rect x="53" y="0" width="3" height="48" />
+                      <rect x="58" y="0" width="1" height="48" />
+                      <rect x="62" y="0" width="5" height="48" />
+                      <rect x="69" y="0" width="2" height="48" />
+                      <rect x="73" y="0" width="2" height="48" />
+                      <rect x="77" y="0" width="4" height="48" />
+                      <rect x="83" y="0" width="1" height="48" />
+                      <rect x="86" y="0" width="3" height="48" />
+                      <rect x="91" y="0" width="2" height="48" />
+                      <rect x="95" y="0" width="5" height="48" />
+                      <rect x="102" y="0" width="2" height="48" />
+                      <rect x="106" y="0" width="1" height="48" />
+                      <rect x="109" y="0" width="4" height="48" />
+                      <rect x="115" y="0" width="2" height="48" />
+                      <rect x="119" y="0" width="3" height="48" />
+                      <rect x="124" y="0" width="2" height="48" />
+                      <rect x="128" y="0" width="4" height="48" />
+                      <rect x="134" y="0" width="1" height="48" />
+                      <rect x="137" y="0" width="3" height="48" />
+                      <rect x="142" y="0" width="2" height="48" />
+                      <rect x="146" y="0" width="4" height="48" />
+                      <rect x="153" y="0" width="2" height="48" />
+                      <rect x="157" y="0" width="3" height="48" />
+                    </svg>
+                  </div>
+
+                  <span class="text-xs font-mono font-bold text-neutral-800 tracking-widest mt-1">
+                    9988776655
+                  </span>
+                </div>
+
+              </div>
+
+              <!-- Footer hint -->
+              <p class="text-[11px] text-center text-slate-500 px-4">
+                Карта полностью интерактивна. Гость с iPhone сможет добавить её в 1 клик на веб-странице или в TMA.
+              </p>
+            </div>
           </div>
+
         </div>
 
-        <div class="flex justify-end pt-4 border-t border-slate-800">
-          <SaveButton :saving="saving" @save="saveSettings" />
+      </div>
+
+      <!-- Modal: Apple Wallet Advanced (Geofencing & Bilingual Push) -->
+      <div v-if="showAppleAdvancedModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 select-none">
+        <div class="bg-slate-950 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh] animate-[scaleIn_0.2s_ease-out]">
+          
+          <!-- Modal Header -->
+          <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/90 flex-shrink-0">
+            <div class="flex items-center gap-2.5">
+              <span class="text-xl">⚙️</span>
+              <div>
+                <h3 class="text-base font-bold text-white leading-tight">
+                  Геолокация и Push-уведомления Apple Wallet
+                </h3>
+                <p class="text-[11px] text-slate-400 mt-0.5 leading-tight">
+                  Появление карты на экране блокировки iPhone при приближении к заведению и авто-пуши при изменении баланса
+                </p>
+              </div>
+            </div>
+            <button 
+              @click="showAppleAdvancedModal = false" 
+              class="text-slate-400 hover:text-white transition-colors bg-transparent border-none cursor-pointer text-lg p-1"
+            >
+              ✕
+            </button>
+          </div>
+
+          <!-- Modal Info Banner with Apple limits -->
+          <div class="px-6 py-3 bg-indigo-950/30 border-b border-indigo-900/40 flex-shrink-0">
+            <div class="flex items-start gap-2.5 text-xs text-indigo-200/90 leading-relaxed">
+              <span class="text-base flex-shrink-0">ℹ️</span>
+              <div class="space-y-0.5">
+                <p><span class="font-bold text-indigo-300">Возможности Apple PassKit:</span> до 10 геоточек филиалов. При приближении к координатам карта появляется на экране блокировки iPhone. В шаблоне обновления баланса используйте <code class="px-1 py-0.5 rounded bg-indigo-900/50 text-indigo-200">%@</code> (Apple подставит новое количество бонусов).</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Modal Navigation Tabs -->
+          <div class="flex border-b border-slate-800 bg-slate-900/50 px-6 gap-2 pt-2 flex-shrink-0">
+            <button
+              type="button"
+              @click="activeAppleModalTab = 'geo'"
+              class="px-4 py-2 text-xs font-bold rounded-t-xl transition-all border-b-2 flex items-center gap-1.5 cursor-pointer"
+              :class="activeAppleModalTab === 'geo' 
+                ? 'border-indigo-500 text-indigo-300 bg-slate-900' 
+                : 'border-transparent text-slate-400 hover:text-slate-200 bg-transparent'"
+            >
+              <span>📍 Геоточки филиалов</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-indigo-500/20 text-indigo-300">
+                {{ appleWalletForm.locations?.length || 0 }}/10
+              </span>
+            </button>
+            <button
+              type="button"
+              @click="activeAppleModalTab = 'push'"
+              class="px-4 py-2 text-xs font-bold rounded-t-xl transition-all border-b-2 flex items-center gap-1.5 cursor-pointer"
+              :class="activeAppleModalTab === 'push' 
+                ? 'border-indigo-500 text-indigo-300 bg-slate-900' 
+                : 'border-transparent text-slate-400 hover:text-slate-200 bg-transparent'"
+            >
+              <span>🔔 Шаблоны Push-уведомлений</span>
+              <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800 text-slate-300">
+                RU / KZ
+              </span>
+            </button>
+          </div>
+
+          <!-- Modal Scrollable Content Body -->
+          <div class="p-6 overflow-y-auto space-y-5 flex-1">
+            
+            <!-- TAB 1: Locations (Geofencing) -->
+            <div v-show="activeAppleModalTab === 'geo'" class="space-y-4">
+              
+              <!-- Add new location form -->
+              <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
+                <span class="text-xs font-bold text-slate-200 uppercase tracking-wider block">
+                  Добавить новый ресторан / филиал
+                </span>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">Название филиала</label>
+                    <input 
+                      v-model="newAppleLocation.name" 
+                      type="text" 
+                      class="form-input text-xs" 
+                      placeholder="Например: Del Mar Dostyk" 
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">Широта (Latitude)</label>
+                    <input 
+                      v-model="newAppleLocation.latitude" 
+                      type="number" 
+                      step="any" 
+                      class="form-input text-xs font-mono" 
+                      placeholder="43.238949" 
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-[11px] font-semibold text-slate-400 mb-1">Долгота (Longitude)</label>
+                    <input 
+                      v-model="newAppleLocation.longitude" 
+                      type="number" 
+                      step="any" 
+                      class="form-input text-xs font-mono" 
+                      placeholder="76.889709" 
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-slate-400 mb-1">Текст на экране блокировки iPhone при приближении</label>
+                  <input 
+                    v-model="newAppleLocation.relevant_text" 
+                    type="text" 
+                    class="form-input text-xs" 
+                    placeholder="Например: Вы рядом с рестораном! Предъявите карту для бонусов." 
+                  />
+                </div>
+                <div class="flex justify-between items-center pt-1">
+                  <span class="text-[11px] text-slate-500">
+                    Координаты можно скопировать из 2GIS, Яндекс или Google Maps
+                  </span>
+                  <button
+                    type="button"
+                    @click="addAppleLocation"
+                    :disabled="appleWalletForm.locations?.length >= 10"
+                    class="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 border-none cursor-pointer shadow-sm"
+                  >
+                    <span>➕</span>
+                    <span>Добавить филиал</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Locations List -->
+              <div>
+                <div class="flex justify-between items-center mb-2">
+                  <span class="text-xs font-bold text-slate-300">
+                    Список добавленных филиалов ({{ appleWalletForm.locations?.length || 0 }} из 10)
+                  </span>
+                </div>
+
+                <div v-if="!appleWalletForm.locations || appleWalletForm.locations.length === 0" class="text-center py-8 px-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/30">
+                  <span class="text-2xl block mb-1">📍</span>
+                  <p class="text-xs text-slate-400 font-medium">Геоточки пока не добавлены</p>
+                  <p class="text-[11px] text-slate-500 mt-0.5">Добавьте координаты, чтобы карта появлялась на экране блокировки гостей</p>
+                </div>
+
+                <div v-else class="space-y-2">
+                  <div 
+                    v-for="(loc, idx) in appleWalletForm.locations" 
+                    :key="idx"
+                    class="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-3 group hover:border-slate-700 transition-all"
+                  >
+                    <div class="flex items-center gap-3 min-w-0">
+                      <span class="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                        {{ idx + 1 }}
+                      </span>
+                      <div class="min-w-0 text-left">
+                        <p class="text-xs font-bold text-white truncate leading-tight">
+                          {{ loc.name || `Филиал #${idx + 1}` }}
+                        </p>
+                        <p class="text-[11px] text-slate-400 font-mono mt-0.5 leading-tight">
+                          {{ loc.latitude }}, {{ loc.longitude }}
+                        </p>
+                        <p v-if="loc.relevant_text" class="text-[11px] text-indigo-300 mt-0.5 truncate">
+                          💬 {{ loc.relevant_text }}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click="removeAppleLocation(idx)"
+                      class="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors border-none bg-transparent cursor-pointer flex-shrink-0"
+                      title="Удалить филиал"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- TAB 2: Bilingual Push Notification Templates -->
+            <div v-show="activeAppleModalTab === 'push'" class="space-y-4">
+              
+              <!-- Language Toggle Capsule -->
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-300">Язык уведомления гостя:</span>
+                <div class="bg-slate-900 border border-slate-800 rounded-lg p-1 flex gap-1">
+                  <button
+                    type="button"
+                    @click="activeApplePushLang = 'ru'"
+                    class="px-3 py-1 rounded-md text-xs font-bold transition-all border-none cursor-pointer"
+                    :class="activeApplePushLang === 'ru' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-transparent text-slate-400 hover:text-slate-200'"
+                  >
+                    🇷🇺 Русский (RU)
+                  </button>
+                  <button
+                    type="button"
+                    @click="activeApplePushLang = 'kz'"
+                    class="px-3 py-1 rounded-md text-xs font-bold transition-all border-none cursor-pointer"
+                    :class="activeApplePushLang === 'kz' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-transparent text-slate-400 hover:text-slate-200'"
+                  >
+                    🇰🇿 Қазақша (KZ)
+                  </button>
+                </div>
+              </div>
+
+              <!-- Tag Pills Helper -->
+              <div class="p-3 bg-slate-900/60 rounded-xl border border-slate-800 flex items-center gap-2 flex-wrap">
+                <span class="text-[11px] text-slate-400 font-medium">Тег нового баланса:</span>
+                <button 
+                  type="button" 
+                  @click="insertApplePushTag('%@')"
+                  class="px-2 py-0.5 rounded-md bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 text-[11px] font-mono cursor-pointer transition-all"
+                >
+                  + %@ (новое число баллов)
+                </button>
+              </div>
+
+              <!-- RU Language Fields -->
+              <div v-if="activeApplePushLang === 'ru'" class="space-y-3 p-4 rounded-xl bg-slate-900/50 border border-slate-800">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300 mb-1">
+                    Текст пуш-уведомления об изменении баланса (Change Message)
+                  </label>
+                  <input
+                    v-model="appleWalletForm.push_templates.ru.change_message"
+                    type="text"
+                    class="form-input text-xs"
+                    placeholder="Баланс бонусов обновлен: %@ баллов"
+                  />
+                  <p class="text-[11px] text-slate-500 mt-1">
+                    Символ <code class="text-indigo-400">%@</code> автоматически заменяется iOS на новый баланс гостя при начислении или списании.
+                  </p>
+                </div>
+              </div>
+
+              <!-- KZ Language Fields -->
+              <div v-if="activeApplePushLang === 'kz'" class="space-y-3 p-4 rounded-xl bg-slate-900/50 border border-slate-800">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-300 mb-1">
+                    Бонус балансы өзгергендегі хабарлама (Change Message KZ)
+                  </label>
+                  <input
+                    v-model="appleWalletForm.push_templates.kz.change_message"
+                    type="text"
+                    class="form-input text-xs"
+                    placeholder="Бонус балансы жаңартылды: %@ балл"
+                  />
+                  <p class="text-[11px] text-slate-500 mt-1">
+                    <code class="text-indigo-400">%@</code> белгісі жаңа бонус санымен автоматты түрде алмастырылады.
+                  </p>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- Modal Footer -->
+          <div class="px-6 py-3.5 border-t border-slate-800 bg-slate-900/90 flex justify-end gap-3 flex-shrink-0">
+            <button
+              type="button"
+              @click="showAppleAdvancedModal = false"
+              class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors border-none cursor-pointer"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              @click="saveAppleAdvancedSettings"
+              class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-colors shadow-md flex items-center gap-1.5 border-none cursor-pointer"
+            >
+              <span>✓</span>
+              <span>Сохранить параметры</span>
+            </button>
+          </div>
+
         </div>
       </div>
 
@@ -2659,6 +3276,44 @@ const newLocation = ref({
   longitude: ''
 })
 
+const savingAppleWallet = ref(false)
+const uploadingAppleLogo = ref(false)
+const appleLogoPreview = ref(null)
+const uploadingAppleStrip = ref(false)
+const appleStripPreview = ref(null)
+const appleWalletForm = ref({
+  pass_type_id: '',
+  team_id: '',
+  class_name: '',
+  logo_url: '',
+  strip_url: '',
+  barcode_type: 'barcode',
+  background_color: '#18181b',
+  foreground_color: '#ffffff',
+  label_color: '#94a3b8',
+  locations: [],
+  push_templates: {
+    ru: {
+      change_message: 'Баланс бонусов обновлен: %@ баллов',
+      welcome_geo_text: 'Добро пожаловать! Предъявите карту для бонусов.'
+    },
+    kz: {
+      change_message: 'Бонус балансы жаңартылды: %@ балл',
+      welcome_geo_text: 'Қош келдіңіз! Бонустарды алу үшін картаңызды көрсетіңіз.'
+    }
+  }
+})
+
+const showAppleAdvancedModal = ref(false)
+const activeAppleModalTab = ref('geo')
+const activeApplePushLang = ref('ru')
+const newAppleLocation = ref({
+  name: '',
+  latitude: '',
+  longitude: '',
+  relevant_text: ''
+})
+
 const form = ref({
   name: '', slug: '', address: '',
   tg_bot_token: '', tg_bot_username: '', tma_name: '', tma_direct_link: '',
@@ -3223,6 +3878,40 @@ async function load() {
         ? walletForm.value.hero_image_url 
         : window.location.origin + walletForm.value.hero_image_url
     }
+
+    const awSettings = res.data.apple_wallet_settings || {}
+    appleWalletForm.value = {
+      pass_type_id: res.data.apple_pass_type_id || awSettings.pass_type_id || '',
+      team_id: res.data.apple_team_id || awSettings.team_id || '',
+      class_name: awSettings.class_name || res.data.name || '',
+      logo_url: awSettings.logo_url || (res.data.branding?.logo_url ? (res.data.branding.logo_url.startsWith('http') ? res.data.branding.logo_url : window.location.origin + res.data.branding.logo_url) : ''),
+      strip_url: awSettings.strip_url || '',
+      barcode_type: awSettings.barcode_type || 'barcode',
+      background_color: awSettings.background_color || (res.data.branding?.design_color || '#18181b'),
+      foreground_color: awSettings.foreground_color || '#ffffff',
+      label_color: awSettings.label_color || '#94a3b8',
+      locations: Array.isArray(awSettings.locations) ? JSON.parse(JSON.stringify(awSettings.locations)) : [],
+      push_templates: awSettings.push_templates ? JSON.parse(JSON.stringify(awSettings.push_templates)) : {
+        ru: {
+          change_message: 'Баланс бонусов обновлен: %@ баллов',
+          welcome_geo_text: 'Добро пожаловать! Предъявите карту для бонусов.'
+        },
+        kz: {
+          change_message: 'Бонус балансы жаңартылды: %@ балл',
+          welcome_geo_text: 'Қош келдіңіз! Бонустарды алу үшін картаңызды көрсетіңіз.'
+        }
+      }
+    }
+    if (appleWalletForm.value.logo_url) {
+      appleLogoPreview.value = appleWalletForm.value.logo_url.startsWith('http') 
+        ? appleWalletForm.value.logo_url 
+        : window.location.origin + appleWalletForm.value.logo_url
+    }
+    if (appleWalletForm.value.strip_url) {
+      appleStripPreview.value = appleWalletForm.value.strip_url.startsWith('http') 
+        ? appleWalletForm.value.strip_url 
+        : window.location.origin + appleWalletForm.value.strip_url
+    }
     
     initLlmModelFields()
     
@@ -3556,6 +4245,154 @@ function insertPushTag(tag) {
 async function saveWalletAdvancedSettings() {
   await syncWalletClass()
   showWalletAdvancedModal.value = false
+}
+
+async function toggleAppleWallet() {
+  try {
+    await api.post(`/core/organizations/${auth.currentOrgId}/apple-wallet-settings/`, {
+      is_apple_wallet_enabled: form.value.is_apple_wallet_enabled
+    })
+    toast.success(form.value.is_apple_wallet_enabled ? 'Apple Wallet включен' : 'Apple Wallet отключен')
+  } catch {
+    form.value.is_apple_wallet_enabled = !form.value.is_apple_wallet_enabled
+    toast.error('Не удалось изменить статус Apple Wallet')
+  }
+}
+
+async function uploadAppleLogo(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  appleLogoPreview.value = URL.createObjectURL(file)
+  uploadingAppleLogo.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('asset_type', 'logo')
+    const res = await api.post(`/core/organizations/${auth.currentOrgId}/upload-apple-wallet-asset/`, fd)
+    appleWalletForm.value.logo_url = res.data.url
+    appleLogoPreview.value = res.data.url.startsWith('http') ? res.data.url : window.location.origin + res.data.url
+    toast.success('Логотип Apple Wallet загружен')
+  } catch {
+    toast.error('Ошибка загрузки логотипа')
+    appleLogoPreview.value = null
+  } finally {
+    uploadingAppleLogo.value = false
+  }
+}
+
+async function uploadAppleStrip(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  appleStripPreview.value = URL.createObjectURL(file)
+  uploadingAppleStrip.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    fd.append('asset_type', 'strip')
+    const res = await api.post(`/core/organizations/${auth.currentOrgId}/upload-apple-wallet-asset/`, fd)
+    appleWalletForm.value.strip_url = res.data.url
+    appleStripPreview.value = res.data.url.startsWith('http') ? res.data.url : window.location.origin + res.data.url
+    toast.success('Баннер Apple Wallet загружен')
+  } catch {
+    toast.error('Ошибка загрузки баннера')
+    appleStripPreview.value = null
+  } finally {
+    uploadingAppleStrip.value = false
+  }
+}
+
+function openAppleAdvancedModal() {
+  if (!appleWalletForm.value.locations) {
+    appleWalletForm.value.locations = []
+  }
+  if (!appleWalletForm.value.push_templates) {
+    appleWalletForm.value.push_templates = {
+      ru: {
+        change_message: 'Баланс бонусов обновлен: %@ баллов',
+        welcome_geo_text: 'Добро пожаловать! Предъявите карту для бонусов.'
+      },
+      kz: {
+        change_message: 'Бонус балансы жаңартылды: %@ балл',
+        welcome_geo_text: 'Қош келдіңіз! Бонустарды алу үшін картаңызды көрсетіңіз.'
+      }
+    }
+  }
+  showAppleAdvancedModal.value = true
+}
+
+function addAppleLocation() {
+  const lat = parseFloat(newAppleLocation.value.latitude)
+  const lng = parseFloat(newAppleLocation.value.longitude)
+  if (isNaN(lat) || lat < -90 || lat > 90) {
+    toast.error('Широта (Latitude) должна быть числом от -90 до +90')
+    return
+  }
+  if (isNaN(lng) || lng < -180 || lng > 180) {
+    toast.error('Долгота (Longitude) должна быть числом от -180 до +180')
+    return
+  }
+  if ((appleWalletForm.value.locations?.length || 0) >= 10) {
+    toast.error('В Apple Wallet разрешено максимум 10 гео-точек')
+    return
+  }
+  appleWalletForm.value.locations.push({
+    name: newAppleLocation.value.name.trim() || `Филиал #${appleWalletForm.value.locations.length + 1}`,
+    latitude: lat,
+    longitude: lng,
+    relevant_text: newAppleLocation.value.relevant_text.trim() || 'Предъявите карту для начисления бонусов!'
+  })
+  newAppleLocation.value = { name: '', latitude: '', longitude: '', relevant_text: '' }
+  toast.success('Локация филиала добавлена')
+}
+
+function removeAppleLocation(idx) {
+  appleWalletForm.value.locations.splice(idx, 1)
+}
+
+function insertApplePushTag(tag) {
+  const currentLang = activeApplePushLang.value
+  if (!appleWalletForm.value.push_templates) {
+    appleWalletForm.value.push_templates = {}
+  }
+  if (!appleWalletForm.value.push_templates[currentLang]) {
+    appleWalletForm.value.push_templates[currentLang] = { change_message: '', welcome_geo_text: '' }
+  }
+  const currentMsg = appleWalletForm.value.push_templates[currentLang].change_message || ''
+  appleWalletForm.value.push_templates[currentLang].change_message = currentMsg ? `${currentMsg} ${tag}` : tag
+}
+
+async function saveAppleWalletSettings() {
+  savingAppleWallet.value = true
+  try {
+    const data = {
+      is_apple_wallet_enabled: form.value.is_apple_wallet_enabled,
+      apple_pass_type_id: appleWalletForm.value.pass_type_id,
+      apple_team_id: appleWalletForm.value.team_id,
+      class_name: appleWalletForm.value.class_name || form.value.name,
+      logo_url: appleWalletForm.value.logo_url,
+      strip_url: appleWalletForm.value.strip_url,
+      barcode_type: appleWalletForm.value.barcode_type || 'barcode',
+      background_color: appleWalletForm.value.background_color || '#18181b',
+      foreground_color: appleWalletForm.value.foreground_color || '#ffffff',
+      label_color: appleWalletForm.value.label_color || '#94a3b8',
+      locations: appleWalletForm.value.locations || [],
+      push_templates: appleWalletForm.value.push_templates || {}
+    }
+    const res = await api.post(`/core/organizations/${auth.currentOrgId}/apple-wallet-settings/`, data)
+    form.value.is_apple_wallet_enabled = res.data.is_apple_wallet_enabled
+    form.value.apple_pass_type_id = res.data.apple_pass_type_id
+    form.value.apple_team_id = res.data.apple_team_id
+    toast.success('Настройки Apple Wallet успешно сохранены')
+  } catch (e) {
+    toast.error(e.response?.data?.error || 'Ошибка сохранения Apple Wallet')
+  } finally {
+    savingAppleWallet.value = false
+  }
+}
+
+async function saveAppleAdvancedSettings() {
+  await saveAppleWalletSettings()
+  showAppleAdvancedModal.value = false
 }
 
 const programs = ref([])

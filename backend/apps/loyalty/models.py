@@ -193,3 +193,30 @@ class CustomerTrustedDevice(models.Model):
     def __str__(self):
         return f"{self.customer} - {self.device_info or 'Unknown'} (до {self.expires_at.strftime('%Y-%m-%d')})"
 
+
+class AppleWalletDeviceRegistration(models.Model):
+    """
+    Device registrations for Apple Wallet dynamic pass updates (PassKit Web Service).
+    When an iOS device adds a pass, it registers its deviceLibraryIdentifier and pushToken.
+    """
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='apple_wallet_registrations')
+    device_library_identifier = models.CharField("Device Library Identifier", max_length=255, db_index=True)
+    push_token = models.CharField("APNs Push Token", max_length=255)
+    pass_type_identifier = models.CharField("Pass Type ID", max_length=150, db_index=True)
+    serial_number = models.CharField("Serial Number", max_length=150, db_index=True)
+    created_at = models.DateTimeField("Создан", auto_now_add=True)
+    updated_at = models.DateTimeField("Обновлен", auto_now=True)
+
+    class Meta:
+        verbose_name = "Регистрация устройства Apple Wallet"
+        verbose_name_plural = "Регистрации устройств Apple Wallet"
+        unique_together = ('device_library_identifier', 'pass_type_identifier', 'serial_number')
+        indexes = [
+            models.Index(fields=['pass_type_identifier', 'serial_number']),
+            models.Index(fields=['device_library_identifier', 'pass_type_identifier']),
+        ]
+
+    def __str__(self):
+        return f"{self.customer.organization.name} - {self.customer.first_name} ({self.device_library_identifier[:8]}...)"
+
+

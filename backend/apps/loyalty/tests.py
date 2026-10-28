@@ -950,6 +950,167 @@ class WebOnboardingTests(TestCase):
         self.assertFalse(OnboardingVerificationCode.objects.filter(phone=phone).exists())
 
 
+class AppleWalletTests(TestCase):
+    """
+    Tests for Apple Wallet multi-tenant pass generation and unified card numbering.
+    """
+    def setUp(self):
+        self.organization = Organization.objects.create(
+            name="Del Mar Seafood",
+            slug="del-mar-apple",
+            is_active=True,
+            is_apple_wallet_enabled=True,
+            apple_pass_type_id="pass.kz.loyalty.test",
+            apple_team_id="ABCDE12345",
+            apple_wallet_settings={
+                "background_color": "#0f172a",
+                "foreground_color": "#ffffff",
+                "label_color": "#94a3b8"
+            }
+        )
+        self.customer = Customer.objects.create(
+            organization=self.organization,
+            first_name="Алихан",
+            last_name="Нурланов",
+            phone="+77015554433",
+            loyalty_balance=1500.00,
+            iiko_card_number="9988776655"
+        )
+        self.client = APIClient()
+
+    def test_build_pass_json_multitenant_and_card_number(self):
+        from apps.loyalty.apple_wallet_service import AppleWalletService
+        service = AppleWalletService()
+
+        pass_json = service.build_pass_json(self.customer)
+
+        # 1. Multi-tenant checks
+        self.assertEqual(pass_json['organizationName'], "Del Mar Seafood")
+        self.assertEqual(pass_json['description'], "Карта лояльности Del Mar Seafood")
+        self.assertEqual(pass_json['serialNumber'], f"del-mar-apple_{self.customer.id}")
+        self.assertEqual(pass_json['passTypeIdentifier'], "pass.kz.loyalty.test")
+        self.assertEqual(pass_json['teamIdentifier'], "ABCDE12345")
+        self.assertEqual(pass_json['backgroundColor'], "rgb(15, 23, 42)")
+
+        # 2. Unified card number check (default is Code128 barcode)
+        self.assertEqual(pass_json['barcode']['format'], "PKBarcodeFormatCode128")
+        self.assertEqual(pass_json['barcode']['message'], "9988776655")
+        self.assertEqual(pass_json['barcode']['altText'], "9988776655")
+        self.assertEqual(pass_json['barcodes'][0]['format'], "PKBarcodeFormatCode128")
+        self.assertEqual(pass_json['barcodes'][0]['message'], "9988776655")
+        self.assertEqual(pass_json['barcodes'][1]['format'], "PKBarcodeFormatQR")
+        self.assertEqual(pass_json['barcodes'][1]['message'], "9988776655")
+
+        # 2b. Test QR code mode
+        self.organization.apple_wallet_settings['barcode_type'] = 'qr'
+        self.organization.save(update_fields=['apple_wallet_settings'])
+        pass_qr_json = service.build_pass_json(self.customer)
+        self.assertEqual(pass_qr_json['barcode']['format'], "PKBarcodeFormatQR")
+        self.assertEqual(pass_qr_json['barcodes'][0]['format'], "PKBarcodeFormatQR")
+        self.assertEqual(pass_qr_json['barcodes'][1]['format'], "PKBarcodeFormatCode128")
+
+        # 3. Field values check
+        store_card = pass_json['storeCard']
+        self.assertEqual(store_card['headerFields'][0]['value'], "1500")
+        self.assertEqual(store_card['primaryFields'][0]['value'], "Алихан Нурланов")
+        self.assertEqual(store_card['auxiliaryFields'][0]['value'], "9988776655")
+
+    def test_create_pkpass_archive(self):
+        import zipfile
+        import json
+        from apps.loyalty.apple_wallet_service import AppleWalletService
+        service = AppleWalletService()
+
+        pkpass_io = service.create_pkpass(self.customer)
+        self.assertIsNotNone(pkpass_io)
+
+        # Verify it is a valid zip archive
+        with zipfile.ZipFile(pkpass_io, 'r') as zf:
+            file_names = zf.namelist()
+            self.assertIn("pass.json", file_names)
+            self.assertIn("manifest.json", file_names)
+            self.assertIn("signature", file_names)
+            self.assertIn("icon.png", file_names)
+            self.assertIn("logo.png", file_names)
+
+            # Check manifest contents
+            manifest_data = json.loads(zf.read("manifest.json").decode('utf-8'))
+            self.assertIn("pass.json", manifest_data)
+            self.assertIn("icon.png", manifest_data)
+
+    def test_customer_wallet_apple_endpoint_tma(self):
+        self.client.force_authenticate(user=self.customer)
+        res = self.client.get('/api/loyalty/customer/wallet/apple/')
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data['status'], "success")
+        self.assertEqual(res.data['wallet_type'], "apple")
+        self.assertEqual(res.data['card_number'], "9988776655")
+        self.assertIn('/api/loyalty/public/passes/', res.data['url'])
+
+        # Verify downloading the generated pass URL
+        from urllib.parse import urlparse
+        path = urlparse(res.data['url']).path or res.data['url']
+        download_res = self.client.get(path)
+        self.assertEqual(download_res.status_code, 200)
+        self.assertEqual(download_res['Content-Type'], "application/vnd.apple.pkpass")
+        self.assertIn("card_9988776655.pkpass", download_res['Content-Disposition'])
+
+    def test_passkit_web_service_protocol(self):
+        from apps.loyalty.apple_wallet_service import AppleWalletService
+        from apps.loyalty.models import AppleWalletDeviceRegistration
+        service = AppleWalletService()
+
+        serial_number = f"del-mar-apple_{self.customer.id}"
+        pass_type_id = "pass.kz.loyalty.test"
+        device_id = "device_test_lib_id_123"
+        auth_token = service.get_auth_token(self.customer)
+        auth_header = f"ApplePass {auth_token}"
+
+        reg_url = f"/api/loyalty/apple-wallet/v1/devices/{device_id}/registrations/{pass_type_id}/{serial_number}"
+
+        # 1. Missing Authorization -> 401
+        res = self.client.post(reg_url, data={"pushToken": "token123"}, format="json")
+        self.assertEqual(res.status_code, 401)
+
+        # 2. Invalid Authorization -> 401
+        res = self.client.post(reg_url, data={"pushToken": "token123"}, format="json", HTTP_AUTHORIZATION="ApplePass wrong_token")
+        self.assertEqual(res.status_code, 401)
+
+        # 3. Valid Registration -> 201 Created
+        res = self.client.post(reg_url, data={"pushToken": "push_token_abc"}, format="json", HTTP_AUTHORIZATION=auth_header)
+        self.assertEqual(res.status_code, 201)
+        self.assertTrue(AppleWalletDeviceRegistration.objects.filter(device_library_identifier=device_id).exists())
+
+        # 4. Duplicate Registration -> 200 OK
+        res = self.client.post(reg_url, data={"pushToken": "push_token_abc"}, format="json", HTTP_AUTHORIZATION=auth_header)
+        self.assertEqual(res.status_code, 200)
+
+        # 5. Query passes for device -> 200 OK
+        passes_url = f"/api/loyalty/apple-wallet/v1/devices/{device_id}/passes/{pass_type_id}"
+        res = self.client.get(passes_url)
+        self.assertEqual(res.status_code, 200)
+        self.assertIn(serial_number, res.data['serialNumbers'])
+
+        # 6. Fetch pass detail -> 200 OK (.pkpass)
+        detail_url = f"/api/loyalty/apple-wallet/v1/passes/{pass_type_id}/{serial_number}"
+        res = self.client.get(detail_url, HTTP_AUTHORIZATION=auth_header)
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res['Content-Type'], "application/vnd.apple.pkpass")
+
+        # 7. Unregister device -> 200 OK
+        res = self.client.delete(reg_url, HTTP_AUTHORIZATION=auth_header)
+        self.assertEqual(res.status_code, 200)
+        self.assertFalse(AppleWalletDeviceRegistration.objects.filter(device_library_identifier=device_id).exists())
+
+        # 8. Device log -> 200 OK
+        log_url = "/api/loyalty/apple-wallet/v1/log"
+        res = self.client.post(log_url, data={"logs": ["Test log message"]}, format="json")
+        self.assertEqual(res.status_code, 200)
+
+
+
+
 
 
 

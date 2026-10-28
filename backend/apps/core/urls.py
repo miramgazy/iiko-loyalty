@@ -3,7 +3,8 @@ from rest_framework.routers import DefaultRouter
 from apps.core.views import (
     SuperAdminOrganizationViewSet, OrganizationSettingsView, OrganizationLogoUploadView, OrganizationBannerUploadView,
     OrganizationOnboardingBannerUploadView, OrganizationWalletLogoUploadView,
-    OrganizationGoogleWalletSettingsView, OrganizationWebhookStatusView, OrganizationSendTestMessageView,
+    OrganizationGoogleWalletSettingsView, OrganizationAppleWalletSettingsView, OrganizationAppleWalletAssetUploadView,
+    OrganizationWebhookStatusView, OrganizationSendTestMessageView,
     OrganizationTestIikoConnectionView, OrganizationTestIikoServerConnectionView, TmaEmployeeViewSet,
     OrganizationWabaTemplatesView, OrganizationWabaPhoneNumbersView, OrganizationWabaSendTestView,
     OrganizationWabaLogsView, OrganizationWabaRulesViewSet
@@ -23,6 +24,8 @@ urlpatterns = [
     path('organizations/<int:organization_id>/upload-banner/', OrganizationBannerUploadView.as_view(), name='org_banner_upload'),
     path('organizations/<int:organization_id>/upload-onboarding-banner/', OrganizationOnboardingBannerUploadView.as_view(), name='org_onboarding_banner_upload'),
     path('organizations/<int:organization_id>/google-wallet-class/', OrganizationGoogleWalletSettingsView.as_view(), name='org_google_wallet_class'),
+    path('organizations/<int:organization_id>/apple-wallet-settings/', OrganizationAppleWalletSettingsView.as_view(), name='org_apple_wallet_settings'),
+    path('organizations/<int:organization_id>/upload-apple-wallet-asset/', OrganizationAppleWalletAssetUploadView.as_view(), name='org_apple_wallet_asset_upload'),
     path('organizations/<int:organization_id>/webhook-status/', OrganizationWebhookStatusView.as_view(), name='org_webhook_status'),
     path('organizations/<int:organization_id>/send-test-message/', OrganizationSendTestMessageView.as_view(), name='org_send_test_message'),
     path('organizations/<int:organization_id>/test-iiko-connection/', OrganizationTestIikoConnectionView.as_view(), name='org_test_iiko_connection'),

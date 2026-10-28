@@ -1251,6 +1251,8 @@ async function handleAddWallet(walletType) {
 
     if (walletType === 'google' && res.data.url) {
       window.location.href = res.data.url
+    } else if (walletType === 'apple' && res.data.url) {
+      window.location.href = res.data.url
     } else if (walletType === 'google') {
       walletMessage.value = lang.value === 'kz' ? 'Google Wallet картасы белгіленді!' : 'Карта Google Wallet успешно выбрана!'
     } else if (walletType === 'apple') {

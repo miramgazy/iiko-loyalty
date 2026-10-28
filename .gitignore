@@ -48,3 +48,12 @@ iiko_webhooks/
 
 # Agent folder
 .agent/
+
+# Apple Wallet Certificates & Keys
+apple_certs/
+**/apple_certs/
+*.p12
+*.cer
+*.certSigningRequest
+*.pkpass
+

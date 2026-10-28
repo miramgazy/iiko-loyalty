@@ -265,6 +265,108 @@ class OrganizationGoogleWalletSettingsView(APIView):
                 "google_wallet_settings": org.google_wallet_settings
             }, status=status.HTTP_400_BAD_REQUEST)
 
+class OrganizationAppleWalletSettingsView(APIView):
+    """
+    View for OrgManager to get and configure Apple Wallet pass settings.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+
+    def get(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        from apps.loyalty.apple_wallet_service import AppleWalletService
+        service = AppleWalletService()
+
+        aw_settings = org.apple_wallet_settings or {}
+        return Response({
+            "is_apple_wallet_enabled": org.is_apple_wallet_enabled,
+            "apple_pass_type_id": org.apple_pass_type_id or service.default_pass_type_id,
+            "apple_team_id": org.apple_team_id or service.default_team_id,
+            "apple_wallet_settings": aw_settings,
+        }, status=status.HTTP_200_OK)
+
+    def post(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+
+        is_enabled = request.data.get('is_apple_wallet_enabled')
+        if is_enabled is not None:
+            org.is_apple_wallet_enabled = bool(is_enabled)
+
+        pass_type_id = request.data.get('apple_pass_type_id')
+        if pass_type_id is not None:
+            org.apple_pass_type_id = str(pass_type_id).strip() or None
+
+        team_id = request.data.get('apple_team_id')
+        if team_id is not None:
+            org.apple_team_id = str(team_id).strip() or None
+
+        settings_dict = org.apple_wallet_settings or {}
+
+        for key in ['class_name', 'logo_url', 'strip_url', 'background_color', 'foreground_color', 'label_color', 'barcode_type']:
+            val = request.data.get(key)
+            if val is not None:
+                settings_dict[key] = str(val).strip()
+
+        # Ensure barcode_type defaults to 'barcode' if invalid
+        if settings_dict.get('barcode_type') not in ['barcode', 'qr']:
+            settings_dict['barcode_type'] = 'barcode'
+
+        locations = request.data.get('locations')
+        if locations is not None:
+            settings_dict['locations'] = locations
+
+        push_templates = request.data.get('push_templates')
+        if push_templates is not None:
+            settings_dict['push_templates'] = push_templates
+
+        org.apple_wallet_settings = settings_dict
+        org.save(update_fields=['is_apple_wallet_enabled', 'apple_pass_type_id', 'apple_team_id', 'apple_wallet_settings'])
+
+        return Response({
+            "status": "success",
+            "is_apple_wallet_enabled": org.is_apple_wallet_enabled,
+            "apple_pass_type_id": org.apple_pass_type_id,
+            "apple_team_id": org.apple_team_id,
+            "apple_wallet_settings": org.apple_wallet_settings
+        }, status=status.HTTP_200_OK)
+
+
+class OrganizationAppleWalletAssetUploadView(APIView):
+    """
+    View for OrgManager to upload Apple Wallet card assets (logo or strip banner).
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        asset_file = request.FILES.get('file') or request.FILES.get('logo') or request.FILES.get('strip') or request.FILES.get('image')
+        if not asset_file:
+            return Response({"error": "No file provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+        asset_type = request.data.get('asset_type', 'logo').lower()
+        if asset_type not in ['logo', 'strip']:
+            asset_type = 'logo'
+
+        ext = os.path.splitext(asset_file.name)[1].lower()
+        if ext not in ['.jpg', '.jpeg', '.png', '.webp']:
+            return Response({"error": "Invalid image format"}, status=status.HTTP_400_BAD_REQUEST)
+
+        import uuid
+        filename = f"apple_wallet/{asset_type}_{org.slug}_{uuid.uuid4().hex[:8]}{ext}"
+        path = default_storage.save(filename, ContentFile(asset_file.read()))
+        asset_url = f"/media/{path}"
+
+        settings_dict = org.apple_wallet_settings or {}
+        settings_dict[f"{asset_type}_url"] = asset_url
+        org.apple_wallet_settings = settings_dict
+        org.save(update_fields=['apple_wallet_settings'])
+
+        return Response({
+            "status": "success",
+            "asset_type": asset_type,
+            "url": asset_url
+        }, status=status.HTTP_200_OK)
+
 class OrganizationWebhookStatusView(APIView):
     """
     View for OrgManager to check Telegram Webhook status.

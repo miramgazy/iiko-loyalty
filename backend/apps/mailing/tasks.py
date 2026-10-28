@@ -125,11 +125,11 @@ def get_mailing_recipients(task):
             google_wallet_object_id__isnull=False
         ).exclude(wallet_type='apple')
     elif channel == MailingTask.CHANNEL_APPLE_WALLET:
-        # Customers with Apple Wallet
+        # Customers with Apple Wallet (either flagged or registered active Apple device)
         queryset = Customer.objects.filter(
-            organization=task.organization,
-            wallet_type='apple'
-        )
+            Q(wallet_type='apple') | Q(apple_wallet_registrations__isnull=False),
+            organization=task.organization
+        ).distinct()
     else:
         # Default: Telegram bot subscribed customers
         queryset = Customer.objects.filter(
@@ -247,8 +247,15 @@ def process_mailing_batch(task_id):
                     task.failed_count += 1
 
             elif channel == MailingTask.CHANNEL_APPLE_WALLET:
-                # Apple Wallet push delivery
-                task.sent_success += 1
+                # Apple Wallet push delivery via APNs
+                try:
+                    from apps.loyalty.apple_wallet_service import AppleWalletService
+                    aw_service = AppleWalletService()
+                    aw_service.send_pass_update_push(user)
+                    task.sent_success += 1
+                except Exception as ex:
+                    logger.warning(f"Failed to send Apple Wallet push for mailing {task.id}: {ex}")
+                    task.failed_count += 1
 
             else:
                 # Telegram message (photo or text)

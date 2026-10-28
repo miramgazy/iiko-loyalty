@@ -5,6 +5,22 @@ from datetime import timedelta
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load .env file if present
+_env_candidates = [BASE_DIR.parent / '.env', BASE_DIR / '.env']
+for _env_file in _env_candidates:
+    if _env_file.exists():
+        with open(_env_file, 'r', encoding='utf-8') as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line and not _line.startswith('#') and '=' in _line:
+                    _k, _v = _line.split('=', 1)
+                    _k = _k.strip()
+                    _v = _v.strip().strip('\'"')
+                    if _k not in os.environ:
+                        os.environ[_k] = _v
+        break
+
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-!zl4u7^b^whe6+#*yc!km&egrbmi7^e6e=e5sp4t)2#vet527u')
 
@@ -262,5 +278,16 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 86400.0,  # 24 hours (once per day)
     },
 }
+
+# Apple Wallet (PassKit & APNs Push)
+APPLE_PASS_TYPE_ID = os.environ.get('APPLE_PASS_TYPE_ID', 'pass.kz.loyalty.service')
+APPLE_TEAM_ID = os.environ.get('APPLE_TEAM_ID', '')
+APPLE_P12_BASE64 = os.environ.get('APPLE_P12_BASE64', '')
+APPLE_CERTIFICATE_BASE64 = os.environ.get('APPLE_CERTIFICATE_BASE64', '')
+APPLE_KEY_BASE64 = os.environ.get('APPLE_KEY_BASE64', '')
+APPLE_WWDR_BASE64 = os.environ.get('APPLE_WWDR_BASE64', '')
+APPLE_CERTIFICATE_PASSWORD = os.environ.get('APPLE_CERTIFICATE_PASSWORD', '')
+APPLE_APNS_SANDBOX = os.environ.get('APPLE_APNS_SANDBOX', 'false').lower() in ('true', '1', 'yes')
+
 
 

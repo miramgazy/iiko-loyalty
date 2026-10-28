@@ -648,9 +648,14 @@ class CustomerAppleWalletLinkView(APIView):
             customer.wallet_type = 'apple'
             customer.save(update_fields=['wallet_type'])
 
+        from apps.loyalty.apple_wallet_service import AppleWalletService
+        service = AppleWalletService()
+        url = service.get_pass_download_url(customer)
+
         return Response({
             "status": "success",
             "wallet_type": "apple",
+            "url": url,
             "card_number": customer.iiko_card_number,
             "message": "Apple Wallet выбран для программы лояльности"
         })
@@ -1294,9 +1299,18 @@ class WebOnboardingWalletView(APIView):
                 customer.wallet_type = 'apple'
                 customer.save(update_fields=['wallet_type'])
 
+            url = None
+            try:
+                from apps.loyalty.apple_wallet_service import AppleWalletService
+                service = AppleWalletService()
+                url = service.get_pass_download_url(customer)
+            except Exception as e:
+                logger.warning(f"Could not generate Apple Wallet pass link: {e}")
+
             return Response({
                 "status": "success",
                 "wallet_type": "apple",
+                "url": url,
                 "card_number": customer.iiko_card_number,
                 "message": "Apple Wallet выбран для программы лояльности"
             })
@@ -1330,6 +1344,220 @@ class OrganizationIikoWalletsView(APIView):
             .distinct()
         )
         return Response({"wallets": sorted(wallets)})
+
+
+class DownloadApplePassView(APIView):
+    """
+    Public view for downloading a signed Apple Wallet pass (.pkpass).
+    Verified via signed token with salt 'apple-wallet-pass'.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, token, *args, **kwargs):
+        from django.core import signing
+        from django.http import HttpResponse, Http404
+
+        try:
+            payload = signing.loads(token, salt="apple-wallet-pass", max_age=86400 * 30)
+            customer_id = payload.get("customer_id")
+            org_id = payload.get("org_id")
+        except Exception:
+            raise Http404("Ссылка на карту устарела или недействительна")
+
+        customer = Customer.objects.filter(id=customer_id, organization_id=org_id).select_related('organization').first()
+        if not customer or not customer.organization.is_active:
+            raise Http404("Гость или заведение не найдены")
+
+        if not customer.organization.is_apple_wallet_enabled:
+            return Response({"error": "Интеграция с Apple Wallet отключена заведением"}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.loyalty.apple_wallet_service import AppleWalletService
+        service = AppleWalletService()
+        pkpass_io = service.create_pkpass(customer)
+
+        card_num = customer.iiko_card_number or customer.id
+        response = HttpResponse(pkpass_io.getvalue(), content_type="application/vnd.apple.pkpass")
+        response['Content-Disposition'] = f'attachment; filename="card_{card_num}.pkpass"'
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response
+
+
+def _parse_serial_number(serial_number: str):
+    """Extracts (org_slug, customer_id) from pass serialNumber ('{org_slug}_{customer_id}')."""
+    if not serial_number:
+        return None, None
+    parts = serial_number.rsplit('_', 1)
+    if len(parts) == 2 and parts[1].isdigit():
+        return parts[0], int(parts[1])
+    return None, None
+
+
+class AppleWalletDeviceRegistrationView(APIView):
+    """
+    Apple PassKit Web Service Protocol:
+    POST: Register a device to receive push notifications for a pass.
+    DELETE: Unregister a device when a pass is deleted from Apple Wallet.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, device_id, pass_type_id, serial_number, *args, **kwargs):
+        from apps.loyalty.models import AppleWalletDeviceRegistration, Customer
+        from apps.loyalty.apple_wallet_service import AppleWalletService
+
+        org_slug, customer_id = _parse_serial_number(serial_number)
+        if not customer_id:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        customer = Customer.objects.filter(id=customer_id, organization__slug=org_slug).select_related('organization').first()
+        if not customer or not customer.organization.is_apple_wallet_enabled:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        service = AppleWalletService()
+        auth_header = request.headers.get('Authorization', '')
+        if not service.verify_auth_token(customer, auth_header):
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+        push_token = request.data.get('pushToken')
+        if not push_token:
+            return Response({"error": "pushToken required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        _, created = AppleWalletDeviceRegistration.objects.update_or_create(
+            device_library_identifier=device_id,
+            pass_type_identifier=pass_type_id,
+            serial_number=serial_number,
+            defaults={
+                'customer': customer,
+                'push_token': push_token,
+            }
+        )
+
+        if customer.wallet_type != 'apple':
+            customer.wallet_type = 'apple'
+            customer.save(update_fields=['wallet_type'])
+
+        return Response(status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+
+    def delete(self, request, device_id, pass_type_id, serial_number, *args, **kwargs):
+        from apps.loyalty.models import AppleWalletDeviceRegistration, Customer
+        from apps.loyalty.apple_wallet_service import AppleWalletService
+
+        org_slug, customer_id = _parse_serial_number(serial_number)
+        if not customer_id:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        customer = Customer.objects.filter(id=customer_id, organization__slug=org_slug).select_related('organization').first()
+        if not customer:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        service = AppleWalletService()
+        auth_header = request.headers.get('Authorization', '')
+        if not service.verify_auth_token(customer, auth_header):
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+        deleted, _ = AppleWalletDeviceRegistration.objects.filter(
+            device_library_identifier=device_id,
+            pass_type_identifier=pass_type_id,
+            serial_number=serial_number
+        ).delete()
+
+        return Response(status=status.HTTP_200_OK if deleted else status.HTTP_404_NOT_FOUND)
+
+
+class AppleWalletDevicePassesView(APIView):
+    """
+    Apple PassKit Web Service Protocol:
+    GET: Get passes updated since tag/timestamp for this device.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, device_id, pass_type_id, *args, **kwargs):
+        from apps.loyalty.models import AppleWalletDeviceRegistration
+        import time
+        from django.utils.dateparse import parse_datetime
+        import datetime
+
+        passes_updated_since = request.query_params.get('passesUpdatedSince')
+        qs = AppleWalletDeviceRegistration.objects.filter(
+            device_library_identifier=device_id,
+            pass_type_identifier=pass_type_id
+        ).select_related('customer')
+
+        if passes_updated_since:
+            try:
+                dt = parse_datetime(passes_updated_since)
+                if not dt:
+                    dt = datetime.datetime.fromtimestamp(float(passes_updated_since), tz=datetime.timezone.utc)
+                qs = qs.filter(customer__updated_at__gt=dt)
+            except Exception:
+                pass
+
+        serials = list(qs.values_list('serial_number', flat=True))
+        if not serials:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        return Response({
+            "lastUpdated": str(int(time.time())),
+            "serialNumbers": serials
+        }, status=status.HTTP_200_OK)
+
+
+class AppleWalletPassDetailView(APIView):
+    """
+    Apple PassKit Web Service Protocol:
+    GET: Get latest pass version for a registered serial number.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, pass_type_id, serial_number, *args, **kwargs):
+        from apps.loyalty.models import Customer
+        from apps.loyalty.apple_wallet_service import AppleWalletService
+        from django.http import HttpResponse
+        import email.utils
+
+        org_slug, customer_id = _parse_serial_number(serial_number)
+        if not customer_id:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        customer = Customer.objects.filter(id=customer_id, organization__slug=org_slug).select_related('organization').first()
+        if not customer or not customer.organization.is_active or not customer.organization.is_apple_wallet_enabled:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        service = AppleWalletService()
+        auth_header = request.headers.get('Authorization', '')
+        if not service.verify_auth_token(customer, auth_header):
+            return Response(status=status.HTTP_401_UNAUTHORIZED)
+
+        # Check If-Modified-Since
+        ims = request.headers.get('If-Modified-Since')
+        if ims:
+            try:
+                ims_dt = email.utils.parsedate_to_datetime(ims)
+                if customer.updated_at <= ims_dt:
+                    return Response(status=status.HTTP_304_NOT_MODIFIED)
+            except Exception:
+                pass
+
+        pkpass_io = service.create_pkpass(customer)
+        response = HttpResponse(pkpass_io.getvalue(), content_type="application/vnd.apple.pkpass")
+        response['Last-Modified'] = email.utils.formatdate(customer.updated_at.timestamp(), usegmt=True)
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        return response
+
+
+class AppleWalletLogView(APIView):
+    """
+    Apple PassKit Web Service Protocol:
+    POST: Device client error logs.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        logs = request.data.get('logs', [])
+        for item in logs:
+            logger.warning(f"[AppleWallet DeviceLog] {item}")
+        return Response(status=status.HTTP_200_OK)
+
+
 
 
 

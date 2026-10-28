@@ -16,11 +16,22 @@ from apps.loyalty.views import (
     WebOnboardingSendOtpView,
     WebOnboardingVerifyView,
     WebOnboardingWalletView,
-    OrganizationIikoWalletsView
+    OrganizationIikoWalletsView,
+    DownloadApplePassView,
+    AppleWalletDeviceRegistrationView,
+    AppleWalletDevicePassesView,
+    AppleWalletPassDetailView,
+    AppleWalletLogView
 )
 
 
 urlpatterns = [
+    # Apple PassKit Web Service Protocol (v1)
+    path('apple-wallet/v1/devices/<str:device_id>/registrations/<str:pass_type_id>/<str:serial_number>', AppleWalletDeviceRegistrationView.as_view(), name='apple_device_registration'),
+    path('apple-wallet/v1/devices/<str:device_id>/passes/<str:pass_type_id>', AppleWalletDevicePassesView.as_view(), name='apple_device_passes'),
+    path('apple-wallet/v1/passes/<str:pass_type_id>/<str:serial_number>', AppleWalletPassDetailView.as_view(), name='apple_pass_detail'),
+    path('apple-wallet/v1/log', AppleWalletLogView.as_view(), name='apple_pass_log'),
+
     path('organizations/iiko-wallets/', OrganizationIikoWalletsView.as_view(), name='org_iiko_wallets'),
     path('tma/auth/', TmaAuthView.as_view(), name='tma_auth'),
     path('customer/me/', CustomerMeView.as_view(), name='customer_me'),
@@ -32,6 +43,7 @@ urlpatterns = [
     
     path('customer/wallet/google/', CustomerGoogleWalletLinkView.as_view(), name='customer_wallet_google'),
     path('customer/wallet/apple/', CustomerAppleWalletLinkView.as_view(), name='customer_wallet_apple'),
+    path('public/passes/<str:token>/card.pkpass', DownloadApplePassView.as_view(), name='download_apple_pass'),
     
     # Organization customer database
     path('organizations/<int:organization_id>/customers/', OrgCustomerViewSet.as_view({'get': 'list'}), name='org_customers'),
