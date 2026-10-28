@@ -357,6 +357,14 @@ class AppleWalletService:
             }
         ]
 
+        # Change message template for APNs pass updates
+        lang = getattr(customer, 'language', 'ru') or 'ru'
+        templates = aw_settings.get('push_templates', {})
+        tpl = templates.get(lang) or templates.get('ru', {})
+        change_msg = tpl.get('change_message') or "Баланс бонусов обновлен: %@ ₸"
+        if '%@' not in change_msg:
+            change_msg = f"{change_msg}: %@ ₸"
+
         # Secondary fields (Under banner):
         # Balance on the right (where phone stood previously, prominent font) with changeMessage
         secondary_fields = [
@@ -462,14 +470,6 @@ class AppleWalletService:
             "value": notice_value,
             "changeMessage": "%@"
         })
-
-        # Change message template for APNs pass updates
-        lang = getattr(customer, 'language', 'ru') or 'ru'
-        templates = aw_settings.get('push_templates', {})
-        tpl = templates.get(lang) or templates.get('ru', {})
-        change_msg = tpl.get('change_message') or "Баланс бонусов обновлен: %@ ₸"
-        if '%@' not in change_msg:
-            change_msg = f"{change_msg}: %@ ₸"
 
         program_title = aw_settings.get('class_name') or org.name
 
