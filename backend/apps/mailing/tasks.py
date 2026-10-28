@@ -247,11 +247,11 @@ def process_mailing_batch(task_id):
                     task.failed_count += 1
 
             elif channel == MailingTask.CHANNEL_APPLE_WALLET:
-                # Apple Wallet push delivery via APNs
+                # Apple Wallet push delivery via APNs with marketing message
                 try:
                     from apps.loyalty.apple_wallet_service import AppleWalletService
                     aw_service = AppleWalletService()
-                    aw_service.send_pass_update_push(user)
+                    aw_service.send_broadcast_push(user, message=text, task_id=task.id)
                     task.sent_success += 1
                 except Exception as ex:
                     logger.warning(f"Failed to send Apple Wallet push for mailing {task.id}: {ex}")

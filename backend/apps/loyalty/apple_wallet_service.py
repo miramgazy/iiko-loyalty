@@ -250,6 +250,23 @@ class AppleWalletService:
 
         return success_count
 
+    def send_broadcast_push(self, customer: Customer, message: str, task_id: Optional[int] = None) -> int:
+        """
+        Sends an Apple Wallet broadcast push notification for marketing or announcements.
+        Stores the broadcast message in cache so the updated pass contains a new 'broadcast_notice' field.
+        When iOS downloads the updated pass, the change in this field automatically triggers
+        a lock-screen push notification on the user's iPhone with the message text!
+        """
+        from django.core.cache import cache
+        clean_msg = message.strip()
+        try:
+            cache.set(f"apple_wallet_broadcast_{customer.id}", clean_msg, timeout=86400 * 30)
+        except Exception as e:
+            logger.warning(f"Could not cache broadcast message for customer {customer.id}: {e}")
+
+        # Trigger APNs push to notify registered devices to fetch the new pass
+        return self.send_pass_update_push(customer)
+
     def build_pass_json(self, customer: Customer) -> Dict[str, Any]:
         """
         Builds the complete pass.json structure for an organization's loyalty card.
@@ -392,6 +409,38 @@ class AppleWalletService:
                 "key": "tma_link",
                 "label": "TELEGRAM MINI APP",
                 "value": org.tma_direct_link
+            })
+
+        # Check for active marketing / broadcast announcement message for this pass
+        from django.core.cache import cache
+        broadcast_msg = None
+        try:
+            broadcast_msg = cache.get(f"apple_wallet_broadcast_{customer.id}")
+        except Exception:
+            pass
+
+        if not broadcast_msg:
+            try:
+                from apps.mailing.models import MailingTask
+                latest_mail = MailingTask.objects.filter(
+                    organization=org,
+                    channel_type=MailingTask.CHANNEL_APPLE_WALLET,
+                    status__in=[MailingTask.STATUS_IN_PROGRESS, MailingTask.STATUS_DONE]
+                ).order_by('-scheduled_at').first()
+                if latest_mail:
+                    lang = getattr(customer, 'language', 'ru') or 'ru'
+                    tpl = latest_mail.message_kz if lang == 'kz' else latest_mail.message_ru
+                    cust_name = customer.first_name or ("Құрметті қонақ" if lang == 'kz' else "Гость")
+                    broadcast_msg = tpl.replace('{{user_name}}', cust_name).strip()
+            except Exception:
+                broadcast_msg = None
+
+        if broadcast_msg:
+            back_fields.insert(0, {
+                "key": "broadcast_notice",
+                "label": "НОВОСТИ И АКЦИИ",
+                "value": broadcast_msg,
+                "changeMessage": "%@"
             })
 
         # Change message template for APNs pass updates

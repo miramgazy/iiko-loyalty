@@ -128,21 +128,64 @@ class MailingTaskViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def send_test(self, request, pk=None):
         task = self.get_object()
-        telegram_id = request.data.get('telegram_id') or task.tg_id_for_test
-        if not telegram_id:
-            return Response({"error": "telegram_id is required"}, status=status.HTTP_400_BAD_REQUEST)
-
         org = task.organization
-        if not org.tg_bot_token:
-            return Response({"error": "Бот не настроен для данной организации"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Select template by admin user language
         admin_lang = getattr(request.user, 'language', 'ru')
         template = task.message_kz if admin_lang == 'kz' else task.message_ru
-
-        # Format name
         admin_name = request.user.first_name or request.user.username or "Администратор"
         text = template.replace('{{user_name}}', admin_name)
+
+        # 1. Apple Wallet Channel Test
+        if task.channel_type == MailingTask.CHANNEL_APPLE_WALLET:
+            from apps.loyalty.apple_wallet_service import AppleWalletService
+            from apps.loyalty.models import Customer
+            aw_service = AppleWalletService()
+            target_customer = Customer.objects.filter(
+                organization=org,
+                apple_wallet_registrations__isnull=False
+            ).first() or Customer.objects.filter(organization=org, wallet_type='apple').first()
+
+            if not target_customer:
+                return Response({
+                    "error": "Не найдено зарегистрированных карт Apple Wallet для теста. Добавьте карту в кошелек на iPhone."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            pushed = aw_service.send_broadcast_push(target_customer, message=text, task_id=task.id)
+            return Response({
+                "status": "success",
+                "detail": f"Тестовый пуш Apple Wallet отправлен на {pushed} устройство(в)"
+            })
+
+        # 2. Google Wallet Channel Test
+        if task.channel_type == MailingTask.CHANNEL_GOOGLE_WALLET:
+            from apps.loyalty.google_wallet_service import GoogleWalletService
+            from apps.loyalty.models import Customer
+            gw_service = GoogleWalletService()
+            target_customer = Customer.objects.filter(
+                organization=org,
+                google_wallet_object_id__isnull=False
+            ).first()
+            if not target_customer:
+                return Response({
+                    "error": "Не найдено карт Google Wallet для теста"
+                }, status=status.HTTP_400_BAD_REQUEST)
+            push_title = task.title.strip()[:35]
+            push_body = text.strip()[:200]
+            success = gw_service.send_push_message(target_customer, push_title, push_body, f"test_{task.id}")
+            return Response({
+                "status": "success" if success else "error",
+                "detail": "Тестовый пуш Google Wallet отправлен" if success else "Ошибка отправки в Google Wallet"
+            })
+
+        # 3. Telegram Channel Test
+        telegram_id = request.data.get('telegram_id') or task.tg_id_for_test
+        if not telegram_id:
+            return Response({"error": "telegram_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not org.tg_bot_token:
+            return Response({"error": "Бот не настроен для данной организации"}, status=status.HTTP_400_BAD_REQUEST)
+
         test_text = f"<b>[ТЕСТОВОЕ СООБЩЕНИЕ]</b>\n\n{text}"
 
         if task.has_image:

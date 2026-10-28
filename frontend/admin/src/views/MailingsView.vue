@@ -525,19 +525,48 @@
 
         <!-- Modal body -->
         <div class="px-6 py-6 space-y-4">
-          <div class="space-y-2">
-            <label class="block text-sm font-semibold text-slate-300">Ваш Telegram ID</label>
-            <input
-              v-model="testTelegramId"
-              type="text"
-              placeholder="Введите ваш Telegram ID"
-              class="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-slate-600 transition-all"
-            />
-          </div>
+          <template v-if="activeTestMailing?.channel_type === 'apple_wallet'">
+            <div class="text-xs text-slate-300 bg-slate-950 border border-slate-800 p-4 rounded-xl leading-relaxed space-y-2">
+              <div class="flex items-center gap-2 font-bold text-white text-sm">
+                <span>🍏</span>
+                <span>Тест рассылки Apple Wallet</span>
+              </div>
+              <p class="text-slate-400">
+                Тестовое Push-уведомление будет отправлено на зарегистрированную карту Apple Wallet вашего заведения.
+              </p>
+              <p class="text-[11px] text-emerald-400 font-medium">
+                Текст появится на заблокированном экране iPhone и обновится в блоке «Новости и акции» на обороте карты.
+              </p>
+            </div>
+          </template>
 
-          <div class="text-xs text-slate-400 bg-slate-950 border border-slate-850 p-4.5 rounded-xl leading-relaxed">
-            💡 Узнать свой ID можно, написав команду <code class="text-indigo-400 bg-indigo-950/40 px-1.5 py-0.5 rounded font-mono font-bold">/getmyid</code> боту заведения в Telegram.
-          </div>
+          <template v-else-if="activeTestMailing?.channel_type === 'google_wallet'">
+            <div class="text-xs text-slate-300 bg-slate-950 border border-slate-800 p-4 rounded-xl leading-relaxed space-y-2">
+              <div class="flex items-center gap-2 font-bold text-white text-sm">
+                <span>💳</span>
+                <span>Тест рассылки Google Wallet</span>
+              </div>
+              <p class="text-slate-400">
+                Тестовое сообщение появится в кошельке Google Wallet для зарегистрированных пользователей.
+              </p>
+            </div>
+          </template>
+
+          <template v-else>
+            <div class="space-y-2">
+              <label class="block text-sm font-semibold text-slate-300">Ваш Telegram ID</label>
+              <input
+                v-model="testTelegramId"
+                type="text"
+                placeholder="Введите ваш Telegram ID"
+                class="w-full bg-slate-950 border border-slate-800 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-slate-600 transition-all"
+              />
+            </div>
+
+            <div class="text-xs text-slate-400 bg-slate-950 border border-slate-850 p-4.5 rounded-xl leading-relaxed">
+              💡 Узнать свой ID можно, написав команду <code class="text-indigo-400 bg-indigo-950/40 px-1.5 py-0.5 rounded font-mono font-bold">/getmyid</code> боту заведения в Telegram.
+            </div>
+          </template>
         </div>
 
         <!-- Modal footer -->
@@ -905,13 +934,15 @@ function closeTestModal() {
 }
 
 async function sendTestMailing() {
-  if (!testTelegramId.value.trim()) return toast.error('Укажите Telegram ID')
+  const isWallet = activeTestMailing.value?.channel_type === 'apple_wallet' || activeTestMailing.value?.channel_type === 'google_wallet'
+  if (!isWallet && !testTelegramId.value.trim()) return toast.error('Укажите Telegram ID')
   sendingTest.value = true
   try {
     if (activeTestMailing.value && activeTestMailing.value.id) {
-      await api.post(`/mailings/${activeTestMailing.value.id}/send_test/`, {
+      const res = await api.post(`/mailings/${activeTestMailing.value.id}/send_test/`, {
         telegram_id: testTelegramId.value.trim()
       })
+      toast.success(res.data?.detail || 'Тестовое сообщение успешно отправлено')
     } else {
       // Testing unsaved mailing preview
       const fd = new FormData()
@@ -928,14 +959,14 @@ async function sendTestMailing() {
         }
       }
       await api.post(`/mailings/send_test_preview/`, fd)
+      toast.success('Тестовое сообщение успешно отправлено')
     }
-    toast.success('Тестовое сообщение успешно отправлено')
-    if (auth.user) {
+    if (auth.user && testTelegramId.value.trim()) {
       auth.user.telegram_id = testTelegramId.value.trim()
     }
     closeTestModal()
   } catch (e) {
-    toast.error('Не удалось отправить тестовое сообщение')
+    toast.error(e.response?.data?.error || 'Не удалось отправить тестовое сообщение')
   } finally {
     sendingTest.value = false
   }
