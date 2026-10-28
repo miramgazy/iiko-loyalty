@@ -1056,7 +1056,7 @@
 
                     <!-- On-banner Primary Field: Guest Name (as originally right on the banner) -->
                     <div class="relative z-10 my-auto py-2 text-left">
-                      <p class="text-[9px] uppercase text-white/75 font-semibold tracking-wider">Гость</p>
+                      <p class="text-[9px] uppercase text-white/75 font-semibold tracking-wider">КАРТА ИЕСІ</p>
                       <p class="text-base sm:text-lg font-bold leading-tight drop-shadow-sm">Азамат Сериков</p>
                     </div>
 

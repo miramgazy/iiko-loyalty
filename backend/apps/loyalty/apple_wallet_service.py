@@ -352,7 +352,7 @@ class AppleWalletService:
         primary_fields = [
             {
                 "key": "guest",
-                "label": "ГОСТЬ",
+                "label": "КАРТА ИЕСІ",
                 "value": guest_name
             }
         ]
