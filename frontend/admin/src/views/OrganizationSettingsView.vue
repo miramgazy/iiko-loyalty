@@ -3494,7 +3494,7 @@ function toggleWebOnboarding() {
 }
 
 const onboardingAccentColor = computed({
-  get: () => form.value.web_onboarding_settings?.accent_color || form.value.branding?.design_color || '#6366f1',
+  get: () => form.value.web_onboarding_settings?.accent_color || '#6366f1',
   set: (v) => {
     form.value.web_onboarding_settings = {
       ...(form.value.web_onboarding_settings || {}),
@@ -3679,15 +3679,11 @@ const previewTierId = ref('base')
 const previewFlipped = ref(false)
 
 const brandColor = computed({
-  get: () => form.value.client_classification_settings?.brand_color || form.value.web_onboarding_settings?.accent_color || '#6366f1',
+  get: () => form.value.client_classification_settings?.brand_color || '#c59b27',
   set: (v) => {
     form.value.client_classification_settings = {
       ...(form.value.client_classification_settings || {}),
       brand_color: v
-    }
-    form.value.web_onboarding_settings = {
-      ...(form.value.web_onboarding_settings || {}),
-      accent_color: v
     }
     if (walletForm.value) {
       walletForm.value.hex_background_color = v
