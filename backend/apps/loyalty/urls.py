@@ -28,6 +28,7 @@ from apps.loyalty.views import (
 urlpatterns = [
     # Apple PassKit Web Service Protocol (v1) - supports with and without trailing slash
     re_path(r'^apple-wallet/v1/devices/(?P<device_id>[^/]+)/registrations/(?P<pass_type_id>[^/]+)/(?P<serial_number>[^/]+)/?$', AppleWalletDeviceRegistrationView.as_view(), name='apple_device_registration'),
+    re_path(r'^apple-wallet/v1/devices/(?P<device_id>[^/]+)/registrations/(?P<pass_type_id>[^/]+)/?$', AppleWalletDevicePassesView.as_view(), name='apple_device_registrations_passes'),
     re_path(r'^apple-wallet/v1/devices/(?P<device_id>[^/]+)/passes/(?P<pass_type_id>[^/]+)/?$', AppleWalletDevicePassesView.as_view(), name='apple_device_passes'),
     re_path(r'^apple-wallet/v1/passes/(?P<pass_type_id>[^/]+)/(?P<serial_number>[^/]+)/?$', AppleWalletPassDetailView.as_view(), name='apple_pass_detail'),
     re_path(r'^apple-wallet/v1/log/?$', AppleWalletLogView.as_view(), name='apple_pass_log'),
