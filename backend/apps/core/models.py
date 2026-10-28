@@ -130,18 +130,18 @@ class Organization(models.Model):
     @property
     def brand_color(self):
         """
-        Single unified base brand & card color.
-        Priority: client_classification_settings.brand_color -> branding.design_color -> web_onboarding_settings.accent_color -> default '#6366f1'
+        Base brand & card color for loyalty cards.
+        Priority: client_classification_settings.brand_color -> web_onboarding_settings.accent_color -> branding.design_color -> default '#6366f1'
         """
         classification = self.client_classification_settings or {}
         if classification.get('brand_color'):
             return classification.get('brand_color')
-        branding = self.branding or {}
-        if branding.get('design_color'):
-            return branding.get('design_color')
         onboarding = self.web_onboarding_settings or {}
         if onboarding.get('accent_color'):
             return onboarding.get('accent_color')
+        branding = self.branding or {}
+        if branding.get('design_color'):
+            return branding.get('design_color')
         return '#6366f1'
 
     @property

@@ -734,16 +734,16 @@
           <div class="pt-3 border-t border-slate-800/80 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
             <span class="font-medium text-slate-300">Применяется в:</span>
             <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400 flex items-center gap-1 font-medium">
-              ✓ Веб-онбординг
-            </span>
-            <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400 flex items-center gap-1 font-medium">
-              ✓ Telegram Mini App
+              ✓ Карты лояльности
             </span>
             <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400 flex items-center gap-1 font-medium">
               ✓ Google Wallet
             </span>
             <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-emerald-400 flex items-center gap-1 font-medium">
               ✓ Apple Wallet
+            </span>
+            <span class="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-800 text-indigo-300 flex items-center gap-1 font-medium">
+              🎨 TMA настраивается во вкладке «Брендинг TMA»
             </span>
           </div>
         </div>
@@ -1473,23 +1473,26 @@
         </div>
       </div>
 
-      <!-- TAB: Branding -->
+      <!-- TAB: Branding (TMA) -->
       <div v-show="activeTab === 'branding'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
         <!-- Color picker -->
         <div>
-          <label class="form-label">Основной цвет бренда</label>
+          <label class="form-label">Цвет темы Telegram Mini App (TMA)</label>
           <div class="flex items-center gap-4">
             <div class="relative">
-              <input id="input-brand-color" type="color" v-model="brandColor"
+              <input id="input-brand-color" type="color" v-model="tmaDesignColor"
                 class="w-14 h-14 rounded-xl border-2 border-slate-700 cursor-pointer bg-transparent p-0.5" />
             </div>
-            <input type="text" v-model="brandColor"
+            <input type="text" v-model="tmaDesignColor"
               class="form-input w-36 font-mono text-sm uppercase"
               placeholder="#6366f1"
               pattern="#[0-9a-fA-F]{6}"
               title="HEX формат #RRGGBB" />
-            <div class="w-10 h-10 rounded-xl border border-slate-700 shadow-inner" :style="{ backgroundColor: brandColor }"></div>
+            <div class="w-10 h-10 rounded-xl border border-slate-700 shadow-inner" :style="{ backgroundColor: tmaDesignColor }"></div>
           </div>
+          <p class="text-xs text-slate-500 mt-1.5">
+            Этот цвет применяется исключительно к интерфейсу Telegram Mini App (кнопки, акценты, темы и фон TMA)
+          </p>
         </div>
 
         <!-- Greeting text -->
@@ -1525,13 +1528,13 @@
 
         <!-- Preview card -->
         <div>
-          <label class="form-label">Предпросмотр карточки лояльности</label>
+          <label class="form-label">Предпросмотр карточки в Telegram Mini App</label>
           <div class="w-full max-w-xs h-40 rounded-2xl p-5 shadow-xl flex flex-col justify-between"
-            :style="{ background: `linear-gradient(135deg, ${brandColor}cc, ${brandColor}66)` }">
+            :style="{ background: `linear-gradient(135deg, ${tmaDesignColor}cc, ${tmaDesignColor}66)` }">
             <div class="flex justify-between items-start">
               <img v-if="logoPreview || form.branding?.logo_url" :src="logoPreview || form.branding?.logo_url" class="w-10 h-10 rounded-lg object-cover" alt="Logo" />
               <div v-else class="w-10 h-10 rounded-lg bg-white/20"></div>
-              <span class="text-white/60 text-xs">Loyalty</span>
+              <span class="text-white/60 text-xs font-bold">TMA</span>
             </div>
             <div>
               <p class="text-white text-xs mb-1 opacity-70">{{ greetingText || 'Добро пожаловать!' }}</p>
@@ -3676,15 +3679,11 @@ const previewTierId = ref('base')
 const previewFlipped = ref(false)
 
 const brandColor = computed({
-  get: () => form.value.client_classification_settings?.brand_color || form.value.branding?.design_color || form.value.web_onboarding_settings?.accent_color || '#6366f1',
+  get: () => form.value.client_classification_settings?.brand_color || form.value.web_onboarding_settings?.accent_color || '#6366f1',
   set: (v) => {
     form.value.client_classification_settings = {
       ...(form.value.client_classification_settings || {}),
       brand_color: v
-    }
-    form.value.branding = {
-      ...(form.value.branding || {}),
-      design_color: v
     }
     form.value.web_onboarding_settings = {
       ...(form.value.web_onboarding_settings || {}),
@@ -3694,6 +3693,16 @@ const brandColor = computed({
       walletForm.value.hex_background_color = v
     }
   },
+})
+
+const tmaDesignColor = computed({
+  get: () => form.value.branding?.design_color || '#6366f1',
+  set: (v) => {
+    form.value.branding = {
+      ...(form.value.branding || {}),
+      design_color: v
+    }
+  }
 })
 
 async function fetchIikoWallets() {

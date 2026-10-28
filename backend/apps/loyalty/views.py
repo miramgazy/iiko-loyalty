@@ -931,7 +931,7 @@ class WebOnboardingInfoView(APIView):
             "client_classification_settings": org.client_classification_settings,
             "branding": {
                 "logo_url": branding.get('logo_url', ''),
-                "design_color": brand_color,
+                "design_color": branding.get('design_color') or brand_color,
             },
             "settings": {
                 "banner_url": onboarding_settings.get('banner_url', ''),

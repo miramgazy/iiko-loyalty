@@ -118,18 +118,11 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
                 if val == '••••••••':
                     validated_data.pop(field)
 
-        # Synchronize unified brand_color if client_classification_settings is updated
+        # Synchronize brand_color into web onboarding and wallet settings, leaving TMA branding independent
         if 'client_classification_settings' in validated_data:
             c_settings = validated_data['client_classification_settings'] or {}
             brand_color = c_settings.get('brand_color')
             if brand_color:
-                # Sync into branding
-                branding = validated_data.get('branding', instance.branding or {})
-                if isinstance(branding, dict):
-                    branding = dict(branding)
-                    branding['design_color'] = brand_color
-                    validated_data['branding'] = branding
-
                 # Sync into web_onboarding_settings
                 onboarding = validated_data.get('web_onboarding_settings', instance.web_onboarding_settings or {})
                 if isinstance(onboarding, dict):

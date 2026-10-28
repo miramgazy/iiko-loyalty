@@ -93,7 +93,7 @@ export const useThemeStore = defineStore('tma-theme', () => {
   updateThemeVariables(primaryColor.value)
 
   function applyBranding(branding, brandColorOverride = null) {
-    const finalColor = brandColorOverride || branding?.design_color
+    const finalColor = branding?.design_color || brandColorOverride
     if (finalColor) {
       primaryColor.value = finalColor
       document.documentElement.style.setProperty('--color-primary', finalColor)
