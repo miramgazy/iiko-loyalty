@@ -44,7 +44,11 @@ class MailingTaskViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError("Organization not found or permission denied.")
         
         # When creating, status defaults to scheduled
-        serializer.save(organization=org, status=MailingTask.STATUS_SCHEDULED)
+        task = serializer.save(organization=org, status=MailingTask.STATUS_SCHEDULED)
+        from django.utils import timezone
+        from apps.mailing.tasks import process_mailing_batch
+        if task.scheduled_at <= timezone.now():
+            process_mailing_batch.delay(task.id)
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()

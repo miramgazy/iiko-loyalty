@@ -5,6 +5,7 @@ import json
 from datetime import timedelta
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Q
 from config.celery import app
 from apps.mailing.models import MailingTask
 from apps.loyalty.models import Customer
