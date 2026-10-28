@@ -348,24 +348,26 @@ class AppleWalletService:
             }
         ]
 
-        # Secondary fields: Guest name (карта иесі: / guest_name)
+        # Secondary fields (Under banner):
+        # Left: карта иесі: / Guest name
+        # Right: Баланс: / balance_str ₸ (right-aligned, prominent font) with changeMessage for push notifications
         secondary_fields = [
             {
                 "key": "guest",
                 "label": "карта иесі:",
-                "value": guest_name
-            }
-        ]
-
-        # Auxiliary fields: Balance (Баланс: / balance_str ₸) with changeMessage for push notifications
-        auxiliary_fields = [
+                "value": guest_name,
+                "textAlignment": "PKTextAlignmentLeft"
+            },
             {
                 "key": "balance",
                 "label": "Баланс:",
                 "value": f"{balance_str} ₸",
+                "textAlignment": "PKTextAlignmentRight",
                 "changeMessage": change_msg
             }
         ]
+
+        auxiliary_fields = []
 
         # Back fields: Card number, phone, contacts, info, rules
         back_fields = [

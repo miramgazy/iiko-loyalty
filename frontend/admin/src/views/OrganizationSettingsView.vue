@@ -1054,20 +1054,20 @@
                       </div>
                     </div>
 
-                    <!-- Middle row: Guest Name & Balance (Left-aligned, stacked) -->
-                    <div class="relative z-10 space-y-2 my-2">
-                      <!-- Cardholder Name -->
+                    <!-- Middle row: Guest Name (Left) & Balance (Right, under banner, larger font) -->
+                    <div class="relative z-10 flex items-end justify-between my-3">
+                      <!-- Left: карта иесі: / Имя гостя -->
                       <div class="text-left">
                         <p class="text-[9px] text-white/70 font-medium tracking-wide lowercase">карта иесі:</p>
                         <p class="text-sm font-bold leading-tight drop-shadow-sm">Азамат Сериков</p>
                       </div>
 
-                      <!-- Balance -->
-                      <div class="text-left">
+                      <!-- Right: Баланс: / 1 500 ₸ (выровненный вправо, крупная цифра) -->
+                      <div class="text-right flex flex-col items-end">
                         <p class="text-[9px] text-white/70 font-medium tracking-wide">Баланс:</p>
-                        <p class="text-lg font-black font-mono leading-none flex items-baseline gap-1 drop-shadow-sm">
+                        <p class="text-2xl sm:text-[26px] font-black font-mono leading-none flex items-baseline gap-1 drop-shadow-sm text-white">
                           <span>1 500</span>
-                          <span class="text-xs font-bold opacity-85">₸</span>
+                          <span class="text-sm font-bold opacity-85">₸</span>
                         </p>
                       </div>
                     </div>
