@@ -935,7 +935,7 @@ class WebOnboardingInfoView(APIView):
             },
             "settings": {
                 "banner_url": onboarding_settings.get('banner_url', ''),
-                "accent_color": onboarding_settings.get('accent_color') or brand_color,
+                "accent_color": brand_color,
                 "title_kz": onboarding_settings.get('title_kz', 'Лоялдық картасын алыңыз'),
                 "title_ru": onboarding_settings.get('title_ru', 'Получите карту лояльности'),
                 "subtitle_kz": onboarding_settings.get('subtitle_kz', 'Тіркеліп, әрбір тапсырыстан бонустар жинаңыз!'),

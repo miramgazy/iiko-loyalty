@@ -989,7 +989,7 @@ const deviceOS = computed(() => {
 
 // Dynamic branding helpers
 const accentColor = computed(() => {
-  return info.value?.settings?.accent_color || info.value?.brand_color || '#6366f1'
+  return customerData.value?.tier?.color || info.value?.brand_color || info.value?.settings?.accent_color || info.value?.branding?.design_color || '#6366f1'
 })
 
 // Premium Card Background Style driven by resolved tier or unified brand color
