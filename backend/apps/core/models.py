@@ -93,6 +93,12 @@ class Organization(models.Model):
 
     # Терминалы iikoFront
     terminal_secret = models.CharField("Секретный ключ для iikoFront терминалов", max_length=128, blank=True, null=True, unique=True)
+    target_payment_type_name = models.CharField(
+        "Название типа оплаты бонусами в iiko (TargetPaymentTypeName)",
+        max_length=150,
+        blank=True,
+        default="Оплата Бонусами"
+    )
 
     # Настройки LLM
     LLM_PROVIDER_CHOICES = (

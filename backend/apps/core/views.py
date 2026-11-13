@@ -937,11 +937,21 @@ class SuperAdminOrganizationTerminalsView(APIView):
         offline = sum(1 for t in terminals if t.plugin_status == 'offline')
         not_installed = sum(1 for t in terminals if t.plugin_status == 'not_installed')
         
+        import os
+        from django.conf import settings
+        webhook_domain = getattr(settings, 'WEBHOOK_DOMAIN', 'https://loyalty.mevent.kz')
+        server_base_url = os.environ.get(
+            'TERMINAL_SERVER_BASE_URL',
+            f"{webhook_domain.rstrip('/')}/api/loyalty/terminal"
+        )
+
         return Response({
             "organization_id": org.id,
             "organization_name": org.name,
             "is_bonus_confirmation_enabled": org.is_bonus_confirmation_enabled,
             "terminal_secret": org.terminal_secret,
+            "target_payment_type_name": org.target_payment_type_name or "Оплата Бонусами",
+            "server_base_url": server_base_url,
             "summary": {
                 "total": total,
                 "active_licensed": active,
@@ -950,6 +960,19 @@ class SuperAdminOrganizationTerminalsView(APIView):
                 "not_installed": not_installed
             },
             "terminals": serializer.data
+        })
+
+    def patch(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        if 'target_payment_type_name' in request.data:
+            val = str(request.data.get('target_payment_type_name') or '').strip()
+            org.target_payment_type_name = val or "Оплата Бонусами"
+            org.save(update_fields=['target_payment_type_name'])
+
+        return Response({
+            "status": "ok",
+            "target_payment_type_name": org.target_payment_type_name,
+            "message": "Название типа оплаты сохранено"
         })
 
 

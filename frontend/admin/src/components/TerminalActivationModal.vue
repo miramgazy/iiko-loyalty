@@ -18,12 +18,47 @@
               Управление лицензиями касс, мониторинг связи и синхронизация с iiko
             </p>
             
-            <!-- Terminal Secret for Config -->
-            <div v-if="terminalSecret" class="mt-3 flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700 w-fit">
-              <span class="text-[11px] text-slate-400">Ключ терминалов:</span>
-              <code class="text-xs font-mono text-amber-300">{{ terminalSecret }}</code>
-              <button @click="copySecret" type="button" class="text-xs text-slate-400 hover:text-white ml-1 transition-colors" title="Копировать в конфиг плагина">
-                {{ copied ? '✅ Скопировано' : '📋' }}
+            <!-- Plugin Configuration Bar -->
+            <div v-if="terminalSecret" class="mt-3.5 flex flex-wrap items-center gap-2.5 bg-slate-900/90 p-2.5 rounded-xl border border-slate-800">
+              <!-- Terminal Secret -->
+              <div class="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+                <span class="text-[11px] text-slate-400">Ключ терминалов:</span>
+                <code class="text-xs font-mono text-amber-300">{{ terminalSecret }}</code>
+                <button @click="copySecret" type="button" class="text-xs text-slate-400 hover:text-white ml-1 transition-colors" title="Копировать ключ">
+                  {{ copied ? '✅' : '📋' }}
+                </button>
+              </div>
+
+              <!-- TargetPaymentTypeName input -->
+              <div class="flex items-center gap-2 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
+                <span class="text-[11px] text-slate-400">Тип оплаты:</span>
+                <input 
+                  v-model="targetPaymentTypeName" 
+                  @blur="saveTargetPaymentTypeName"
+                  @keydown.enter="saveTargetPaymentTypeName"
+                  type="text" 
+                  placeholder="Оплата Бонусами"
+                  class="bg-slate-900 border border-slate-600 rounded px-2 py-0.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-36 font-medium"
+                  title="Название типа оплаты бонусами в iiko (TargetPaymentTypeName)"
+                />
+                <button 
+                  v-if="isPaymentTypeChanged"
+                  @click="saveTargetPaymentTypeName" 
+                  :disabled="savingPaymentType"
+                  type="button" 
+                  class="text-[11px] bg-indigo-600 hover:bg-indigo-500 text-white px-2 py-0.5 rounded font-semibold transition-all">
+                  {{ savingPaymentType ? '...' : 'Сохранить' }}
+                </button>
+              </div>
+
+              <!-- Download config.json Button -->
+              <button 
+                @click="downloadConfigFile" 
+                type="button"
+                class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-md shadow-emerald-900/30 transition-all hover:scale-105 active:scale-95"
+                title="Скачать готовый config.json для вставки в папку плагина на кассе">
+                <span>📥</span>
+                <span>Скачать config.json</span>
               </button>
             </div>
           </div>
@@ -223,10 +258,18 @@ const bulkUpdating = ref(false)
 const togglingId = ref(null)
 const terminals = ref([])
 const terminalSecret = ref('')
+const targetPaymentTypeName = ref('Оплата Бонусами')
+const initialPaymentTypeName = ref('Оплата Бонусами')
+const serverBaseUrl = ref('')
+const savingPaymentType = ref(false)
 const selectedIds = ref([])
 const statusFilter = ref('all')
 const searchQuery = ref('')
 const copied = ref(false)
+
+const isPaymentTypeChanged = computed(() => {
+  return targetPaymentTypeName.value.trim() !== initialPaymentTypeName.value.trim()
+})
 
 const summary = ref({
   total: 0,
@@ -253,6 +296,9 @@ async function loadTerminals() {
     terminals.value = res.data.terminals || []
     summary.value = res.data.summary || summary.value
     terminalSecret.value = res.data.terminal_secret || ''
+    targetPaymentTypeName.value = res.data.target_payment_type_name || 'Оплата Бонусами'
+    initialPaymentTypeName.value = targetPaymentTypeName.value
+    serverBaseUrl.value = res.data.server_base_url || ''
   } catch (e) {
     toast.error('Не удалось загрузить терминалы организации')
   } finally {
@@ -363,6 +409,61 @@ function formatRelativeTime(dateStr) {
   if (!dateStr) return ''
   const d = new Date(dateStr)
   return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+}
+
+async function saveTargetPaymentTypeName() {
+  if (!props.org?.id || !isPaymentTypeChanged.value) return
+  savingPaymentType.value = true
+  try {
+    const res = await api.patch(`/core/superadmin/organizations/${props.org.id}/terminals/`, {
+      target_payment_type_name: targetPaymentTypeName.value
+    })
+    initialPaymentTypeName.value = res.data.target_payment_type_name || targetPaymentTypeName.value
+    toast.success('Название типа оплаты сохранено')
+    emit('updated')
+  } catch (e) {
+    toast.error('Не удалось сохранить название типа оплаты')
+  } finally {
+    savingPaymentType.value = false
+  }
+}
+
+async function downloadConfigFile() {
+  if (isPaymentTypeChanged.value) {
+    await saveTargetPaymentTypeName()
+  }
+
+  let base = serverBaseUrl.value
+  if (!base) {
+    const viteApiBase = import.meta.env.VITE_API_BASE_URL
+    if (viteApiBase && viteApiBase.startsWith('http')) {
+      base = viteApiBase.replace(/\/api\/?$/, '') + '/api/loyalty/terminal'
+    } else {
+      base = `${window.location.origin}/api/loyalty/terminal`
+    }
+  }
+
+  const configObj = {
+    ServerBaseUrl: base,
+    TerminalSecret: terminalSecret.value || '',
+    TargetPaymentTypeName: targetPaymentTypeName.value || 'Оплата Бонусами',
+    RequireOtpConfirmation: true,
+    OtpTimeoutSeconds: 180,
+    HeartbeatIntervalSeconds: 60
+  }
+
+  const jsonStr = JSON.stringify(configObj, null, 2)
+  const blob = new Blob([jsonStr], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'config.json'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+
+  toast.success('Файл config.json скачан! Скопируйте его в папку плагина на кассе.')
 }
 
 function close() {

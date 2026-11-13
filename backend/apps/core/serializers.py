@@ -30,7 +30,7 @@ class SuperAdminOrganizationSerializer(serializers.ModelSerializer):
             'id', 'name', 'slug', 'is_active', 'created_at', 
             'owner_email', 'temp_password',
             'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled',
-            'is_bonus_confirmation_enabled', 'terminal_secret',
+            'is_bonus_confirmation_enabled', 'terminal_secret', 'target_payment_type_name',
             'active_terminals_count', 'total_terminals_count'
         ]
         read_only_fields = ['id', 'created_at', 'temp_password', 'active_terminals_count', 'total_terminals_count']
