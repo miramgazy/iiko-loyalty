@@ -58,6 +58,6 @@ apple_certs/
 *.pkpass
 
 # iikoFront Plugin
-iiko_front_plugin/
+Resto.Front.Api.MadiTechLoyalty.V1/
 
 
