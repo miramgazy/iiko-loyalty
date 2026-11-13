@@ -93,9 +93,15 @@
             <div class="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
           </div>
 
-          <div v-else-if="filteredTerminals.length === 0" class="py-16 text-center text-slate-500 text-sm">
-            <p>Терминалы не найдены</p>
-            <p class="text-xs text-slate-600 mt-1">Нажмите «Запросить из iiko», чтобы загрузить кассы ресторана</p>
+          <div v-else-if="filteredTerminals.length === 0" class="py-14 text-center text-slate-400 text-sm">
+            <span class="text-4xl block mb-2">🖥️</span>
+            <p class="text-base font-semibold text-slate-200">Кассы ещё не подключены</p>
+            <p class="text-xs text-slate-400 mt-2 max-w-lg mx-auto leading-relaxed">
+              Установите собранный плагин <code class="text-indigo-300 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700">Resto.Front.Api.MadiTechLoyalty.V1</code> в папку <code class="text-amber-300 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700">Plugins/</code> на кассовом терминале iikoFront и укажите ключ терминалов из шапки в <code class="text-indigo-300 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700">config.json</code>.
+            </p>
+            <p class="text-[11px] text-emerald-400 mt-2 font-medium">
+              ✨ При первом запуске кассы плагин автоматически зарегистрирует её здесь со статусом «Онлайн»!
+            </p>
           </div>
 
           <table v-else class="w-full text-left border-collapse">
