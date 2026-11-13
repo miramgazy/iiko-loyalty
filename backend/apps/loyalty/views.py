@@ -190,6 +190,10 @@ def merge_customers(primary: Customer, secondary: Customer) -> Customer:
         primary.iiko_card_id = secondary.iiko_card_id
     if not primary.iiko_categories and secondary.iiko_categories:
         primary.iiko_categories = secondary.iiko_categories
+    if secondary.is_pushed_to_iiko and not primary.is_pushed_to_iiko:
+        primary.is_pushed_to_iiko = True
+        if not primary.pushed_to_iiko_at and secondary.pushed_to_iiko_at:
+            primary.pushed_to_iiko_at = secondary.pushed_to_iiko_at
     if not primary.first_name and secondary.first_name:
         primary.first_name = secondary.first_name
     if not primary.last_name and secondary.last_name:
@@ -507,7 +511,7 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
             total_count=Count('id'),
             with_telegram=Count('id', filter=Q(telegram_id__isnull=False)),
             with_phone=Count('id', filter=Q(phone__isnull=False) & ~Q(phone='')),
-            synced_iiko=Count('id', filter=Q(iiko_customer_id__isnull=False)),
+            synced_iiko=Count('id', filter=Q(is_pushed_to_iiko=True)),
             bot_subscribed=Count('id', filter=Q(is_bot_subscribed=True)),
             google_wallet=Count('id', filter=has_google, distinct=True),
             apple_wallet=Count('id', filter=has_apple, distinct=True),
@@ -543,15 +547,16 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='push-all-iiko')
     def push_all_iiko(self, request, organization_id=None):
-        """Bulk force push all active customers with phone numbers to iiko."""
+        """Bulk push active customers with phone numbers who have not yet been pushed to iiko."""
         customers = Customer.objects.filter(
             organization_id=organization_id,
-            is_active=True
+            is_active=True,
+            is_pushed_to_iiko=False,
         ).exclude(phone__isnull=True).exclude(phone='')
         
         count = customers.count()
         if count == 0:
-            return Response({"message": "Нет клиентов с номером телефона для выгрузки в iiko", "count": 0})
+            return Response({"message": "Нет неотправленных клиентов для выгрузки в iiko", "count": 0})
 
         from apps.loyalty.utils import generate_unique_card_number
         from apps.loyalty.tasks import sync_customer_to_iiko

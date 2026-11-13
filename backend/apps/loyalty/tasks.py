@@ -40,12 +40,16 @@ def sync_customer_to_iiko(self, customer_id, push=False):
         if guest_info:
             cards = guest_info.get("cards", [])
             iiko_card_numbers = [str(c.get("number")) for c in cards if c.get("number")]
+            card_synced_in_iiko = False
 
+            if customer.iiko_card_number and str(customer.iiko_card_number) in iiko_card_numbers:
+                card_synced_in_iiko = True
             # Ensure platform-generated card number is pushed to iiko if missing in iiko
-            if customer.iiko_card_number and str(customer.iiko_card_number) not in iiko_card_numbers:
+            elif customer.iiko_card_number and str(customer.iiko_card_number) not in iiko_card_numbers:
                 try:
                     logger.info(f"Customer {customer.id} has platform card {customer.iiko_card_number} missing in iiko. Adding virtual card...")
                     service.add_virtual_card(customer.iiko_customer_id, str(customer.iiko_card_number))
+                    card_synced_in_iiko = True
                     new_guest_info = service.get_customer_info_by_id(customer.iiko_customer_id)
                     if new_guest_info:
                         guest_info = new_guest_info
@@ -59,6 +63,7 @@ def sync_customer_to_iiko(self, customer_id, push=False):
                     customer.iiko_card_number = generate_unique_card_number(customer.organization)
                     customer.save(update_fields=['iiko_card_number'])
                     service.add_virtual_card(customer.iiko_customer_id, str(customer.iiko_card_number))
+                    card_synced_in_iiko = True
                     new_guest_info = service.get_customer_info_by_id(customer.iiko_customer_id)
                     if new_guest_info:
                         guest_info = new_guest_info
@@ -71,8 +76,11 @@ def sync_customer_to_iiko(self, customer_id, push=False):
             # Sync personal details from iiko to local DB
             name = guest_info.get("name")
             if name and customer.first_name != name:
-                customer.first_name = name
-                update_fields.append('first_name')
+                is_placeholder_in_iiko = name.strip().lower() in ('guest', 'гость')
+                has_real_local_name = bool(customer.first_name and customer.first_name.strip().lower() not in ('guest', 'гость'))
+                if not (is_placeholder_in_iiko and (has_real_local_name or not customer.first_name)):
+                    customer.first_name = name
+                    update_fields.append('first_name')
 
             surname = guest_info.get("surname")
             if surname and customer.last_name != surname:
@@ -152,6 +160,16 @@ def sync_customer_to_iiko(self, customer_id, push=False):
                 if card_num and customer.iiko_card_number != card_num:
                     customer.iiko_card_number = card_num
                     update_fields.append('iiko_card_number')
+                if card_num:
+                    card_synced_in_iiko = True
+
+            # Mark customer as pushed/synced to iiko once iiko_customer_id and card are confirmed in iiko
+            if customer.iiko_customer_id and customer.iiko_card_number and card_synced_in_iiko:
+                if not customer.is_pushed_to_iiko:
+                    from django.utils import timezone
+                    customer.is_pushed_to_iiko = True
+                    customer.pushed_to_iiko_at = timezone.now()
+                    update_fields.extend(['is_pushed_to_iiko', 'pushed_to_iiko_at'])
 
             if update_fields:
                 update_fields.append('updated_at')
@@ -518,6 +536,16 @@ def process_iiko_webhook(log_id):
                 dispatch_waba_notification(org, 'balance', actual_payload, recipient_phone=customer.phone if customer else None)
             except Exception as waba_err:
                 logger.error(f"Failed to dispatch WABA balance notification: {waba_err}")
+
+            # Immediately sync customer details from iiko, generate card if missing, and push back to iiko
+            needs_initial_sync = (
+                not customer.first_name
+                or customer.first_name.strip().lower() in ('guest', 'гость')
+                or not customer.iiko_card_number
+                or not customer.is_pushed_to_iiko
+            )
+            if needs_initial_sync:
+                sync_customer_to_iiko.delay(customer.id, push=False)
         else:
             # For non-wallet transactions (card changes, category updates, inclusion in program, simple push)
             text = None
@@ -581,3 +609,70 @@ def process_iiko_webhook(log_id):
             log.save()
         except Exception:
             pass
+
+
+@app.task
+def sync_unnamed_customers_from_iiko_daily():
+    """
+    Daily scheduled task (01:00 AM):
+    Updates active customers missing a real first_name from iiko across all active organizations.
+    Also generates and registers a virtual card in iiko if the customer has none, marking is_pushed_to_iiko=True.
+    """
+    from apps.core.models import Organization
+    from django.db.models import Q
+
+    orgs = Organization.objects.filter(
+        is_active=True,
+        iiko_organization_id__isnull=False,
+    ).exclude(iiko_api_login__isnull=True).exclude(iiko_api_login='')
+
+    total_dispatched = 0
+    for org in orgs:
+        customers = Customer.objects.filter(
+            organization=org,
+            is_active=True,
+        ).exclude(phone__isnull=True).exclude(phone='').filter(
+            Q(first_name__isnull=True) |
+            Q(first_name='') |
+            Q(first_name__iexact='guest') |
+            Q(first_name__iexact='гость')
+        )
+        for c in customers:
+            sync_customer_to_iiko.delay(c.id, push=False)
+            total_dispatched += 1
+
+    logger.info(f"Daily 01:00 sync of unnamed customers dispatched for {total_dispatched} customers.")
+
+
+@app.task
+def push_unpushed_customers_to_iiko_daily():
+    """
+    Daily scheduled task (02:00 AM):
+    Finds active customers with phone numbers who have not yet been pushed to iiko (is_pushed_to_iiko=False),
+    generates a unique card number if missing, and pushes them to iiko.
+    """
+    from apps.core.models import Organization
+    from apps.loyalty.utils import generate_unique_card_number
+
+    orgs = Organization.objects.filter(
+        is_active=True,
+        iiko_organization_id__isnull=False,
+    ).exclude(iiko_api_login__isnull=True).exclude(iiko_api_login='')
+
+    total_dispatched = 0
+    for org in orgs:
+        customers = Customer.objects.filter(
+            organization=org,
+            is_active=True,
+            is_pushed_to_iiko=False,
+        ).exclude(phone__isnull=True).exclude(phone='')
+
+        for c in customers:
+            if not c.iiko_card_number:
+                c.iiko_card_number = generate_unique_card_number(org)
+                c.save(update_fields=['iiko_card_number'])
+            sync_customer_to_iiko.delay(c.id, push=True)
+            total_dispatched += 1
+
+    logger.info(f"Daily 02:00 push of unpushed customers dispatched for {total_dispatched} customers.")
+

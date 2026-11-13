@@ -244,6 +244,7 @@ CELERY_TASK_ROUTES = {
     'apps.mailing.tasks.*': {'queue': 'celery'},
 }
 
+from celery.schedules import crontab
 import sys
 if 'test' in sys.argv or 'test_coverage' in sys.argv:
     CELERY_TASK_ALWAYS_EAGER = True
@@ -276,6 +277,14 @@ CELERY_BEAT_SCHEDULE = {
     'sync-all-organizations-food-cost-daily': {
         'task': 'apps.analytics.tasks.sync_all_organizations_food_cost',
         'schedule': 86400.0,  # 24 hours (once per day)
+    },
+    'sync-unnamed-customers-from-iiko-daily-at-1am': {
+        'task': 'apps.loyalty.tasks.sync_unnamed_customers_from_iiko_daily',
+        'schedule': crontab(hour=1, minute=0),
+    },
+    'push-unpushed-customers-to-iiko-daily-at-2am': {
+        'task': 'apps.loyalty.tasks.push_unpushed_customers_to_iiko_daily',
+        'schedule': crontab(hour=2, minute=0),
     },
 }
 

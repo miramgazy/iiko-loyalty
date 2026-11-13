@@ -13,10 +13,10 @@ class VisitInline(admin.TabularInline):
 
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('first_name', 'last_name', 'phone', 'telegram_id', 'onboarding_source', 'wallet_type', 'loyalty_balance', 'organization', 'created_at')
-    list_filter = ('organization', 'onboarding_source', 'wallet_type', 'is_bot_subscribed', 'is_active', 'language', 'created_at')
+    list_display = ('first_name', 'last_name', 'phone', 'telegram_id', 'onboarding_source', 'wallet_type', 'is_pushed_to_iiko', 'loyalty_balance', 'organization', 'created_at')
+    list_filter = ('organization', 'onboarding_source', 'wallet_type', 'is_pushed_to_iiko', 'is_bot_subscribed', 'is_active', 'language', 'created_at')
     search_fields = ('first_name', 'last_name', 'phone', 'telegram_id', 'email', 'iiko_customer_id', 'wallet_barcode')
-    readonly_fields = ('created_at', 'updated_at', 'wallet_barcode')
+    readonly_fields = ('created_at', 'updated_at', 'wallet_barcode', 'pushed_to_iiko_at')
     raw_id_fields = ('organization',)
     inlines = [CustomerWalletInline, VisitInline]
     
@@ -31,7 +31,7 @@ class CustomerAdmin(admin.ModelAdmin):
             'fields': ('loyalty_balance', 'wallet_barcode', 'google_wallet_object_id')
         }),
         ('Интеграция iiko', {
-            'fields': ('iiko_customer_id', 'iiko_card_number', 'iiko_card_id', 'iiko_categories')
+            'fields': ('iiko_customer_id', 'iiko_card_number', 'iiko_card_id', 'iiko_categories', 'is_pushed_to_iiko', 'pushed_to_iiko_at')
         }),
         ('Системные даты', {
             'fields': ('created_at', 'updated_at')

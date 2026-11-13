@@ -11,6 +11,8 @@ class Customer(models.Model):
     iiko_card_number = models.CharField("Номер карты iiko", max_length=50, blank=True, null=True)
     iiko_card_id = models.UUIDField("iiko Card UUID", null=True, blank=True)
     iiko_categories = models.JSONField("Категории в iiko", default=list, blank=True)
+    is_pushed_to_iiko = models.BooleanField("Выгружен в iiko", default=False, db_index=True)
+    pushed_to_iiko_at = models.DateTimeField("Дата выгрузки в iiko", null=True, blank=True)
     
     # Личные данные
     first_name = models.CharField("Имя", max_length=150, blank=True)
