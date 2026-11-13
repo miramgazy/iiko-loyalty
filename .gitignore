@@ -59,5 +59,7 @@ apple_certs/
 
 # iikoFront Plugin
 Resto.Front.Api.MadiTechLoyalty.V1/
+# Plugin build output (Windows)
+*/published/
 
 
