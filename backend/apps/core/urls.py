@@ -7,7 +7,9 @@ from apps.core.views import (
     OrganizationWebhookStatusView, OrganizationSendTestMessageView,
     OrganizationTestIikoConnectionView, OrganizationTestIikoServerConnectionView, TmaEmployeeViewSet,
     OrganizationWabaTemplatesView, OrganizationWabaPhoneNumbersView, OrganizationWabaSendTestView,
-    OrganizationWabaLogsView, OrganizationWabaRulesViewSet
+    OrganizationWabaLogsView, OrganizationWabaRulesViewSet,
+    SuperAdminOrganizationTerminalsView, SuperAdminSyncTerminalsView,
+    SuperAdminTerminalToggleView, SuperAdminTerminalBulkToggleView
 )
 
 router = DefaultRouter()
@@ -16,6 +18,11 @@ router.register(r'organizations', SuperAdminOrganizationViewSet, basename='super
 urlpatterns = [
     # SuperAdmin endpoints (router holds /api/core/organizations/)
     path('', include(router.urls)),
+    path('superadmin/organizations/<int:organization_id>/terminals/', SuperAdminOrganizationTerminalsView.as_view(), name='superadmin_org_terminals'),
+    path('superadmin/organizations/<int:organization_id>/sync-terminals/', SuperAdminSyncTerminalsView.as_view(), name='superadmin_sync_terminals'),
+    path('superadmin/terminals/<int:terminal_id>/toggle/', SuperAdminTerminalToggleView.as_view(), name='superadmin_terminal_toggle'),
+    path('superadmin/terminals/bulk-toggle/', SuperAdminTerminalBulkToggleView.as_view(), name='superadmin_terminals_bulk_toggle'),
+
     
     # Organization Manager endpoints
     path('organizations/<int:organization_id>/settings/', OrganizationSettingsView.as_view(), name='org_settings'),

@@ -1109,6 +1109,145 @@ class AppleWalletTests(TestCase):
         self.assertEqual(res.status_code, 200)
 
 
+class TerminalPaymentOtpTests(APITestCase):
+    def setUp(self):
+        self.superadmin = User.objects.create_user(
+            username="admin_otp@test.com", email="admin_otp@test.com", password="password", is_staff=True
+        )
+        self.organization = Organization.objects.create(
+            name="Burger Bar OTP",
+            slug="burger-bar-otp",
+            is_active=True,
+            is_bonus_confirmation_enabled=True,
+            terminal_secret="test_secret_123",
+            tg_bot_token="bot123:token"
+        )
+        from apps.accounts.models import UserOrganization
+        UserOrganization.objects.create(
+            user=self.superadmin,
+            organization=self.organization,
+            role=UserOrganization.ROLE_SUPERADMIN
+        )
+        from apps.core.models import PosTerminal
+        self.terminal = PosTerminal.objects.create(
+            organization=self.organization,
+            terminal_id=uuid.uuid4(),
+            name="Касса 1",
+            is_active=True
+        )
+        self.customer = Customer.objects.create(
+            organization=self.organization,
+            phone="+77011112233",
+            first_name="Алексей",
+            telegram_id=987654321
+        )
+
+    def test_terminal_ping(self):
+        url = "/api/loyalty/terminal/ping/"
+        payload = {
+            "terminal_id": str(self.terminal.terminal_id),
+            "terminal_name": "Касса 1 Обновленная",
+            "plugin_version": "1.0.0",
+            "iiko_version": "9.4.7",
+            "ip_address": "192.168.1.10"
+        }
+        res = self.client.post(url, payload, HTTP_X_TERMINAL_SECRET="test_secret_123")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertTrue(res.data["is_active"])
+
+        self.terminal.refresh_from_db()
+        self.assertEqual(self.terminal.plugin_version, "1.0.0")
+        self.assertEqual(self.terminal.plugin_status, "online")
+
+    @patch("apps.loyalty.terminal_views.send_telegram_message")
+    def test_request_code_and_verify_success(self, mock_tg):
+        # 1. Request code
+        url = "/api/loyalty/terminal/request-code/"
+        payload = {
+            "terminal_id": str(self.terminal.terminal_id),
+            "phone": "+77011112233",
+            "amount": 500,
+            "order_id": "order-123"
+        }
+        res = self.client.post(url, payload, HTTP_X_TERMINAL_SECRET="test_secret_123")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["channel"], "telegram")
+        session_id = res.data["session_id"]
+        mock_tg.assert_called_once()
+
+        # Find code in DB
+        from apps.loyalty.models import TerminalPaymentOtp
+        otp = TerminalPaymentOtp.objects.get(session_id=session_id)
+        self.assertEqual(len(otp.code), 4)
+
+        # 2. Verify wrong code
+        v_url = "/api/loyalty/terminal/verify-code/"
+        v_res_bad = self.client.post(v_url, {"session_id": session_id, "code": "0000"}, HTTP_X_TERMINAL_SECRET="test_secret_123")
+        self.assertEqual(v_res_bad.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(v_res_bad.data["remaining_attempts"], 2)
+
+        # 3. Verify correct code
+        v_res = self.client.post(v_url, {"session_id": session_id, "code": otp.code}, HTTP_X_TERMINAL_SECRET="test_secret_123")
+        self.assertEqual(v_res.status_code, status.HTTP_200_OK)
+        self.assertTrue(v_res.data["verified"])
+
+        otp.refresh_from_db()
+        self.assertTrue(otp.is_verified)
+
+    def test_blocked_when_terminal_deactivated(self):
+        self.terminal.is_active = False
+        self.terminal.save()
+
+        url = "/api/loyalty/terminal/request-code/"
+        payload = {
+            "terminal_id": str(self.terminal.terminal_id),
+            "phone": "+77011112233",
+            "amount": 500
+        }
+        res = self.client.post(url, payload, HTTP_X_TERMINAL_SECRET="test_secret_123")
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.data["error_code"], "TERMINAL_NOT_ACTIVATED")
+
+    def test_blocked_when_module_disabled(self):
+        self.organization.is_bonus_confirmation_enabled = False
+        self.organization.save()
+
+        url = "/api/loyalty/terminal/request-code/"
+        payload = {
+            "terminal_id": str(self.terminal.terminal_id),
+            "phone": "+77011112233",
+            "amount": 500
+        }
+        res = self.client.post(url, payload, HTTP_X_TERMINAL_SECRET="test_secret_123")
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(res.data["error_code"], "MODULE_DISABLED")
+
+    def test_superadmin_terminal_management(self):
+        self.client.force_authenticate(user=self.superadmin)
+        
+        # 1. List terminals
+        list_url = f"/api/core/superadmin/organizations/{self.organization.id}/terminals/"
+        res = self.client.get(list_url)
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["summary"]["total"], 1)
+
+        # 2. Toggle single terminal
+        toggle_url = f"/api/core/superadmin/terminals/{self.terminal.id}/toggle/"
+        t_res = self.client.patch(toggle_url)
+        self.assertEqual(t_res.status_code, status.HTTP_200_OK)
+        self.assertFalse(t_res.data["is_active"])
+
+        # 3. Bulk toggle
+        bulk_url = "/api/core/superadmin/terminals/bulk-toggle/"
+        b_res = self.client.post(bulk_url, {"terminal_ids": [self.terminal.id], "is_active": True}, format='json')
+        self.assertEqual(b_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(b_res.data["updated_count"], 1)
+
+        self.terminal.refresh_from_db()
+        self.assertTrue(self.terminal.is_active)
+
+
+
 
 
 

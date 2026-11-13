@@ -83,6 +83,10 @@ class Organization(models.Model):
     is_loyalty_enabled = models.BooleanField("Включена система лояльности", default=True)
     is_analytics_enabled = models.BooleanField("Включена аналитика и закупки", default=False)
     is_ai_agent_enabled = models.BooleanField("Включен AI-агент", default=False)
+    is_bonus_confirmation_enabled = models.BooleanField("Включено подтверждение списания бонусов (OTP)", default=False)
+
+    # Терминалы iikoFront
+    terminal_secret = models.CharField("Секретный ключ для iikoFront терминалов", max_length=128, blank=True, null=True, unique=True)
 
     # Настройки LLM
     LLM_PROVIDER_CHOICES = (
@@ -155,8 +159,52 @@ class Organization(models.Model):
             return f"https://t.me/{self.tg_bot_username}/{self.tma_name}"
         return ""
 
+    def save(self, *args, **kwargs):
+        if not self.terminal_secret:
+            import secrets
+            self.terminal_secret = secrets.token_hex(24)
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return self.name
+
+class PosTerminal(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='terminals')
+    terminal_id = models.UUIDField("iiko Terminal UUID", db_index=True)
+    name = models.CharField("Имя кассы / терминала", max_length=255)
+    group_name = models.CharField("Терминальная группа / Зал", max_length=255, blank=True)
+    ip_address = models.GenericIPAddressField("IP адрес кассы", null=True, blank=True)
+    plugin_version = models.CharField("Версия плагина iikoFront", max_length=50, blank=True, null=True)
+    iiko_version = models.CharField("Версия iiko", max_length=50, blank=True, null=True)
+    
+    is_active = models.BooleanField("Лицензия кассы активна", default=False)
+    last_seen_at = models.DateTimeField("Последний онлайн", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Терминал iikoFront"
+        verbose_name_plural = "Терминалы iikoFront"
+        unique_together = ('organization', 'terminal_id')
+        ordering = ['organization', 'name']
+
+    @property
+    def plugin_status(self):
+        """
+        'not_installed' - касса создана из iiko, но плагин еще ни разу не выходил на связь
+        'online' - пинг был менее 5 минут назад
+        'offline' - плагин выходил на связь, но пинга не было более 5 минут
+        """
+        if not self.last_seen_at:
+            return 'not_installed'
+        from django.utils import timezone
+        import datetime
+        if timezone.now() - self.last_seen_at <= datetime.timedelta(minutes=5):
+            return 'online'
+        return 'offline'
+
+    def __str__(self):
+        return f"{self.name} ({self.organization.name}) - {'Активен' if self.is_active else 'Отключен'}"
+
 
 class Employee(models.Model):
     ROLE_CHOICES = (

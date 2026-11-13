@@ -23,6 +23,12 @@ from apps.loyalty.views import (
     AppleWalletPassDetailView,
     AppleWalletLogView
 )
+from apps.loyalty.terminal_views import (
+    TerminalPingView,
+    TerminalRequestCodeView,
+    TerminalVerifyCodeView
+)
+
 
 
 urlpatterns = [
@@ -70,5 +76,11 @@ urlpatterns = [
     path('public/onboarding/<str:slug>/send-otp/', WebOnboardingSendOtpView.as_view(), name='web_onboarding_send_otp'),
     path('public/onboarding/<str:slug>/verify/', WebOnboardingVerifyView.as_view(), name='web_onboarding_verify'),
     path('public/onboarding/<str:slug>/wallet/', WebOnboardingWalletView.as_view(), name='web_onboarding_wallet'),
+
+    # iikoFront Terminal Endpoints
+    path('terminal/ping/', TerminalPingView.as_view(), name='terminal_ping'),
+    path('terminal/request-code/', TerminalRequestCodeView.as_view(), name='terminal_request_code'),
+    path('terminal/verify-code/', TerminalVerifyCodeView.as_view(), name='terminal_verify_code'),
 ]
+
 

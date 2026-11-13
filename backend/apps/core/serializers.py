@@ -1,23 +1,45 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils.crypto import get_random_string
-from apps.core.models import Organization
+from apps.core.models import Organization, PosTerminal
 from apps.accounts.models import UserOrganization
 
 User = get_user_model()
 
+class PosTerminalSerializer(serializers.ModelSerializer):
+    plugin_status = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = PosTerminal
+        fields = [
+            'id', 'terminal_id', 'name', 'group_name', 'ip_address',
+            'plugin_version', 'iiko_version', 'is_active', 'last_seen_at',
+            'plugin_status', 'created_at'
+        ]
+        read_only_fields = ['id', 'plugin_status', 'created_at']
+
 class SuperAdminOrganizationSerializer(serializers.ModelSerializer):
     owner_email = serializers.EmailField(write_only=True, required=True)
     temp_password = serializers.CharField(read_only=True)
+    active_terminals_count = serializers.SerializerMethodField()
+    total_terminals_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
         fields = [
             'id', 'name', 'slug', 'is_active', 'created_at', 
             'owner_email', 'temp_password',
-            'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled'
+            'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled',
+            'is_bonus_confirmation_enabled', 'terminal_secret',
+            'active_terminals_count', 'total_terminals_count'
         ]
-        read_only_fields = ['id', 'created_at', 'temp_password']
+        read_only_fields = ['id', 'created_at', 'temp_password', 'active_terminals_count', 'total_terminals_count']
+
+    def get_active_terminals_count(self, obj):
+        return obj.terminals.filter(is_active=True).count()
+
+    def get_total_terminals_count(self, obj):
+        return obj.terminals.count()
 
     def create(self, validated_data):
         owner_email = validated_data.pop('owner_email')

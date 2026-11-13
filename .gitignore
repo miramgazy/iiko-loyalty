@@ -57,3 +57,7 @@ apple_certs/
 *.certSigningRequest
 *.pkpass
 
+# iikoFront Plugin
+iiko_front_plugin/
+
+

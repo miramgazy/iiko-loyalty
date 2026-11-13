@@ -7,8 +7,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from apps.core.models import Organization
-from apps.core.serializers import SuperAdminOrganizationSerializer, OrganizationSettingsSerializer
+from apps.core.models import Organization, PosTerminal
+from apps.core.serializers import SuperAdminOrganizationSerializer, OrganizationSettingsSerializer, PosTerminalSerializer
 from apps.accounts.permissions import IsSuperAdmin, IsOrgManager
 from apps.loyalty.google_wallet_service import GoogleWalletService
 from apps.accounts.permissions import IsSuperAdmin, IsOrgManager
@@ -877,6 +877,165 @@ class OrganizationWabaLogsView(APIView):
             "logs": serializer.data,
             "total_count": qs.count()
         })
+
+
+class SuperAdminOrganizationTerminalsView(APIView):
+    """
+    SuperAdmin endpoint to list all terminals of an organization with status summary.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsSuperAdmin]
+
+    def get(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        terminals = PosTerminal.objects.filter(organization=org).order_by('name')
+        serializer = PosTerminalSerializer(terminals, many=True)
+        
+        total = terminals.count()
+        active = terminals.filter(is_active=True).count()
+        online = sum(1 for t in terminals if t.plugin_status == 'online')
+        offline = sum(1 for t in terminals if t.plugin_status == 'offline')
+        not_installed = sum(1 for t in terminals if t.plugin_status == 'not_installed')
+        
+        return Response({
+            "organization_id": org.id,
+            "organization_name": org.name,
+            "is_bonus_confirmation_enabled": org.is_bonus_confirmation_enabled,
+            "terminal_secret": org.terminal_secret,
+            "summary": {
+                "total": total,
+                "active_licensed": active,
+                "online": online,
+                "offline": offline,
+                "not_installed": not_installed
+            },
+            "terminals": serializer.data
+        })
+
+
+class SuperAdminSyncTerminalsView(APIView):
+    """
+    SuperAdmin endpoint to synchronize POS terminals from iiko Cloud /terminal_groups.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsSuperAdmin]
+
+    def post(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        
+        if not org.iiko_api_login or not org.iiko_organization_id:
+            return Response(
+                {"error": "Для организации не настроен iiko API Login или iiko Organization ID"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        import httpx
+        from apps.loyalty.services import get_iiko_service
+
+        try:
+            service = get_iiko_service(org)
+            token = service.auth_service.get_access_token()
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            }
+            
+            base_url = org.iiko_api_base_url.rstrip('/')
+            if '/api/v2' in base_url:
+                base_url = base_url.replace('/api/v2', '/api/1')
+            elif '/api/2' in base_url:
+                base_url = base_url.replace('/api/2', '/api/1')
+            url = f"{base_url}/terminal_groups"
+            
+            payload = {
+                "organizationIds": [str(org.iiko_organization_id)]
+            }
+            
+            with httpx.Client(timeout=15) as client:
+                resp = client.post(url, json=payload, headers=headers)
+                resp.raise_for_status()
+                data = resp.json()
+        except Exception as e:
+            return Response(
+                {"error": f"Ошибка запроса к iiko Cloud API: {str(e)}"},
+                status=status.HTTP_502_BAD_GATEWAY
+            )
+
+        terminal_groups = data.get("terminalGroups", [])
+        created_count = 0
+        updated_count = 0
+
+        for group in terminal_groups:
+            items = group.get("items", [])
+            for item in items:
+                t_id = item.get("id")
+                t_name = item.get("name") or "Касса"
+                t_address = item.get("address") or ""
+                
+                if not t_id:
+                    continue
+                
+                terminal, created = PosTerminal.objects.update_or_create(
+                    organization=org,
+                    terminal_id=t_id,
+                    defaults={
+                        'name': t_name,
+                        'group_name': t_address,
+                    }
+                )
+                if created:
+                    created_count += 1
+                else:
+                    updated_count += 1
+
+        terminals = PosTerminal.objects.filter(organization=org).order_by('name')
+        serializer = PosTerminalSerializer(terminals, many=True)
+        return Response({
+            "status": "success",
+            "message": f"Синхронизировано касс: создано {created_count}, обновлено {updated_count}",
+            "created_count": created_count,
+            "updated_count": updated_count,
+            "terminals": serializer.data
+        })
+
+
+class SuperAdminTerminalToggleView(APIView):
+    """
+    SuperAdmin endpoint to toggle single terminal activation.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsSuperAdmin]
+
+    def patch(self, request, terminal_id, *args, **kwargs):
+        terminal = get_object_or_404(PosTerminal, id=terminal_id)
+        if 'is_active' in request.data:
+            terminal.is_active = bool(request.data['is_active'])
+        else:
+            terminal.is_active = not terminal.is_active
+        terminal.save(update_fields=['is_active'])
+        return Response(PosTerminalSerializer(terminal).data)
+
+
+class SuperAdminTerminalBulkToggleView(APIView):
+    """
+    SuperAdmin endpoint to bulk toggle multiple terminals.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsSuperAdmin]
+
+    def post(self, request, *args, **kwargs):
+        terminal_ids = request.data.get('terminal_ids', [])
+        is_active = bool(request.data.get('is_active', False))
+
+        if not isinstance(terminal_ids, list) or not terminal_ids:
+            return Response(
+                {"error": "Параметр 'terminal_ids' должен быть непустым списком ID"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        updated_count = PosTerminal.objects.filter(id__in=terminal_ids).update(is_active=is_active)
+        return Response({
+            "status": "success",
+            "updated_count": updated_count,
+            "is_active": is_active
+        })
+
 
 
 

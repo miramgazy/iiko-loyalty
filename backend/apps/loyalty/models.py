@@ -1,5 +1,6 @@
+import uuid
 from django.db import models
-from apps.core.models import Organization
+from apps.core.models import Organization, PosTerminal
 
 class Customer(models.Model):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='customers')
@@ -218,5 +219,29 @@ class AppleWalletDeviceRegistration(models.Model):
 
     def __str__(self):
         return f"{self.customer.organization.name} - {self.customer.first_name} ({self.device_library_identifier[:8]}...)"
+
+
+class TerminalPaymentOtp(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='terminal_payment_otps')
+    terminal = models.ForeignKey(PosTerminal, on_delete=models.SET_NULL, null=True, blank=True, related_name='payment_otps')
+    customer = models.ForeignKey(Customer, on_delete=models.SET_NULL, null=True, blank=True, related_name='terminal_otps')
+    phone = models.CharField("Номер телефона гостя", max_length=20, db_index=True)
+    code = models.CharField("4-значный код подтверждения", max_length=4)
+    amount = models.DecimalField("Сумма к списанию", max_digits=10, decimal_places=2, default=0.00)
+    order_id = models.CharField("ID заказа в iiko", max_length=100, blank=True, null=True)
+    session_id = models.UUIDField("ID сессии проверки", default=uuid.uuid4, unique=True, db_index=True)
+    is_verified = models.BooleanField("Подтвержден", default=False)
+    attempts = models.PositiveIntegerField("Попыток ввода", default=0)
+    expires_at = models.DateTimeField("Срок действия")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "OTP подтверждение оплаты бонусами"
+        verbose_name_plural = "OTP подтверждения оплаты бонусами"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"OTP {self.code} for {self.phone} ({self.organization.name}) - {'OK' if self.is_verified else 'Pending'}"
+
 
 

@@ -60,6 +60,21 @@
                   <input type="checkbox" :checked="org.is_ai_agent_enabled" @change="toggleModule(org, 'is_ai_agent_enabled')" :disabled="updatingModule === org.id" class="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-slate-900" />
                   AI-Агент
                 </label>
+                <label class="inline-flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                  <input type="checkbox" :checked="org.is_bonus_confirmation_enabled" @change="toggleModule(org, 'is_bonus_confirmation_enabled')" :disabled="updatingModule === org.id" class="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-slate-900" />
+                  Подтверждение бонусов
+                </label>
+
+                <!-- Terminal Activation Button -->
+                <button v-if="org.is_bonus_confirmation_enabled"
+                        @click="openTerminalsModal(org)"
+                        type="button"
+                        class="mt-1 inline-flex items-center justify-between gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-lg bg-indigo-950/60 text-indigo-300 border border-indigo-800 hover:bg-indigo-900/60 transition-all">
+                  <span>🖥️ Терминалы</span>
+                  <span class="bg-indigo-800/80 px-1.5 py-0.2 rounded text-[10px] text-white">
+                    {{ org.active_terminals_count || 0 }} / {{ org.total_terminals_count || 0 }}
+                  </span>
+                </button>
               </div>
             </td>
             <td class="px-6 py-4 text-sm text-slate-400">{{ formatDate(org.created_at) }}</td>
@@ -124,6 +139,14 @@
         </div>
       </div>
     </Transition>
+
+    <!-- Terminal Activation Modal -->
+    <TerminalActivationModal
+      :show="showTerminalsModal"
+      :org="selectedOrgForTerminals"
+      @close="showTerminalsModal = false"
+      @updated="loadOrgs"
+    />
   </div>
 </template>
 
@@ -131,16 +154,25 @@
 import { ref, onMounted } from 'vue'
 import api from '@/services/api'
 import { useToastStore } from '@/stores/toast'
+import TerminalActivationModal from '@/components/TerminalActivationModal.vue'
 
 const toast = useToastStore()
 const orgs = ref([])
 const loading = ref(true)
 const toggling = ref(null)
 const showModal = ref(false)
+const showTerminalsModal = ref(false)
+const selectedOrgForTerminals = ref(null)
 const creating = ref(false)
 const createdPassword = ref('')
 const newOrg = ref({ name: '', slug: '', owner_email: '' })
 const updatingModule = ref(null)
+
+function openTerminalsModal(org) {
+  selectedOrgForTerminals.value = org
+  showTerminalsModal.value = true
+}
+
 
 async function toggleModule(org, field) {
   updatingModule.value = org.id
