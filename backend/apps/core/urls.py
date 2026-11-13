@@ -8,6 +8,7 @@ from apps.core.views import (
     OrganizationTestIikoConnectionView, OrganizationTestIikoServerConnectionView, TmaEmployeeViewSet,
     OrganizationWabaTemplatesView, OrganizationWabaPhoneNumbersView, OrganizationWabaSendTestView,
     OrganizationWabaLogsView, OrganizationWabaRulesViewSet,
+    OrganizationSmscCheckBalanceView, OrganizationSmscSendTestView,
     SuperAdminOrganizationTerminalsView, SuperAdminSyncTerminalsView,
     SuperAdminTerminalToggleView, SuperAdminTerminalBulkToggleView
 )
@@ -46,6 +47,10 @@ urlpatterns = [
     path('organizations/<int:organization_id>/waba/logs/', OrganizationWabaLogsView.as_view(), name='org_waba_logs'),
     path('organizations/<int:organization_id>/waba/rules/', OrganizationWabaRulesViewSet.as_view({'get': 'list', 'post': 'create'}), name='org_waba_rules'),
     path('organizations/<int:organization_id>/waba/rules/<int:pk>/', OrganizationWabaRulesViewSet.as_view({'get': 'retrieve', 'put': 'update', 'patch': 'partial_update', 'delete': 'destroy'}), name='org_waba_rule_detail'),
+
+    # SMS-Center endpoints
+    path('organizations/<int:organization_id>/smsc/check-balance/', OrganizationSmscCheckBalanceView.as_view(), name='org_smsc_check_balance'),
+    path('organizations/<int:organization_id>/smsc/send-test/', OrganizationSmscSendTestView.as_view(), name='org_smsc_send_test'),
 
     # TMA Employees
     path('organizations/<int:organization_id>/tma-employees/', TmaEmployeeViewSet.as_view({'get': 'list', 'post': 'create'}), name='org_tma_employees'),

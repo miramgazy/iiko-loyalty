@@ -79,6 +79,12 @@ class Organization(models.Model):
     waba_business_account_id = models.CharField("WABA Business Account ID", max_length=100, blank=True, null=True)
     waba_phone_number_id = models.CharField("WABA Phone Number ID", max_length=100, blank=True, null=True)
 
+    # SMS-Центр (SMSC) интеграция
+    is_smsc_enabled = models.BooleanField("Включена отправка через SMS-Центр (SMSC)", default=False)
+    smsc_login = models.CharField("SMSC Логин", max_length=128, blank=True, default="")
+    smsc_password = EncryptedCharField("SMSC Пароль / API Ключ", max_length=128, blank=True, null=True)
+    smsc_sender = models.CharField("SMSC Имя отправителя (Sender)", max_length=64, blank=True, default="")
+
     # Модули (переключатели)
     is_loyalty_enabled = models.BooleanField("Включена система лояльности", default=True)
     is_analytics_enabled = models.BooleanField("Включена аналитика и закупки", default=False)
@@ -151,6 +157,10 @@ class Organization(models.Model):
     @property
     def is_waba_configured(self):
         return bool(self.is_waba_enabled and self.waba_access_token and self.waba_phone_number_id)
+
+    @property
+    def is_smsc_configured(self):
+        return bool(self.is_smsc_enabled and self.smsc_login and self.smsc_password)
 
     def get_tma_link(self):
         if self.tma_direct_link:

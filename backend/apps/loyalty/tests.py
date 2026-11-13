@@ -1250,6 +1250,138 @@ class TerminalPaymentOtpTests(APITestCase):
         self.terminal.refresh_from_db()
         self.assertTrue(self.terminal.is_active)
 
+    @patch("apps.loyalty.services.IikoCloudIntegrationService.get_customer_info_by_phone")
+    @patch("apps.core.services.waba_service.dispatch_waba_notification")
+    def test_auto_import_customer_from_iikocard(self, mock_waba, mock_iiko):
+        mock_iiko.return_value = {
+            "id": "c1f7a6b2-3841-4c91-9e28-112233445566",
+            "name": "Дамир",
+            "surname": "Касымов",
+            "phone": "+77099998877",
+            "cards": [{"number": "10005555"}],
+            "walletBalances": [{"id": "w1", "name": "Бонусы", "type": 1, "balance": 1200.0}]
+        }
+        self.organization.is_waba_enabled = True
+        self.organization.waba_access_token = "token"
+        self.organization.waba_phone_number_id = "phone_id"
+        self.organization.save()
+        mock_waba.return_value = [{"success": True, "message_id": "wamid123"}]
+
+        url = "/api/loyalty/terminal/request-code/"
+        payload = {
+            "terminal_id": str(self.terminal.terminal_id),
+            "phone": "+77099998877",
+            "amount": 300
+        }
+        res = self.client.post(url, payload, HTTP_X_TERMINAL_SECRET="test_secret_123")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["channel"], "whatsapp")
+
+        # Verify customer was created
+        cust = Customer.objects.filter(organization=self.organization, phone="+77099998877").first()
+        self.assertIsNotNone(cust)
+        self.assertEqual(cust.first_name, "Дамир")
+        self.assertEqual(cust.last_name, "Касымов")
+        self.assertEqual(cust.iiko_card_number, "10005555")
+        self.assertEqual(cust.loyalty_balance, 1200.0)
+
+    @patch("apps.core.services.waba_service.dispatch_waba_notification")
+    @patch("apps.core.services.sms_service.send_sms_otp")
+    def test_cascade_to_smsc_when_not_on_whatsapp(self, mock_sms, mock_waba):
+        mock_waba.return_value = [{"success": False, "is_not_on_whatsapp": True, "error": "Not on WhatsApp"}]
+        mock_sms.return_value = {"success": True, "message_id": 999888}
+
+        self.organization.is_waba_enabled = True
+        self.organization.waba_access_token = "token"
+        self.organization.waba_phone_number_id = "phone_id"
+        self.organization.is_smsc_enabled = True
+        self.organization.smsc_login = "test_login"
+        self.organization.smsc_password = "test_password"
+        self.organization.save()
+
+        # Customer without telegram
+        guest = Customer.objects.create(
+            organization=self.organization,
+            phone="+77022223344",
+            first_name="Ернар",
+            loyalty_balance=1000.0
+        )
+
+        url = "/api/loyalty/terminal/request-code/"
+        payload = {
+            "terminal_id": str(self.terminal.terminal_id),
+            "phone": "+77022223344",
+            "amount": 200
+        }
+        res = self.client.post(url, payload, HTTP_X_TERMINAL_SECRET="test_secret_123")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.data["channel"], "sms")
+        mock_sms.assert_called_once()
+
+    @patch("apps.core.services.waba_service.dispatch_waba_notification")
+    def test_returns_no_whatsapp_error_when_smsc_disabled(self, mock_waba):
+        mock_waba.return_value = [{"success": False, "is_not_on_whatsapp": True, "error": "User is not on WhatsApp"}]
+
+        self.organization.is_waba_enabled = True
+        self.organization.waba_access_token = "token"
+        self.organization.waba_phone_number_id = "phone_id"
+        self.organization.is_smsc_enabled = False
+        self.organization.save()
+
+        Customer.objects.create(
+            organization=self.organization,
+            phone="+77055554433",
+            first_name="Мадина",
+            loyalty_balance=1000.0
+        )
+
+        url = "/api/loyalty/terminal/request-code/"
+        payload = {
+            "terminal_id": str(self.terminal.terminal_id),
+            "phone": "+77055554433",
+            "amount": 400
+        }
+        res = self.client.post(url, payload, HTTP_X_TERMINAL_SECRET="test_secret_123")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(res.data["error_code"], "NO_WHATSAPP")
+        self.assertIn("нет WhatsApp", res.data["message"])
+
+    def test_insufficient_balance_rejection(self):
+        Customer.objects.create(
+            organization=self.organization,
+            phone="+77071112233",
+            first_name="Асет",
+            loyalty_balance=150.0
+        )
+        url = "/api/loyalty/terminal/request-code/"
+        payload = {
+            "terminal_id": str(self.terminal.terminal_id),
+            "phone": "+77071112233",
+            "amount": 500
+        }
+        res = self.client.post(url, payload, HTTP_X_TERMINAL_SECRET="test_secret_123")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(res.data["error_code"], "INSUFFICIENT_BALANCE")
+        self.assertEqual(res.data["balance"], 150.0)
+
+    def test_terminal_customer_info_endpoint(self):
+        Customer.objects.create(
+            organization=self.organization,
+            phone="+77077778899",
+            first_name="Айбек",
+            last_name="Нурланов",
+            loyalty_balance=3500.0,
+            iiko_card_number="888001"
+        )
+        url = "/api/loyalty/terminal/customer-info/"
+        payload = {"phone": "+77077778899"}
+        res = self.client.post(url, payload, HTTP_X_TERMINAL_SECRET="test_secret_123")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertTrue(res.data["found"])
+        self.assertEqual(res.data["name"], "Айбек Нурланов")
+        self.assertEqual(res.data["balance"], 3500.0)
+        self.assertEqual(res.data["card_number"], "888001")
+
 
 
 

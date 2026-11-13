@@ -80,6 +80,7 @@ class SuperAdminOrganizationSerializer(serializers.ModelSerializer):
 
 class OrganizationSettingsSerializer(serializers.ModelSerializer):
     is_waba_configured = serializers.BooleanField(read_only=True)
+    is_smsc_configured = serializers.BooleanField(read_only=True)
     brand_color = serializers.CharField(read_only=True)
 
     class Meta:
@@ -89,6 +90,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
             'tg_bot_token', 'tg_bot_username', 'tma_name', 'tma_direct_link',
             'is_waba_enabled', 'waba_access_token', 'waba_business_account_id', 'waba_phone_number_id',
             'is_waba_configured',
+            'is_smsc_enabled', 'smsc_login', 'smsc_password', 'smsc_sender', 'is_smsc_configured',
             'iiko_integration_type', 'iiko_api_base_url', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_organization_id', 'iiko_loyalty_program_id',
             'is_iiko_webhook_password_enabled', 'iiko_webhook_password',
             'iiko_server_url', 'iiko_server_login', 'iiko_server_password',
@@ -100,7 +102,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
             'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled',
             'llm_provider', 'llm_model_name', 'llm_api_key', 'llm_system_prompt'
         ]
-        read_only_fields = ['id', 'slug', 'is_waba_configured', 'brand_color', 'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled']
+        read_only_fields = ['id', 'slug', 'is_waba_configured', 'is_smsc_configured', 'brand_color', 'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled']
 
     def validate(self, attrs):
         is_onboarding = attrs.get('is_web_onboarding_enabled')
@@ -125,7 +127,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         # Mask sensitive keys
-        for field in ['waba_access_token', 'llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
+        for field in ['waba_access_token', 'smsc_password', 'llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
             if getattr(instance, field, None):
                 data[field] = '••••••••'
             else:
@@ -134,7 +136,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # Prevent overwriting with masked placeholders
-        for field in ['waba_access_token', 'llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
+        for field in ['waba_access_token', 'smsc_password', 'llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
             if field in validated_data:
                 val = validated_data[field]
                 if val == '••••••••':

@@ -481,6 +481,90 @@
         </div>
       </div>
 
+      <!-- TAB: SMS-Center (SMSC) -->
+      <div v-show="activeTab === 'smsc'" class="space-y-6">
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-5">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xl">📱</span>
+                <h3 class="text-lg font-bold text-white">Интеграция с SMS-Центром (smsc.kz / smsc.ru)</h3>
+                <span v-if="form.is_smsc_enabled" class="px-2 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  Активен
+                </span>
+              </div>
+              <p class="text-slate-400 text-sm mt-1">Отправка SMS с кодами авторизации и подтверждения списания бонусов на кассе</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" v-model="form.is_smsc_enabled" class="sr-only peer">
+              <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+              <span class="ml-3 text-sm font-medium" :class="form.is_smsc_enabled ? 'text-emerald-400' : 'text-slate-500'">
+                {{ form.is_smsc_enabled ? 'Включено' : 'Выключено' }}
+              </span>
+            </label>
+          </div>
+
+          <!-- Credentials inputs -->
+          <div class="space-y-4">
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="form-label">SMSC Логин</label>
+                <input v-model="form.smsc_login" type="text" class="form-input font-mono text-sm" placeholder="например: mylogin" />
+                <p class="text-[11px] text-slate-500 mt-1">Ваш логин в личном кабинете smsc.kz или smsc.ru</p>
+              </div>
+
+              <div>
+                <label class="form-label">SMSC Пароль / API Ключ</label>
+                <div class="relative">
+                  <input v-model="form.smsc_password" :type="showSmscPassword ? 'text' : 'password'" class="form-input pr-12 font-mono text-sm" placeholder="Пароль или ключ API" />
+                  <button type="button" @click="showSmscPassword = !showSmscPassword"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                    {{ showSmscPassword ? '🙈' : '👁' }}
+                  </button>
+                </div>
+                <p class="text-[11px] text-slate-500 mt-1">Пароль от аккаунта или сгенерированный API-ключ в настройках SMSC</p>
+              </div>
+            </div>
+
+            <div>
+              <label class="form-label">Имя отправителя (Sender ID)</label>
+              <input v-model="form.smsc_sender" type="text" class="form-input font-mono text-sm" placeholder="например: MadiTech (или оставьте пустым для шлюза по умолчанию)" />
+              <p class="text-[11px] text-slate-500 mt-1">Зарегистрированное в SMSC имя отправителя. Если не зарегистрировано, оставьте пустым — сообщения будут отправляться от общего номера сервиса.</p>
+            </div>
+          </div>
+
+          <!-- Balance and Test actions -->
+          <div class="pt-4 border-t border-slate-800 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <button
+                type="button"
+                @click="checkSmscBalance"
+                :disabled="checkingSmscBalance || !form.smsc_login"
+                class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold rounded-xl transition-colors flex items-center gap-2 border border-slate-700 disabled:opacity-50"
+              >
+                <span v-if="checkingSmscBalance" class="w-4 h-4 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></span>
+                <span>⚡ Проверить баланс SMSC</span>
+              </button>
+
+              <span v-if="smscBalanceInfo" class="px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs font-semibold border border-emerald-500/20">
+                Остаток: {{ smscBalanceInfo }}
+              </span>
+
+              <button
+                type="button"
+                @click="openSmscTestModal"
+                :disabled="!form.smsc_login"
+                class="px-4 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 text-sm font-semibold rounded-xl transition-colors border border-indigo-500/30 disabled:opacity-50"
+              >
+                ✉️ Тестовая отправка SMS
+              </button>
+            </div>
+
+            <SaveButton :saving="saving" @save="saveSettings" />
+          </div>
+        </div>
+      </div>
+
       <!-- TAB: iiko Cloud API Integration -->
       <div v-show="activeTab === 'iiko'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-5">
         <div>
@@ -3060,6 +3144,37 @@
       </div>
     </div>
 
+    <!-- SMSC Quick Test Modal -->
+    <div v-if="showSmscTestModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-slate-950 border border-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+          <h2 class="text-base font-bold text-white flex items-center gap-2">
+            <span>✉️</span> Тестовая отправка SMS
+          </h2>
+          <button @click="showSmscTestModal = false" class="text-slate-500 hover:text-white">✕</button>
+        </div>
+
+        <form @submit.prevent="sendSmscTest" class="space-y-4">
+          <div>
+            <label class="form-label">Номер телефона получателя</label>
+            <input v-model="smscTestPhone" type="text" class="form-input font-mono" placeholder="+77011234567" required />
+          </div>
+          <div>
+            <label class="form-label">Текст SMS сообщения</label>
+            <textarea v-model="smscTestMessage" class="form-input min-h-[70px] resize-none" placeholder="Тестовое сообщение" required></textarea>
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button type="button" @click="showSmscTestModal = false" class="px-4 py-2 text-xs text-slate-400 hover:text-white">Отмена</button>
+            <button type="submit" :disabled="sendingSmscTest" class="px-5 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-all flex items-center gap-2 disabled:opacity-50">
+              <span v-if="sendingSmscTest" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+              <span>Отправить</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- WABA Dispatch Logs Modal (with Date Range & Excel Export) -->
     <div v-if="showWabaLogsModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-3 md:p-6 animate-in fade-in duration-200">
       <div class="bg-slate-950 border border-slate-800 rounded-3xl w-full max-w-6xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
@@ -3251,6 +3366,7 @@ const tabs = computed(() => {
   const list = [
     { id: 'general', label: 'Основные / Telegram' },
     { id: 'waba', label: 'Настройка WABA' },
+    { id: 'smsc', label: 'SMS-Центр (SMSC)' },
     { id: 'iiko', label: 'Интеграция iiko Cloud API' },
     { id: 'iiko_server', label: 'Интеграция iiko Server API' },
   ]
@@ -3456,6 +3572,10 @@ const form = ref({
   waba_access_token: '',
   waba_business_account_id: '',
   waba_phone_number_id: '',
+  is_smsc_enabled: false,
+  smsc_login: '',
+  smsc_password: '',
+  smsc_sender: '',
   iiko_integration_type: 'iiko_transport',
   iiko_api_base_url: 'https://api-ru.iiko.services/api/1',
   iiko_api_login: '', iiko_app_id: '', iiko_client_secret: '', iiko_organization_id: '', iiko_loyalty_program_id: '',
@@ -5128,6 +5248,55 @@ async function sendWabaTest() {
     toast.error(e.response?.data?.error || 'Ошибка отправки тестового сообщения')
   } finally {
     sendingWabaTest.value = false
+  }
+}
+
+// --- SMS-Center (SMSC) Integration Logic ---
+const showSmscPassword = ref(false)
+const checkingSmscBalance = ref(false)
+const smscBalanceInfo = ref('')
+const showSmscTestModal = ref(false)
+const smscTestPhone = ref('')
+const smscTestMessage = ref('')
+const sendingSmscTest = ref(false)
+
+async function checkSmscBalance() {
+  checkingSmscBalance.value = true
+  try {
+    const res = await api.post(`/core/organizations/${auth.currentOrgId}/smsc/check-balance/`)
+    smscBalanceInfo.value = `${res.data.balance} ${res.data.currency || 'KZT'}`
+    toast.success(`Баланс SMSC: ${smscBalanceInfo.value}`)
+  } catch (e) {
+    smscBalanceInfo.value = ''
+    toast.error(e.response?.data?.error || 'Не удалось проверить баланс SMSC')
+  } finally {
+    checkingSmscBalance.value = false
+  }
+}
+
+function openSmscTestModal() {
+  smscTestPhone.value = ''
+  smscTestMessage.value = `${form.value.name || 'MadiTech'}: Тестовое SMS сообщение. Код: 1234.`
+  showSmscTestModal.value = true
+}
+
+async function sendSmscTest() {
+  if (!smscTestPhone.value.trim()) {
+    toast.error('Укажите номер телефона')
+    return
+  }
+  sendingSmscTest.value = true
+  try {
+    const res = await api.post(`/core/organizations/${auth.currentOrgId}/smsc/send-test/`, {
+      phone: smscTestPhone.value.trim(),
+      message: smscTestMessage.value.trim()
+    })
+    toast.success(res.data.message || 'Тестовое SMS успешно отправлено!')
+    showSmscTestModal.value = false
+  } catch (e) {
+    toast.error(e.response?.data?.error || 'Ошибка отправки тестового SMS')
+  } finally {
+    sendingSmscTest.value = false
   }
 }
 

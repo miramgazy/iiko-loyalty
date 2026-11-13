@@ -734,6 +734,47 @@ class OrganizationWabaSendTestView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
 
+class OrganizationSmscCheckBalanceView(APIView):
+    """
+    Check current account balance on SMSC (smsc.kz / smsc.ru).
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+
+    def post(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        from apps.core.services.sms_service import SmscService
+        service = SmscService(org)
+        res = service.get_balance()
+        if not res.get("success"):
+            return Response({"error": res.get("error", "Не удалось проверить баланс")}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(res)
+
+
+class OrganizationSmscSendTestView(APIView):
+    """
+    Send a test SMS message via SMS-Center to check configuration.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+
+    def post(self, request, organization_id, *args, **kwargs):
+        org = get_object_or_404(Organization, id=organization_id)
+        phone = request.data.get('phone')
+        message = request.data.get('message') or f"{org.name}: Тестовое SMS сообщение от системы лояльности."
+        if not phone:
+            return Response({"error": "Укажите номер телефона для тестовой отправки"}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.core.services.sms_service import SmscService
+        service = SmscService(org)
+        res = service.send_sms(phone, message)
+        if not res.get("success"):
+            return Response({"error": res.get("error", "Ошибка отправки SMS")}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({
+            "status": "success",
+            "message": f"Тестовое SMS успешно отправлено на {phone}!",
+            "details": res
+        })
+
+
 class OrganizationWabaLogsView(APIView):
     """
     View dispatch logs for WABA messages of an organization with filtering and Excel export.

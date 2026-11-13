@@ -26,7 +26,8 @@ from apps.loyalty.views import (
 from apps.loyalty.terminal_views import (
     TerminalPingView,
     TerminalRequestCodeView,
-    TerminalVerifyCodeView
+    TerminalVerifyCodeView,
+    TerminalCustomerInfoView
 )
 
 
@@ -79,6 +80,7 @@ urlpatterns = [
 
     # iikoFront Terminal Endpoints
     path('terminal/ping/', TerminalPingView.as_view(), name='terminal_ping'),
+    path('terminal/customer-info/', TerminalCustomerInfoView.as_view(), name='terminal_customer_info'),
     path('terminal/request-code/', TerminalRequestCodeView.as_view(), name='terminal_request_code'),
     path('terminal/verify-code/', TerminalVerifyCodeView.as_view(), name='terminal_verify_code'),
 ]

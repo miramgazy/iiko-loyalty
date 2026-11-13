@@ -165,6 +165,7 @@ class TerminalRequestCodeView(APIView):
         raw_phone = request.data.get('phone')
         iiko_customer_id = request.data.get('iiko_customer_id')
         customer = None
+        clean_phone = ""
 
         if raw_phone:
             clean_phone = normalize_phone(raw_phone)
@@ -179,11 +180,107 @@ class TerminalRequestCodeView(APIView):
                 "message": "Не указан номер телефона клиента для отправки кода подтверждения."
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        # If customer not in local DB, auto-import from iikoCard / iiko Cloud Loyalty
+        try:
+            from apps.loyalty.services import IikoLoyaltyService
+            from apps.loyalty.models import CustomerWallet
+            from datetime import datetime
+            service = IikoLoyaltyService(org)
+
+            guest_info = None
+            if clean_phone:
+                guest_info = service.get_customer_info_by_phone(clean_phone)
+            elif iiko_customer_id:
+                guest_info = service.get_customer_info_by_id(iiko_customer_id)
+
+            if guest_info and guest_info.get("id"):
+                iiko_id = guest_info.get("id")
+                guest_phone = guest_info.get("phone") or clean_phone
+                if not clean_phone and guest_phone:
+                    clean_phone = normalize_phone(guest_phone)
+
+                cards = guest_info.get("cards", [])
+                card_num = str(cards[0].get("number")) if cards and cards[0].get("number") else ""
+
+                bday_str = guest_info.get("birthday")
+                parsed_bday = None
+                if bday_str and len(bday_str) >= 10:
+                    try:
+                        parsed_bday = datetime.strptime(bday_str[:10], '%Y-%m-%d').date()
+                    except Exception:
+                        pass
+
+                wallet_balances = guest_info.get("walletBalances", [])
+                total_balance = 0.0
+                for w in wallet_balances:
+                    if w.get("type") == 1:
+                        total_balance += float(w.get("balance", 0))
+
+                if not customer:
+                    customer = Customer.objects.create(
+                        organization=org,
+                        phone=clean_phone,
+                        iiko_customer_id=iiko_id,
+                        first_name=guest_info.get("name") or "",
+                        last_name=guest_info.get("surname") or "",
+                        email=guest_info.get("email") or "",
+                        birthday=parsed_bday,
+                        iiko_card_number=card_num,
+                        loyalty_balance=total_balance,
+                        is_pushed_to_iiko=True,
+                        onboarding_source='iiko_terminal'
+                    )
+
+                    for w in wallet_balances:
+                        w_id = w.get("id")
+                        if w_id:
+                            CustomerWallet.objects.create(
+                                customer=customer,
+                                wallet_id=w_id,
+                                name=w.get("name") or "Кошелек лояльности",
+                                balance=float(w.get("balance", 0)),
+                                wallet_type=w.get("type", 1)
+                            )
+
+                    logger.info(f"[TerminalRequestCode] Auto-imported customer {customer.id} ('{customer.first_name}', phone={clean_phone}) from iikoCard for org {org.slug}")
+                else:
+                    # Refresh existing customer's balance & name from iikoCard
+                    updated = []
+                    if float(customer.loyalty_balance) != total_balance:
+                        customer.loyalty_balance = total_balance
+                        updated.append('loyalty_balance')
+                    remote_name = guest_info.get("name") or ""
+                    if remote_name and not customer.first_name:
+                        customer.first_name = remote_name
+                        updated.append('first_name')
+                    if updated:
+                        customer.save(update_fields=updated)
+        except Exception as e:
+            logger.warning(f"[TerminalRequestCode] Error checking/importing customer from iikoCard: {e}")
+
+        customer_balance = float(customer.loyalty_balance) if customer else 0.0
+        customer_name = f"{customer.first_name} {customer.last_name}".strip() if customer else "Гость"
+        if not customer_name:
+            customer_name = "Гость"
+
         if not clean_phone:
             return Response({
                 "status": "error",
                 "error_code": "PHONE_REQUIRED",
                 "message": "Не удалось определить номер телефона гостя."
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        amount = float(request.data.get('amount') or 0.00)
+        order_id = str(request.data.get('order_id') or '')
+
+        # Check balance sufficiency if customer found
+        if customer and amount > 0 and customer_balance < amount:
+            return Response({
+                "status": "error",
+                "error_code": "INSUFFICIENT_BALANCE",
+                "message": f"Недостаточно бонусов. Доступно: {customer_balance:.0f} Б, запрошено к списанию: {amount:.0f} Б.",
+                "balance": customer_balance,
+                "customer_name": customer_name
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Rate-limiting: max 1 code per 30 seconds per phone
@@ -196,13 +293,13 @@ class TerminalRequestCodeView(APIView):
                 "status": "error",
                 "error_code": "RATE_LIMITED",
                 "message": "Код уже отправлен. Подождите 30 секунд перед повторным запросом.",
-                "timeout": 30
+                "timeout": 30,
+                "balance": customer_balance,
+                "customer_name": customer_name
             }, status=status.HTTP_429_TOO_MANY_REQUESTS)
 
         # 5. Generate 4-digit code
         code = f"{random.randint(1000, 9999)}"
-        amount = request.data.get('amount') or 0.00
-        order_id = str(request.data.get('order_id') or '')
 
         otp = TerminalPaymentOtp.objects.create(
             organization=org,
@@ -215,9 +312,10 @@ class TerminalRequestCodeView(APIView):
             expires_at=timezone.now() + datetime.timedelta(seconds=180)
         )
 
-        # 6. Cascading delivery: Telegram -> WhatsApp
+        # 6. Cascading delivery: Telegram -> WhatsApp -> SMS-Center
         channel = None
         delivery_error = None
+        not_on_whatsapp = False
 
         # Priority 1: Telegram
         if customer and customer.telegram_id and org.tg_bot_token:
@@ -252,19 +350,58 @@ class TerminalRequestCodeView(APIView):
                     actual_payload=waba_payload,
                     recipient_phone=clean_phone
                 )
-                # Check for delivery issues
-                channel = "whatsapp"
-                logger.info(f"Terminal OTP {code} sent via WhatsApp to {clean_phone} (org {org.slug})")
+
+                waba_success = False
+                if results and any(r.get('success') for r in results):
+                    waba_success = True
+                else:
+                    for r in results:
+                        if r.get('is_not_on_whatsapp'):
+                            not_on_whatsapp = True
+                            break
+                        err_msg = str(r.get('error') or '').lower()
+                        if 'not on whatsapp' in err_msg or 'not a valid whatsapp user' in err_msg or '131026' in err_msg:
+                            not_on_whatsapp = True
+                            break
+
+                if waba_success:
+                    channel = "whatsapp"
+                    logger.info(f"Terminal OTP {code} sent via WhatsApp to {clean_phone} (org {org.slug})")
+                else:
+                    delivery_error = results[0].get('error') if results else "WABA rules not configured or message failed"
+                    logger.warning(f"WABA OTP dispatch did not succeed for {clean_phone}: {delivery_error} (not_on_whatsapp={not_on_whatsapp})")
             except Exception as e:
                 logger.error(f"Failed to send WABA OTP: {e}")
                 delivery_error = str(e)
 
+        # Priority 3: SMS-Center (SMSC)
+        if not channel and org.is_smsc_configured:
+            try:
+                from apps.core.services.sms_service import send_sms_otp
+                sms_res = send_sms_otp(org=org, phone=clean_phone, code=code, amount=float(amount))
+                if sms_res.get('success'):
+                    channel = "sms"
+                    logger.info(f"Terminal OTP {code} sent via SMSC to {clean_phone} (id={sms_res.get('message_id')}, org {org.slug})")
+                else:
+                    logger.warning(f"SMSC OTP dispatch failed for {clean_phone}: {sms_res.get('error')}")
+                    delivery_error = sms_res.get('error')
+            except Exception as e:
+                logger.error(f"Failed to send SMS OTP via SMSC: {e}")
+                delivery_error = str(e)
+
         if not channel:
             otp.delete()
+            if not_on_whatsapp:
+                return Response({
+                    "status": "error",
+                    "error_code": "NO_WHATSAPP",
+                    "message": f"У клиента с номером {mask_phone(clean_phone)} нет WhatsApp. Не удалось доставить код подтверждения."
+                }, status=status.HTTP_400_BAD_REQUEST)
+
             return Response({
                 "status": "error",
                 "error_code": "NO_DELIVERY_CHANNEL",
-                "message": "У гостя не подключен Telegram-бот и не настроен WhatsApp для отправки кода подтверждения."
+                "message": delivery_error or "У гостя не подключен Telegram-бот и не удалось отправить код через WhatsApp или SMS."
             }, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({
@@ -272,7 +409,9 @@ class TerminalRequestCodeView(APIView):
             "session_id": str(otp.session_id),
             "channel": channel,
             "phone_masked": mask_phone(clean_phone),
-            "expires_in_seconds": 180
+            "expires_in_seconds": 180,
+            "balance": customer_balance,
+            "customer_name": customer_name
         })
 
 
@@ -353,8 +492,89 @@ class TerminalVerifyCodeView(APIView):
         otp.is_verified = True
         otp.save(update_fields=['is_verified'])
 
+        customer_bal = float(otp.customer.loyalty_balance) if otp.customer else 0.0
+        customer_nm = f"{otp.customer.first_name} {otp.customer.last_name}".strip() if otp.customer else "Гость"
+
         return Response({
             "status": "success",
             "verified": True,
-            "message": "Код успешно подтвержден. Оплата бонусами разрешена."
+            "message": "Код успешно подтвержден. Оплата бонусами разрешена.",
+            "balance": customer_bal,
+            "customer_name": customer_nm or "Гость"
+        })
+
+
+class TerminalCustomerInfoView(APIView):
+    """
+    Endpoint for POS terminal to query customer balance, card, and name by phone number.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        org = get_org_from_secret(request)
+        if not org:
+            return Response(
+                {"error": "Неверный или отсутствующий секретный ключ терминала (X-Terminal-Secret)"},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        raw_phone = request.data.get('phone') or ""
+        clean_phone = normalize_phone(raw_phone) if raw_phone else ""
+        if not clean_phone:
+            return Response({"error": "Параметр 'phone' обязателен"}, status=status.HTTP_400_BAD_REQUEST)
+
+        customer = Customer.objects.filter(organization=org, phone=clean_phone).first()
+
+        try:
+            from apps.loyalty.services import IikoLoyaltyService
+            service = IikoLoyaltyService(org)
+            guest_info = service.get_customer_info_by_phone(clean_phone)
+            if guest_info and guest_info.get("id"):
+                wallet_balances = guest_info.get("walletBalances", [])
+                total_balance = 0.0
+                for w in wallet_balances:
+                    if w.get("type") == 1:
+                        total_balance += float(w.get("balance", 0))
+
+                if not customer:
+                    iiko_id = guest_info.get("id")
+                    cards = guest_info.get("cards", [])
+                    card_num = str(cards[0].get("number")) if cards and cards[0].get("number") else ""
+
+                    customer = Customer.objects.create(
+                        organization=org,
+                        phone=clean_phone,
+                        iiko_customer_id=iiko_id,
+                        first_name=guest_info.get("name") or "",
+                        last_name=guest_info.get("surname") or "",
+                        email=guest_info.get("email") or "",
+                        iiko_card_number=card_num,
+                        loyalty_balance=total_balance,
+                        is_pushed_to_iiko=True,
+                        onboarding_source='iiko_terminal'
+                    )
+                else:
+                    customer.loyalty_balance = total_balance
+                    remote_name = guest_info.get("name") or ""
+                    if remote_name and not customer.first_name:
+                        customer.first_name = remote_name
+                    customer.save(update_fields=['loyalty_balance', 'first_name'])
+        except Exception as e:
+            logger.warning(f"[TerminalCustomerInfo] Error fetching customer from iiko: {e}")
+
+        if not customer:
+            return Response({
+                "status": "not_found",
+                "found": False,
+                "message": "Клиент с таким номером не найден"
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({
+            "status": "success",
+            "found": True,
+            "phone": customer.phone,
+            "name": f"{customer.first_name} {customer.last_name}".strip() or "Гость",
+            "balance": float(customer.loyalty_balance),
+            "card_number": customer.iiko_card_number or "",
+            "is_telegram_subscribed": bool(customer.telegram_id)
         })

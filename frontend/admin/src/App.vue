@@ -162,6 +162,7 @@ const settingsSubTabs = computed(() => {
   const list = [
     { id: 'general', label: 'Основные / Telegram', icon: '⚙️' },
     { id: 'waba', label: 'Настройка WABA', icon: '💬' },
+    { id: 'smsc', label: 'SMS-Центр (SMSC)', icon: '📱' },
     { id: 'iiko', label: 'Интеграция iiko Cloud API', icon: '☁️' },
     { id: 'iiko_server', label: 'Интеграция iiko Server API', icon: '🖥️' },
   ]
