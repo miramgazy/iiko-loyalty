@@ -1,5 +1,6 @@
 from django.test import TestCase
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APITestCase
+from rest_framework import status
 from apps.core.models import Organization
 from apps.loyalty.models import Customer
 from apps.loyalty.views_utils import validate_tg_init_data
@@ -1111,6 +1112,9 @@ class AppleWalletTests(TestCase):
 
 class TerminalPaymentOtpTests(APITestCase):
     def setUp(self):
+        import uuid
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
         self.superadmin = User.objects.create_user(
             username="admin_otp@test.com", email="admin_otp@test.com", password="password", is_staff=True
         )

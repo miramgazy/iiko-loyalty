@@ -921,9 +921,9 @@ class SuperAdminSyncTerminalsView(APIView):
     def post(self, request, organization_id, *args, **kwargs):
         org = get_object_or_404(Organization, id=organization_id)
         
-        if not org.iiko_api_login or not org.iiko_organization_id:
+        if not org.iiko_api_login:
             return Response(
-                {"error": "Для организации не настроен iiko API Login или iiko Organization ID"},
+                {"error": "Для организации не настроен iiko API Login (apiKey). Заполните его в настройках организации."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
@@ -943,13 +943,43 @@ class SuperAdminSyncTerminalsView(APIView):
                 base_url = base_url.replace('/api/v2', '/api/1')
             elif '/api/2' in base_url:
                 base_url = base_url.replace('/api/2', '/api/1')
-            url = f"{base_url}/terminal_groups"
+            elif not base_url.endswith('/api/1'):
+                base_url = f"{base_url}/api/1"
+
+            org_ids = []
+            if org.iiko_organization_id:
+                org_ids.append(str(org.iiko_organization_id))
             
-            payload = {
-                "organizationIds": [str(org.iiko_organization_id)]
-            }
-            
+            # If organization ID is missing, auto-discover it from iiko Cloud
             with httpx.Client(timeout=15) as client:
+                if not org_ids:
+                    orgs_resp = client.post(
+                        f"{base_url}/organizations",
+                        json={"returnAdditionalInfo": False, "includeDisabled": True},
+                        headers=headers
+                    )
+                    if orgs_resp.status_code == 200:
+                        orgs_data = orgs_resp.json()
+                        discovered_orgs = orgs_data.get("organizations", [])
+                        if discovered_orgs:
+                            org_ids = [str(o.get("id")) for o in discovered_orgs if o.get("id")]
+                            # Save the primary one if not saved yet
+                            if not org.iiko_organization_id and org_ids:
+                                org.iiko_organization_id = org_ids[0]
+                                org.save(update_fields=['iiko_organization_id'])
+
+                if not org_ids:
+                    return Response(
+                        {"error": "Не удалось определить ID организации в iiko Cloud. Укажите iiko Organization ID вручную."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                url = f"{base_url}/terminal_groups"
+                payload = {
+                    "organizationIds": org_ids,
+                    "includeDisabled": True
+                }
+            
                 resp = client.post(url, json=payload, headers=headers)
                 resp.raise_for_status()
                 data = resp.json()
@@ -965,10 +995,11 @@ class SuperAdminSyncTerminalsView(APIView):
 
         for group in terminal_groups:
             items = group.get("items", [])
+            group_org_id = group.get("organizationId", "")
             for item in items:
                 t_id = item.get("id")
                 t_name = item.get("name") or "Касса"
-                t_address = item.get("address") or ""
+                t_address = item.get("address") or item.get("timeZone") or ""
                 
                 if not t_id:
                     continue
@@ -988,9 +1019,15 @@ class SuperAdminSyncTerminalsView(APIView):
 
         terminals = PosTerminal.objects.filter(organization=org).order_by('name')
         serializer = PosTerminalSerializer(terminals, many=True)
+
+        if len(terminals) == 0 and created_count == 0:
+            msg = "В iiko Cloud не найдено кассовых терминалов. Кассы добавятся автоматически при первом запуске плагина на терминале."
+        else:
+            msg = f"Синхронизировано касс: создано {created_count}, обновлено {updated_count}"
+
         return Response({
             "status": "success",
-            "message": f"Синхронизировано касс: создано {created_count}, обновлено {updated_count}",
+            "message": msg,
             "created_count": created_count,
             "updated_count": updated_count,
             "terminals": serializer.data
