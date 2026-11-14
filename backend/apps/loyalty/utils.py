@@ -1,7 +1,10 @@
 import random
 import string
 import re
+import logging
 from apps.loyalty.models import Customer
+
+logger = logging.getLogger(__name__)
 
 # Emojis regex pattern
 EMOJI_PATTERN = re.compile(
@@ -41,6 +44,69 @@ def generate_unique_card_number(organization, length=10):
             continue
         if not Customer.objects.filter(organization=organization, iiko_card_number=card_number).exists():
             return card_number
+
+
+def ensure_customer_card_in_iiko(customer, service=None, guest_info=None):
+    """
+    Ensures that customer has an iiko_card_number in the local database AND registered in iikoCard.
+    1. If iikoCard already has cards for this customer, sync the first one to local DB.
+    2. If iikoCard has no card for this customer:
+       - Use customer.iiko_card_number if set, or generate a new unique one.
+       - Register it in iikoCard via service.add_virtual_card.
+       - Save to customer.iiko_card_number.
+    """
+    if not customer or not customer.iiko_customer_id:
+        return customer.iiko_card_number if customer else None
+
+    org = customer.organization
+    if not service:
+        from apps.loyalty.services import get_iiko_service
+        service = get_iiko_service(org)
+
+    # 1. Check existing cards in iiko
+    cards = guest_info.get("cards", []) if guest_info else []
+    if not cards and not guest_info:
+        try:
+            info = service.get_customer_info_by_id(customer.iiko_customer_id)
+            if info:
+                cards = info.get("cards", [])
+        except Exception as e:
+            logger.warning(f"Could not fetch cards for customer {customer.id} from iiko: {e}")
+
+    iiko_card_numbers = [str(c.get("number")) for c in cards if c.get("number")]
+
+    # If iikoCard already has a card for this customer:
+    if iiko_card_numbers:
+        if not customer.iiko_card_number or str(customer.iiko_card_number) not in iiko_card_numbers:
+            customer.iiko_card_number = iiko_card_numbers[0]
+            customer.save(update_fields=['iiko_card_number'])
+            logger.info(f"Customer {customer.id} synced card {customer.iiko_card_number} from iiko")
+        return customer.iiko_card_number
+
+    # 2. iikoCard has no card for this customer -> Generate and upload to iikoCard
+    card_number = customer.iiko_card_number
+    if not card_number:
+        card_number = generate_unique_card_number(org)
+        customer.iiko_card_number = card_number
+        customer.save(update_fields=['iiko_card_number'])
+        logger.info(f"Generated new card {card_number} for customer {customer.id}")
+
+    try:
+        service.add_virtual_card(customer.iiko_customer_id, str(card_number))
+        logger.info(f"Successfully uploaded virtual card {card_number} to iikoCard for customer {customer.id} ({customer.iiko_customer_id})")
+    except Exception as e:
+        logger.warning(f"Error registering card {card_number} in iiko: {e}. Retrying with fresh number...")
+        try:
+            fresh_card = generate_unique_card_number(org)
+            customer.iiko_card_number = fresh_card
+            customer.save(update_fields=['iiko_card_number'])
+            service.add_virtual_card(customer.iiko_customer_id, str(fresh_card))
+            logger.info(f"Successfully uploaded retry card {fresh_card} to iikoCard for customer {customer.id}")
+            return fresh_card
+        except Exception as retry_err:
+            logger.error(f"Failed to register retry card in iiko for customer {customer.id}: {retry_err}")
+
+    return customer.iiko_card_number
 
 
 def resolve_customer_tier(customer, org=None, active_wallet_name=None):

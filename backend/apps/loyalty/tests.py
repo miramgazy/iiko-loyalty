@@ -1382,6 +1382,23 @@ class TerminalPaymentOtpTests(APITestCase):
         self.assertEqual(res.data["balance"], 3500.0)
         self.assertEqual(res.data["card_number"], "888001")
 
+    @patch("apps.loyalty.services.IikoCloudIntegrationService.add_virtual_card")
+    def test_ensure_customer_card_generation_and_upload(self, mock_add_card):
+        from apps.loyalty.utils import ensure_customer_card_in_iiko
+        cust = Customer.objects.create(
+            organization=self.organization,
+            phone="+77088889900",
+            first_name="Бауржан",
+            iiko_customer_id="b7a6b2c1-3841-4c91-9e28-112233445566",
+            iiko_card_number=None
+        )
+        card = ensure_customer_card_in_iiko(cust, guest_info={"cards": []})
+        self.assertIsNotNone(card)
+        self.assertTrue(len(card) >= 8)
+        cust.refresh_from_db()
+        self.assertEqual(cust.iiko_card_number, card)
+        mock_add_card.assert_called_once_with(cust.iiko_customer_id, card)
+
 
 
 

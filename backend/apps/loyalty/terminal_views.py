@@ -255,6 +255,10 @@ class TerminalRequestCodeView(APIView):
                         updated.append('first_name')
                     if updated:
                         customer.save(update_fields=updated)
+
+                if customer:
+                    from apps.loyalty.utils import ensure_customer_card_in_iiko
+                    ensure_customer_card_in_iiko(customer, service=service, guest_info=guest_info)
         except Exception as e:
             logger.warning(f"[TerminalRequestCode] Error checking/importing customer from iikoCard: {e}")
 
@@ -559,6 +563,10 @@ class TerminalCustomerInfoView(APIView):
                     if remote_name and not customer.first_name:
                         customer.first_name = remote_name
                     customer.save(update_fields=['loyalty_balance', 'first_name'])
+
+                if customer:
+                    from apps.loyalty.utils import ensure_customer_card_in_iiko
+                    ensure_customer_card_in_iiko(customer, service=service, guest_info=guest_info)
         except Exception as e:
             logger.warning(f"[TerminalCustomerInfo] Error fetching customer from iiko: {e}")
 

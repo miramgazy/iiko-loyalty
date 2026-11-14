@@ -533,7 +533,9 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
             Q(first_name__iexact='guest') |
             Q(first_name__iexact='гость') |
             Q(phone__isnull=True) |
-            Q(phone='')
+            Q(phone='') |
+            Q(iiko_card_number__isnull=True) |
+            Q(iiko_card_number='')
         )
         
         count = customers.count()

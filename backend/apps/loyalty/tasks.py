@@ -65,40 +65,9 @@ def sync_customer_to_iiko(self, customer_id, push=False):
                         customer.delete()
                         customer = existing
 
-            cards = guest_info.get("cards", [])
-            iiko_card_numbers = [str(c.get("number")) for c in cards if c.get("number")]
-            card_synced_in_iiko = False
-
-            if customer.iiko_card_number and str(customer.iiko_card_number) in iiko_card_numbers:
-                card_synced_in_iiko = True
-            # Ensure platform-generated card number is pushed to iiko if missing in iiko
-            elif customer.iiko_card_number and str(customer.iiko_card_number) not in iiko_card_numbers:
-                try:
-                    logger.info(f"Customer {customer.id} has platform card {customer.iiko_card_number} missing in iiko. Adding virtual card...")
-                    service.add_virtual_card(customer.iiko_customer_id, str(customer.iiko_card_number))
-                    card_synced_in_iiko = True
-                    new_guest_info = service.get_customer_info_by_id(customer.iiko_customer_id)
-                    if new_guest_info:
-                        guest_info = new_guest_info
-                        cards = guest_info.get("cards", [])
-                except Exception as e:
-                    logger.error(f"Error registering virtual card for customer {customer.id}: {e}")
-            elif not cards and not customer.iiko_card_number:
-                try:
-                    logger.info(f"Customer {customer.id} has no cards in iiko or platform. Generating virtual card...")
-                    from apps.loyalty.utils import generate_unique_card_number
-                    customer.iiko_card_number = generate_unique_card_number(customer.organization)
-                    customer.save(update_fields=['iiko_card_number'])
-                    service.add_virtual_card(customer.iiko_customer_id, str(customer.iiko_card_number))
-                    card_synced_in_iiko = True
-                    new_guest_info = service.get_customer_info_by_id(customer.iiko_customer_id)
-                    if new_guest_info:
-                        guest_info = new_guest_info
-                        cards = guest_info.get("cards", [])
-                except Exception as e:
-                    logger.error(f"Error creating virtual card for customer {customer.id}: {e}")
-
-            update_fields = []
+            # Ensure virtual card exists and is registered in iikoCard
+            from apps.loyalty.utils import ensure_customer_card_in_iiko
+            ensure_customer_card_in_iiko(customer, service=service, guest_info=guest_info)
 
             # Sync personal details from iiko to local DB
             name = guest_info.get("name")
@@ -547,6 +516,14 @@ def process_iiko_webhook(log_id):
                 phone=phone,
                 loyalty_balance=balance if is_wallet_tx else 0
             )
+
+        # Ensure customer has an iiko card generated and registered in iikoCard
+        if customer and customer.iiko_customer_id:
+            try:
+                from apps.loyalty.utils import ensure_customer_card_in_iiko
+                ensure_customer_card_in_iiko(customer)
+            except Exception as card_err:
+                logger.warning(f"[Webhook] Error ensuring virtual card for customer {customer.id}: {card_err}")
         
         if is_wallet_tx:
             # Update specific CustomerWallet or fallback to loyalty_balance
