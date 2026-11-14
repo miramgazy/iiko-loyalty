@@ -1143,7 +1143,8 @@ class TerminalPaymentOtpTests(APITestCase):
             organization=self.organization,
             phone="+77011112233",
             first_name="Алексей",
-            telegram_id=987654321
+            telegram_id=987654321,
+            loyalty_balance=1000.0
         )
 
     def test_terminal_ping(self):
@@ -1397,7 +1398,7 @@ class TerminalPaymentOtpTests(APITestCase):
         self.assertTrue(len(card) >= 8)
         cust.refresh_from_db()
         self.assertEqual(cust.iiko_card_number, card)
-        mock_add_card.assert_called_once_with(cust.iiko_customer_id, card)
+        mock_add_card.assert_called_once_with(str(cust.iiko_customer_id), card)
 
 
 

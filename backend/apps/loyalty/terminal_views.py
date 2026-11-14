@@ -1,6 +1,8 @@
 import re
+import uuid
 import random
 import datetime
+from datetime import timedelta
 import logging
 from django.utils import timezone
 from rest_framework.views import APIView
@@ -184,7 +186,6 @@ class TerminalRequestCodeView(APIView):
         try:
             from apps.loyalty.services import IikoLoyaltyService
             from apps.loyalty.models import CustomerWallet
-            from datetime import datetime
             service = IikoLoyaltyService(org)
 
             guest_info = None
@@ -206,7 +207,7 @@ class TerminalRequestCodeView(APIView):
                 parsed_bday = None
                 if bday_str and len(bday_str) >= 10:
                     try:
-                        parsed_bday = datetime.strptime(bday_str[:10], '%Y-%m-%d').date()
+                        parsed_bday = datetime.datetime.strptime(bday_str[:10], '%Y-%m-%d').date()
                     except Exception:
                         pass
 
@@ -233,10 +234,14 @@ class TerminalRequestCodeView(APIView):
 
                     for w in wallet_balances:
                         w_id = w.get("id")
-                        if w_id:
+                        try:
+                            valid_w_id = uuid.UUID(str(w_id)) if w_id else None
+                        except (ValueError, TypeError):
+                            valid_w_id = None
+                        if valid_w_id:
                             CustomerWallet.objects.create(
                                 customer=customer,
-                                wallet_id=w_id,
+                                wallet_id=valid_w_id,
                                 name=w.get("name") or "Кошелек лояльности",
                                 balance=float(w.get("balance", 0)),
                                 wallet_type=w.get("type", 1)
@@ -288,7 +293,7 @@ class TerminalRequestCodeView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         # Rate-limiting: max 1 code per 30 seconds per phone
-        cutoff = timezone.now() - datetime.timedelta(seconds=30)
+        cutoff = timezone.now() - timedelta(seconds=30)
         recent_otp = TerminalPaymentOtp.objects.filter(
             organization=org, phone=clean_phone, created_at__gte=cutoff
         ).first()
@@ -313,7 +318,7 @@ class TerminalRequestCodeView(APIView):
             code=code,
             amount=amount,
             order_id=order_id,
-            expires_at=timezone.now() + datetime.timedelta(seconds=180)
+            expires_at=timezone.now() + timedelta(seconds=180)
         )
 
         # 6. Cascading delivery: Telegram -> WhatsApp -> SMS-Center
