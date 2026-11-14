@@ -525,11 +525,15 @@ class OrgCustomerViewSet(viewsets.ReadOnlyModelViewSet):
         customers = Customer.objects.filter(
             organization_id=organization_id,
             is_active=True
-        ).exclude(phone__isnull=True).exclude(phone='').filter(
+        ).filter(
+            Q(iiko_customer_id__isnull=False) | (~Q(phone__isnull=True) & ~Q(phone=''))
+        ).filter(
             Q(first_name__isnull=True) |
             Q(first_name='') |
             Q(first_name__iexact='guest') |
-            Q(first_name__iexact='гость')
+            Q(first_name__iexact='гость') |
+            Q(phone__isnull=True) |
+            Q(phone='')
         )
         
         count = customers.count()

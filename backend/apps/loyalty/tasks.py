@@ -13,14 +13,14 @@ logger = logging.getLogger(__name__)
 def sync_customer_to_iiko(self, customer_id, push=False):
     try:
         customer = Customer.objects.get(id=customer_id)
-        if not customer.phone:
-            logger.warning(f"Customer {customer_id} has no phone. Skipping sync.")
+        if not customer.phone and not customer.iiko_customer_id:
+            logger.warning(f"Customer {customer_id} has neither phone nor iiko_customer_id. Skipping sync.")
             return
 
         service = IikoLoyaltyService(customer.organization)
 
         # 1. Create or update in iiko only if missing iiko_customer_id OR if push=True
-        if not customer.iiko_customer_id or push:
+        if (not customer.iiko_customer_id or push) and customer.phone:
             birthday_str = customer.birthday.strftime('%Y-%m-%d') if customer.birthday else None
             iiko_id = service.create_or_update_customer(
                 phone=customer.phone,
@@ -35,9 +35,36 @@ def sync_customer_to_iiko(self, customer_id, push=False):
                 customer.save(update_fields=['iiko_customer_id'])
 
         # 2. Get customer details to sync balance, cards, and personal details
-        guest_info = service.get_customer_info_by_id(customer.iiko_customer_id)
+        guest_info = None
+        if customer.iiko_customer_id:
+            guest_info = service.get_customer_info_by_id(customer.iiko_customer_id)
+        elif customer.phone:
+            guest_info = service.get_customer_info_by_phone(customer.phone)
 
         if guest_info:
+            update_fields = []
+
+            # Sync phone from iiko if missing locally
+            remote_phone = guest_info.get("phone")
+            if remote_phone and not customer.phone:
+                from apps.core.utils import normalize_phone
+                clean_phone = normalize_phone(remote_phone)
+                if clean_phone:
+                    existing = Customer.objects.filter(
+                        organization=customer.organization, phone=clean_phone
+                    ).exclude(id=customer.id).first()
+                    if not existing:
+                        customer.phone = clean_phone
+                        update_fields.append('phone')
+                    else:
+                        logger.info(f"Customer {customer.id} has phone {clean_phone} which matches existing Customer {existing.id}. Merging records.")
+                        existing.iiko_customer_id = customer.iiko_customer_id
+                        existing.loyalty_balance = customer.loyalty_balance
+                        existing.save(update_fields=['iiko_customer_id', 'loyalty_balance'])
+                        customer.wallets.all().update(customer=existing)
+                        customer.delete()
+                        customer = existing
+
             cards = guest_info.get("cards", [])
             iiko_card_numbers = [str(c.get("number")) for c in cards if c.get("number")]
             card_synced_in_iiko = False
@@ -435,23 +462,91 @@ def process_iiko_webhook(log_id):
         # Find or create customer
         customer = Customer.objects.filter(organization=org, iiko_customer_id=customer_id_str).first()
         
-        if not customer:
-            # Maybe search by phone if it exists in payload
-            phone = actual_payload.get('phone')
-            if phone:
-                phone = normalize_phone(phone)
-                customer = Customer.objects.filter(organization=org, phone=phone).first()
-                
+        phone = actual_payload.get('phone')
+        if phone:
+            phone = normalize_phone(phone)
             if not customer:
-                customer = Customer.objects.create(
-                    organization=org,
-                    iiko_customer_id=customer_id_str,
-                    phone=phone,
-                    loyalty_balance=balance if is_wallet_tx else 0
-                )
-            else:
-                customer.iiko_customer_id = customer_id_str
-                customer.save()
+                customer = Customer.objects.filter(organization=org, phone=phone).first()
+
+        # If customer does not exist or has empty name or phone, immediately query iikoCard API by customerId
+        if not customer or not customer.first_name or not customer.phone:
+            try:
+                from apps.loyalty.services import IikoLoyaltyService
+                service = IikoLoyaltyService(org)
+                guest_info = service.get_customer_info_by_id(customer_id_str)
+                if guest_info:
+                    guest_phone = guest_info.get("phone")
+                    if guest_phone:
+                        guest_phone = normalize_phone(guest_phone)
+                    
+                    if not customer and guest_phone:
+                        customer = Customer.objects.filter(organization=org, phone=guest_phone).first()
+                    
+                    name = guest_info.get("name") or ""
+                    surname = guest_info.get("surname") or ""
+                    email = guest_info.get("email") or ""
+                    cards = guest_info.get("cards", [])
+                    card_num = str(cards[0].get("number")) if cards and cards[0].get("number") else ""
+
+                    parsed_bday = None
+                    bday_str = guest_info.get("birthday")
+                    if bday_str and len(bday_str) >= 10:
+                        try:
+                            from datetime import datetime
+                            parsed_bday = datetime.strptime(bday_str[:10], '%Y-%m-%d').date()
+                        except Exception:
+                            pass
+
+                    if not customer:
+                        customer = Customer.objects.create(
+                            organization=org,
+                            iiko_customer_id=customer_id_str,
+                            phone=guest_phone or phone,
+                            first_name=name,
+                            last_name=surname,
+                            email=email,
+                            birthday=parsed_bday,
+                            iiko_card_number=card_num,
+                            loyalty_balance=balance if is_wallet_tx else 0,
+                            is_pushed_to_iiko=True,
+                            onboarding_source='iiko_terminal'
+                        )
+                        logger.info(f"[Webhook] Auto-created customer {customer.id} ('{name}', phone={guest_phone}) from iikoCard by customerId {customer_id_str}")
+                    else:
+                        up_fields = []
+                        if not customer.iiko_customer_id:
+                            customer.iiko_customer_id = customer_id_str
+                            up_fields.append('iiko_customer_id')
+                        if guest_phone and not customer.phone:
+                            customer.phone = guest_phone
+                            up_fields.append('phone')
+                        if name and not customer.first_name:
+                            customer.first_name = name
+                            up_fields.append('first_name')
+                        if surname and not customer.last_name:
+                            customer.last_name = surname
+                            up_fields.append('last_name')
+                        if email and not customer.email:
+                            customer.email = email
+                            up_fields.append('email')
+                        if parsed_bday and not customer.birthday:
+                            customer.birthday = parsed_bday
+                            up_fields.append('birthday')
+                        if card_num and not customer.iiko_card_number:
+                            customer.iiko_card_number = card_num
+                            up_fields.append('iiko_card_number')
+                        if up_fields:
+                            customer.save(update_fields=up_fields)
+            except Exception as e:
+                logger.warning(f"[Webhook] Failed to query guest info from iiko by customerId {customer_id_str}: {e}")
+
+        if not customer:
+            customer = Customer.objects.create(
+                organization=org,
+                iiko_customer_id=customer_id_str,
+                phone=phone,
+                loyalty_balance=balance if is_wallet_tx else 0
+            )
         
         if is_wallet_tx:
             # Update specific CustomerWallet or fallback to loyalty_balance
