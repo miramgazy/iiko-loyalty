@@ -1,40 +1,30 @@
 <template>
-  <div class="min-h-screen relative flex flex-col page-p overflow-hidden">
+  <div class="min-h-screen relative flex flex-col page-p overflow-x-hidden">
     <!-- Ambient gold background glow -->
     <div class="absolute w-[240px] h-[240px] rounded-full -top-[60px] -right-[40px] pointer-events-none opacity-20"
          style="background: radial-gradient(circle, var(--gold) 0%, transparent 70%);"></div>
 
-    <!-- Header with Back Button -->
-    <div class="flex items-center justify-between z-10 mb-4 mt-2">
-      <div class="flex items-center gap-3">
-        <button 
-          @click="goBack" 
-          class="w-10 h-10 rounded-full bg-[color:var(--bg-secondary)] border border-[color:var(--border)] flex items-center justify-center text-[color:var(--text)] active:scale-90 transition-transform cursor-pointer"
-        >
-          <svg class="w-5 h-5 stroke-current" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
-          </svg>
-        </button>
-        <div class="flex flex-col">
-          <h1 class="text-lg font-black text-[color:var(--text)] tracking-tight">Новая накладная</h1>
-          <span class="text-xs text-[color:var(--muted)] font-bold">Приемка товара</span>
+    <!-- Header Card -->
+    <div class="card-luxury p-4 text-left shadow-sm mb-4 z-10" style="margin-bottom: 16px;">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-lg font-black text-[color:var(--text)] tracking-tight">Загрузка накладной</h1>
+          <p class="text-xs text-[color:var(--muted)] font-medium mt-0.5">Приемка товаров и запуск AI</p>
         </div>
-      </div>
-
-      <!-- Quick page counter badge -->
-      <div v-if="filesList.length > 0" class="px-2.5 py-1 rounded-full text-xs font-black bg-[color:var(--gold)]/15 text-[color:var(--gold)] border border-[color:var(--gold)]/30">
-        {{ filesList.length }} {{ filesCountWord(filesList.length) }}
+        <div v-if="filesList.length > 0" class="px-2.5 py-1 rounded-full text-xs font-black bg-[color:var(--gold)]/15 text-[color:var(--gold)] border border-[color:var(--gold)]/30">
+          {{ filesList.length }} {{ filesCountWord(filesList.length) }}
+        </div>
       </div>
     </div>
 
     <!-- SUCCESS STATE OVERLAY -->
     <div v-if="uploadSuccess" class="flex-1 flex flex-col items-center justify-center text-center z-20 py-8">
-      <div class="w-20 h-20 rounded-full bg-green-500/15 border-2 border-green-500/30 flex items-center justify-center text-green-400 text-4xl mb-4 shadow-lg animate-bounce">
+      <div class="w-20 h-20 rounded-full bg-green-500/15 border-2 border-green-500/30 flex items-center justify-center text-green-400 text-4xl mb-4 shadow-lg">
         ✓
       </div>
       <h2 class="text-xl font-black text-[color:var(--text)] mb-2">Накладная отправлена!</h2>
       <p class="text-xs text-[color:var(--muted)] max-w-xs mb-3">
-        Номер документа: <span class="font-extrabold text-[color:var(--gold)]">{{ createdDocNumber }}</span>
+        Номер документа: <span class="font-extrabold text-[color:var(--gold)] font-mono">{{ createdDocNumber }}</span>
       </p>
       <div class="card-luxury p-4 text-xs text-[color:var(--muted)] max-w-xs mb-6 text-left border border-[color:var(--border)]">
         <div class="flex items-start gap-2 mb-2">
@@ -47,16 +37,15 @@
         </div>
       </div>
 
-      <div class="flex flex-col gap-2.5 w-full max-w-xs">
+      <div class="flex flex-col gap-3 w-full max-w-xs">
         <button 
           @click="resetForm"
-          class="w-full py-3 rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
-          style="background: var(--gold-gradient); color: var(--gold-text);"
+          class="btn-primary w-full py-3 text-xs flex items-center justify-center gap-2"
         >
           <span>📸 Загрузить еще одну накладную</span>
         </button>
         <button 
-          @click="goBack"
+          @click="$router.push('/employee/invoices')"
           class="w-full py-3 rounded-xl font-bold text-xs bg-[color:var(--bg-secondary)] border border-[color:var(--border)] text-[color:var(--text)] active:scale-95 transition-all cursor-pointer"
         >
           <span>📋 К списку накладных</span>
@@ -65,68 +54,68 @@
     </div>
 
     <!-- MAIN FORM VIEW -->
-    <div v-else class="flex flex-col gap-4 z-10 pb-24">
+    <div v-else class="flex flex-col z-10">
       <!-- 1. Auto-generated Draft Number Card -->
-      <div class="card-luxury p-3.5 flex items-center justify-between border border-[color:var(--border)]">
-        <div class="flex items-center gap-2.5">
-          <div class="w-9 h-9 rounded-xl bg-[color:var(--bg-secondary)] border border-[color:var(--border)] flex items-center justify-center text-lg">
+      <div class="card-luxury p-4 flex items-center justify-between mb-4 text-left">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-[color:var(--bg-secondary)] border border-[color:var(--border)] flex items-center justify-center text-xl flex-shrink-0">
             🧾
           </div>
           <div class="flex flex-col">
-            <span class="text-[10px] uppercase font-bold text-[color:var(--muted)] tracking-wider">Номер черновика</span>
+            <span class="sheet-label" style="margin-bottom: 2px;">Номер черновика</span>
             <span class="text-sm font-extrabold text-[color:var(--text)] tracking-tight font-mono">
               {{ autoDocNumber }}
             </span>
           </div>
         </div>
-        <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 font-bold border border-blue-500/20">
-          TMA Черновик
+        <span class="text-[10px] px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-400 font-bold border border-blue-500/20">
+          Черновик
         </span>
       </div>
 
       <!-- 2. Warehouse / Store Selector -->
-      <div class="card-luxury p-4 flex flex-col gap-2 border border-[color:var(--border)]">
-        <label class="text-xs font-bold text-[color:var(--text)] flex items-center justify-between">
+      <div class="card-luxury p-4 flex flex-col gap-2 text-left mb-4">
+        <label class="sheet-label flex items-center justify-between">
           <span>Склад оприходования в iiko</span>
-          <span v-if="loadingStores" class="text-[10px] text-[color:var(--muted)] flex items-center gap-1">
+          <span v-if="loadingStores" class="text-[10px] text-[color:var(--muted)] normal-case font-normal flex items-center gap-1">
             <span class="w-2.5 h-2.5 border-2 border-[color:var(--gold)]/30 border-t-[color:var(--gold)] rounded-full animate-spin"></span>
             загрузка складов...
           </span>
         </label>
         
-        <div class="relative">
+        <div class="relative w-full">
           <select 
             v-model="selectedStoreId" 
-            class="w-full bg-[color:var(--bg-secondary)] text-[color:var(--text)] text-xs font-medium rounded-xl p-3 border border-[color:var(--border)] appearance-none outline-none focus:border-[color:var(--gold)] transition-colors pr-10"
+            class="sheet-input appearance-none pr-10 cursor-pointer"
           >
             <option value="" disabled>-- Выберите склад iiko --</option>
-            <option v-for="st in stores" :key="st.id" :value="st.id">
+            <option v-for="st in stores" :key="st.id" :value="String(st.id)">
               {{ st.name }}
             </option>
           </select>
-          <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-[color:var(--muted)]">
+          <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3.5 text-[color:var(--muted)]">
             <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
               <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
             </svg>
           </div>
         </div>
-        <span class="text-[10px] text-[color:var(--muted)]">
+        <span class="text-[11px] text-[color:var(--muted)]">
           {{ selectedStoreName ? `Выбран: ${selectedStoreName}` : 'Выберите склад, куда фактически поступает товар' }}
         </span>
       </div>
 
       <!-- 3. Photo Capture & Files Section -->
-      <div class="card-luxury p-4 flex flex-col gap-3 border border-[color:var(--border)]">
+      <div class="card-luxury p-4 flex flex-col gap-3 text-left mb-4">
         <div class="flex items-center justify-between">
-          <label class="text-xs font-extrabold text-[color:var(--text)]">
+          <label class="sheet-label" style="margin-bottom: 0;">
             Фотографии страниц накладной
           </label>
-          <span class="text-[10px] text-[color:var(--muted)]">
-            Все фото одной накладной
+          <span class="text-[10px] text-[color:var(--muted)] font-bold">
+            Все страницы одного документа
           </span>
         </div>
 
-        <!-- Hidden input for Environment Camera -->
+        <!-- Hidden inputs -->
         <input 
           ref="cameraInputRef" 
           type="file" 
@@ -135,8 +124,6 @@
           class="hidden" 
           @change="handleFileInputChange" 
         />
-
-        <!-- Hidden input for Gallery / PDF files (multi-select) -->
         <input 
           ref="galleryInputRef" 
           type="file" 
@@ -147,14 +134,14 @@
         />
 
         <!-- Action Upload Buttons -->
-        <div class="grid grid-cols-2 gap-2.5">
+        <div class="grid grid-cols-2 gap-3">
           <!-- Camera Button -->
           <button 
             type="button"
             @click="openCamera"
-            class="py-3 px-3 rounded-xl border border-[color:var(--gold)]/40 bg-[color:var(--gold)]/10 text-[color:var(--gold)] font-extrabold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
+            class="py-3 px-3 rounded-xl border border-[color:var(--gold)]/40 bg-[color:var(--gold)]/10 text-[color:var(--gold)] font-extrabold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-sm"
           >
-            <svg class="w-4 h-4 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg class="w-5 h-5 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
               <circle cx="12" cy="13" r="4"/>
             </svg>
@@ -165,45 +152,45 @@
           <button 
             type="button"
             @click="openGallery"
-            class="py-3 px-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--bg-secondary)] text-[color:var(--text)] font-extrabold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
+            class="py-3 px-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--bg-secondary)] text-[color:var(--text)] font-extrabold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-sm"
           >
-            <svg class="w-4 h-4 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg class="w-5 h-5 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
             </svg>
-            <span>Файл / PDF</span>
+            <span>Галерея / PDF</span>
           </button>
         </div>
 
-        <!-- Hint -->
-        <p class="text-[10px] text-[color:var(--muted)] leading-tight">
-          📸 Делайте четкие снимки при хорошем освещении. Если накладная состоит из нескольких страниц, сфотографируйте их по порядку.
+        <!-- Instruction Hint -->
+        <p class="text-[11px] text-[color:var(--muted)] leading-relaxed">
+          Делайте четкие снимки при хорошем освещении. Если накладная состоит из нескольких страниц, сфотографируйте их по порядку.
         </p>
 
         <!-- Pages Thumbnails Carousel / Grid -->
-        <div v-if="filesList.length > 0" class="flex flex-col gap-2 mt-2">
+        <div v-if="filesList.length > 0" class="flex flex-col gap-2 pt-2">
           <div class="flex items-center justify-between text-xs font-bold text-[color:var(--text)]">
             <span>Добавленные страницы ({{ filesList.length }})</span>
             <button 
               type="button" 
               @click="clearAllFiles" 
-              class="text-[10px] text-red-400 font-bold hover:underline"
+              class="text-[11px] text-red-400 font-bold hover:underline"
             >
               Очистить все
             </button>
           </div>
 
-          <div class="grid grid-cols-2 gap-2.5">
+          <div class="grid grid-cols-2 gap-3">
             <div 
               v-for="(item, idx) in filesList" 
               :key="idx"
               class="relative rounded-xl overflow-hidden border border-[color:var(--border)] bg-[color:var(--bg-secondary)] flex flex-col group shadow-sm"
             >
               <!-- Thumbnail container -->
-              <div class="h-28 w-full bg-black/20 flex items-center justify-center overflow-hidden relative">
+              <div class="h-32 w-full bg-black/25 flex items-center justify-center overflow-hidden relative">
                 <!-- If PDF -->
                 <div v-if="item.isPdf" class="flex flex-col items-center justify-center text-red-400 p-2 text-center">
                   <span class="text-3xl mb-1">📄</span>
-                  <span class="text-[9px] font-mono text-[color:var(--text)] truncate max-w-full px-1">{{ item.file.name }}</span>
+                  <span class="text-[10px] font-mono text-[color:var(--text)] truncate max-w-full px-1">{{ item.file.name }}</span>
                 </div>
                 <!-- If Image -->
                 <img 
@@ -215,7 +202,7 @@
                 />
 
                 <!-- Page number badge -->
-                <div class="absolute top-1.5 left-1.5 bg-black/70 backdrop-blur-xs text-white text-[10px] font-black px-2 py-0.5 rounded-md">
+                <div class="absolute top-2 left-2 bg-black/75 backdrop-blur-xs text-white text-[10px] font-black px-2 py-0.5 rounded-md">
                   Стр. {{ idx + 1 }}
                 </div>
 
@@ -223,7 +210,7 @@
                 <button 
                   type="button"
                   @click="removeFile(idx)"
-                  class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-red-500/80 text-white flex items-center justify-center text-xs active:scale-90 transition-transform cursor-pointer"
+                  class="absolute top-2 right-2 w-6 h-6 rounded-full bg-red-500/85 text-white flex items-center justify-center text-xs active:scale-90 transition-transform cursor-pointer shadow-md"
                   title="Удалить"
                 >
                   ✕
@@ -231,9 +218,9 @@
               </div>
 
               <!-- Footer with file size -->
-              <div class="p-1.5 text-[9px] text-[color:var(--muted)] flex items-center justify-between bg-[color:var(--bg-secondary)]">
-                <span class="truncate max-w-[80px]">{{ item.file.name }}</span>
-                <span>{{ formatFileSize(item.file.size) }}</span>
+              <div class="p-2 text-[10px] text-[color:var(--muted)] flex items-center justify-between bg-[color:var(--bg-secondary)]">
+                <span class="truncate max-w-[85px]">{{ item.file.name }}</span>
+                <span class="font-mono">{{ formatFileSize(item.file.size) }}</span>
               </div>
             </div>
 
@@ -241,46 +228,70 @@
             <button 
               type="button"
               @click="openCamera"
-              class="h-28 rounded-xl border-2 border-dashed border-[color:var(--gold)]/40 hover:border-[color:var(--gold)] bg-[color:var(--gold)]/5 flex flex-col items-center justify-center gap-1 text-[color:var(--gold)] active:scale-95 transition-all cursor-pointer"
+              class="h-32 rounded-xl border-2 border-dashed border-[color:var(--gold)]/40 hover:border-[color:var(--gold)] bg-[color:var(--gold)]/5 flex flex-col items-center justify-center gap-1.5 text-[color:var(--gold)] active:scale-95 transition-all cursor-pointer"
             >
-              <span class="text-2xl font-light">+</span>
-              <span class="text-[10px] font-bold text-center px-2">След. страница</span>
+              <span class="text-3xl font-light leading-none">+</span>
+              <span class="text-xs font-bold text-center px-2">Добавить страницу</span>
             </button>
           </div>
         </div>
       </div>
 
       <!-- Error banner if any -->
-      <div v-if="submitError" class="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-semibold">
+      <div v-if="submitError" class="p-3.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-semibold mb-4 text-left">
         {{ submitError }}
       </div>
-    </div>
 
-    <!-- STICKY BOTTOM SUBMIT BAR -->
-    <div 
-      v-if="!uploadSuccess" 
-      class="fixed bottom-0 left-0 right-0 p-4 bg-[color:var(--bg)]/95 backdrop-blur-md border-t border-[color:var(--border)] z-30 max-w-[500px] mx-auto"
-    >
-      <button 
-        type="button"
-        @click="submitInvoice"
-        :disabled="isSubmitting || filesList.length === 0"
-        class="w-full py-3.5 px-4 rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
-        :class="{
-          'opacity-50 cursor-not-allowed': isSubmitting || filesList.length === 0,
-          'active:scale-[0.98]': !isSubmitting && filesList.length > 0
-        }"
-        style="background: var(--gold-gradient); color: var(--gold-text);"
-      >
-        <span v-if="isSubmitting" class="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin"></span>
-        <svg v-else class="w-5 h-5 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="22" y1="2" x2="11" y2="13"/>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-        </svg>
-        <span>
-          {{ isSubmitting ? 'Отправка и запуск AI...' : `Отправить накладную (${filesList.length} стр.)` }}
-        </span>
-      </button>
+      <!-- Submit Button -->
+      <div class="mb-4">
+        <button 
+          type="button"
+          @click="submitInvoice"
+          :disabled="isSubmitting || filesList.length === 0"
+          class="btn-primary w-full flex items-center justify-center gap-2"
+          :class="{
+            'opacity-50 cursor-not-allowed': isSubmitting || filesList.length === 0,
+          }"
+        >
+          <span v-if="isSubmitting" class="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+          <template v-else>
+            <svg class="w-5 h-5 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+            <span>
+              {{ filesList.length === 0 ? 'Сделайте фото для отправки' : `Отправить накладную (${filesList.length} стр.)` }}
+            </span>
+          </template>
+        </button>
+      </div>
+
+      <!-- Return to regular client card tile -->
+      <div class="mb-4">
+        <div @click="$router.push('/')" 
+             class="card-luxury flex justify-between items-center p-4 cursor-pointer transition-all duration-300 active:scale-[0.98] hover:scale-[1.01]"
+             style="background: linear-gradient(135deg, rgba(201, 168, 76, 0.12) 0%, rgba(201, 168, 76, 0.03) 100%); border-color: rgba(201, 168, 76, 0.25); margin-bottom: 0;">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center bg-white/10" style="color: var(--gold)">
+              <svg class="w-5 h-5 stroke-current" viewBox="0 0 24 24" fill="none" stroke-width="2">
+                <rect x="2" y="5" width="20" height="14" rx="2" />
+                <line x1="2" y1="10" x2="22" y2="10" />
+              </svg>
+            </div>
+            <div class="flex flex-col text-left">
+              <span class="text-[14px] font-extrabold text-[color:var(--text)] leading-tight">
+                Карта гостя
+              </span>
+              <span class="text-[10px] text-[color:var(--muted)] font-bold">
+                Перейти к карте лояльности
+              </span>
+            </div>
+          </div>
+          <svg class="w-5 h-5" style="color: var(--gold); opacity: 0.7;" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </div>
+      </div>
     </div>
 
     <!-- FULLSCREEN IMAGE PREVIEW MODAL -->
@@ -350,6 +361,8 @@ function triggerHaptic(type = 'impact', subtype = 'light') {
       tg.HapticFeedback.impactOccurred(subtype)
     } else if (type === 'notification') {
       tg.HapticFeedback.notificationOccurred(subtype)
+    } else if (type === 'selection') {
+      tg.HapticFeedback.selectionChanged()
     }
   }
 }
@@ -428,15 +441,21 @@ function filesCountWord(count) {
 async function loadStores() {
   loadingStores.value = true
   try {
-    const res = await api.get('/invoices/iiko/stores/')
+    const orgId = auth.organization?.id
+    let res
+    try {
+      res = await api.get('/invoices/stores/', { params: { organization_id: orgId } })
+    } catch (e1) {
+      res = await api.get('/invoices/iiko/stores/', { params: { organization_id: orgId } })
+    }
     stores.value = res.data || []
 
     // Preselect defaultStore from organization if available
     const defStore = auth.organization?.default_store_id
     if (defStore && stores.value.some(s => String(s.id) === String(defStore))) {
-      selectedStoreId.value = defStore
+      selectedStoreId.value = String(defStore)
     } else if (stores.value.length > 0) {
-      selectedStoreId.value = stores.value[0].id
+      selectedStoreId.value = String(stores.value[0].id)
     }
   } catch (e) {
     console.error('Error fetching stores:', e)
@@ -458,6 +477,9 @@ async function submitInvoice() {
   try {
     const formData = new FormData()
     formData.append('source', 'tma')
+    if (auth.organization?.id) {
+      formData.append('organization_id', auth.organization.id)
+    }
     if (selectedStoreId.value) {
       formData.append('iiko_store_id', selectedStoreId.value)
     }
@@ -498,20 +520,7 @@ function resetForm() {
   triggerHaptic('impact', 'light')
 }
 
-function goBack() {
-  triggerHaptic('impact', 'light')
-  router.push('/employee/invoices')
-}
-
 onMounted(() => {
   loadStores()
 })
 </script>
-
-<style scoped>
-.card-luxury {
-  background: var(--card-bg);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-}
-</style>

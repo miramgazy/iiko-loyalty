@@ -77,7 +77,10 @@ router.beforeEach((to, from, next) => {
   // If authenticated but not onboarded (no phone yet)
   if (auth.isAuthenticated && !auth.isOnboarded) {
     if (auth.canUploadInvoices) {
-      return next('/employee/invoices')
+      if (['onboarding-lang', 'onboarding-phone', 'onboarding-consent'].includes(to.name)) {
+        return next('/employee/invoices/create')
+      }
+      return next()
     }
 
     safeStorage.setItem('tma_onboarding_in_progress', 'true')

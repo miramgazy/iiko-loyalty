@@ -13,6 +13,39 @@
           {{ isOnboarding ? t('onboardingNameTitle') : t('profile') }}
         </h1>
       </div>
+
+      <!-- Employee Profile Card -->
+      <div v-if="auth.canUploadInvoices || auth.isEmployee" 
+           class="card-luxury p-4 flex flex-col gap-3 shadow-sm"
+           style="background: linear-gradient(135deg, rgba(201, 168, 76, 0.16) 0%, rgba(201, 168, 76, 0.05) 100%); border-color: rgba(201, 168, 76, 0.35); margin-bottom: 0; margin-top: 12px;">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3 min-w-0">
+            <div class="w-11 h-11 rounded-2xl bg-white/10 flex items-center justify-center text-2xl border border-white/10 flex-shrink-0">
+              {{ employeeRoleEmoji }}
+            </div>
+            <div class="flex flex-col text-left min-w-0">
+              <span class="text-sm font-extrabold text-[color:var(--text)] leading-tight truncate">
+                {{ auth.employee?.first_name || auth.customer?.first_name || 'Сотрудник' }} {{ auth.employee?.last_name || auth.customer?.last_name || '' }}
+              </span>
+              <span class="text-xs text-[color:var(--gold)] font-bold truncate">
+                {{ employeeRoleLabel }} • {{ auth.organization?.name || '' }}
+              </span>
+            </div>
+          </div>
+          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-green-500/15 text-green-400 border border-green-500/30 flex-shrink-0">
+            Сотрудник
+          </span>
+        </div>
+
+        <button @click="$router.push('/employee/invoices/create')" 
+                class="btn-primary w-full py-2.5 text-xs flex items-center justify-center gap-2 mt-1">
+          <svg class="w-4 h-4 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+            <circle cx="12" cy="13" r="4"/>
+          </svg>
+          <span>Загрузка накладной</span>
+        </button>
+      </div>
       
       <!-- Notification banner for onboarding -->
       <div v-if="isOnboarding" class="banner-warning p-4 flex items-start gap-3 animate-[scaleIn_0.2s_ease-out]" style="margin-top: 16px; margin-bottom: -8px;">
@@ -126,6 +159,35 @@ const router = useRouter()
 
 const isOnboarding = computed(() => route.query.onboarding === '1')
 const isRedirectedFromWallet = computed(() => route.query.reason === 'invalid_name')
+
+const employeeRoleEmoji = computed(() => {
+  const r = auth.employee?.role || auth.role
+  const map = {
+    chef: '👨‍🍳',
+    barman: '🍹',
+    purchaser: '📦',
+    accountant: '💼',
+    manager: '👔',
+    owner: '👑',
+    cashier: '💳',
+  }
+  return map[r] || '🧑‍🍳'
+})
+
+const employeeRoleLabel = computed(() => {
+  if (auth.employee?.role_display) return auth.employee.role_display
+  const r = auth.employee?.role || auth.role
+  const map = {
+    chef: 'Шеф-повар',
+    barman: 'Бар-менеджер',
+    purchaser: 'Закупщик',
+    accountant: 'Бухгалтер',
+    manager: 'Менеджер',
+    owner: 'Владелец',
+    cashier: 'Кассир',
+  }
+  return map[r] || 'Сотрудник'
+})
 
 const form = reactive({
   first_name: '',

@@ -92,17 +92,31 @@ class InvoiceUploadView(APIView):
                 ).first()
                 if not employee and not getattr(request.user, 'is_superuser', False):
                     # Проверяем, может ли он быть управляющим
-                    from apps.accounts.models import UserOrganization
+                    from apps.accounts.models import UserOrganization, User
                     is_mgr = UserOrganization.objects.filter(
                         user__telegram_id=telegram_id,
                         organization=org,
                         role__in=[UserOrganization.ROLE_ORG_MANAGER, UserOrganization.ROLE_SUPERUSER, UserOrganization.ROLE_SUPERADMIN]
-                    ).exists()
+                    ).exists() or User.objects.filter(telegram_id=telegram_id, is_superuser=True).exists()
                     if not is_mgr:
                         return Response(
                             {"error": "У вас нет прав на загрузку накладных в TMA. Обратитесь к управляющему."},
                             status=status.HTTP_403_FORBIDDEN
                         )
+                    tg_user = User.objects.filter(telegram_id=telegram_id).first()
+                    first_name = tg_user.first_name if tg_user else getattr(request.user, 'first_name', 'Сотрудник')
+                    last_name = tg_user.last_name if tg_user else getattr(request.user, 'last_name', '')
+                    employee, _ = Employee.objects.get_or_create(
+                        organization=org,
+                        telegram_id=telegram_id,
+                        defaults={
+                            'first_name': first_name or 'Сотрудник',
+                            'last_name': last_name or '',
+                            'role': 'owner',
+                            'can_upload_invoices': True,
+                            'is_active': True,
+                        }
+                    )
 
         files = request.FILES.getlist('files') or request.FILES.getlist('file')
         if not files:
@@ -144,7 +158,37 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         org = get_current_organization(self.request)
+        if not org:
+            return Invoice.objects.none()
+
         qs = Invoice.objects.filter(organization=org).select_related('organization', 'uploaded_by', 'uploaded_by_employee')
+
+        # Фильтрация по сотруднику (для TMA)
+        only_my = self.request.query_params.get('only_my') == 'true'
+        from apps.accounts.models import User, UserOrganization
+        is_web_admin = False
+        if isinstance(self.request.user, User):
+            is_web_admin = self.request.user.is_superuser or UserOrganization.objects.filter(
+                user=self.request.user,
+                organization=org,
+                role__in=[
+                    UserOrganization.ROLE_ACCOUNTANT,
+                    UserOrganization.ROLE_ORG_MANAGER,
+                    UserOrganization.ROLE_ORG_ADMIN,
+                    UserOrganization.ROLE_SUPERUSER,
+                    UserOrganization.ROLE_SUPERADMIN,
+                ]
+            ).exists()
+
+        if only_my or not is_web_admin:
+            telegram_id = getattr(self.request.user, 'telegram_id', None)
+            if telegram_id:
+                qs = qs.filter(
+                    Q(uploaded_by_employee__telegram_id=telegram_id) |
+                    Q(uploaded_by__telegram_id=telegram_id)
+                )
+            else:
+                qs = qs.none()
 
         # Фильтры
         status_filter = self.request.query_params.get('status')
@@ -275,7 +319,7 @@ class IikoStoresView(APIView):
 
     def get(self, request, *args, **kwargs):
         org = get_current_organization(request)
-        if not org.iiko_server_url:
+        if not org or not org.iiko_server_url:
             return Response([])
 
         from django.core.cache import cache
@@ -284,13 +328,13 @@ class IikoStoresView(APIView):
         if cached is not None:
             return Response(cached)
 
-        auth = IikoServerAuthService(org)
-        token = auth.get_access_token()
-        base_url = org.iiko_server_url.rstrip('/')
-        url = f"{base_url}/resto/api/corporation/stores"
-
         stores = []
         try:
+            auth = IikoServerAuthService(org)
+            token = auth.get_access_token()
+            base_url = org.iiko_server_url.rstrip('/')
+            url = f"{base_url}/resto/api/corporation/stores"
+
             with httpx.Client(timeout=20, verify=False) as client:
                 resp = client.get(url, params={"key": token})
                 if resp.status_code == 200:
@@ -305,7 +349,7 @@ class IikoStoresView(APIView):
                     except ET.ParseError:
                         pass
         except Exception as e:
-            logger.error(f"Error fetching stores for org {org.id}: {e}")
+            logger.error(f"Error fetching stores for org {getattr(org, 'id', None)}: {e}")
 
         cache.set(cache_key, stores, timeout=1800)
         return Response(stores)

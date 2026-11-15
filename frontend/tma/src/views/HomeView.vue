@@ -301,6 +301,33 @@
           </svg>
         </div>
       </div>
+
+      <!-- Employee Invoices Section -->
+      <div v-if="auth.canUploadInvoices" class="mt-2 flex flex-col gap-3">
+        <div @click="$router.push('/employee/invoices/create')" 
+             class="card-luxury flex justify-between items-center p-4 cursor-pointer transition-all duration-300 active:scale-[0.98] hover:scale-[1.02]"
+             style="background: linear-gradient(135deg, rgba(201, 168, 76, 0.25) 0%, rgba(201, 168, 76, 0.05) 100%); border-color: rgba(201, 168, 76, 0.4); margin-bottom: 0;">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-full flex items-center justify-center bg-white/10" style="color: var(--gold)">
+              <svg class="w-5 h-5 stroke-current" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
+            </div>
+            <div class="flex flex-col text-left">
+              <span class="text-[14px] font-extrabold text-[color:var(--text)] leading-tight">
+                Загрузка накладной
+              </span>
+              <span class="text-[10px] text-[color:var(--muted)] font-bold">
+                Приемка товаров (AI)
+              </span>
+            </div>
+          </div>
+          <svg class="w-5 h-5" style="color: var(--gold); opacity: 0.7;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </div>
+      </div>
     </div>
 
     <!-- QR Code Full-Screen Overlay Modal -->

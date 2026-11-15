@@ -86,7 +86,53 @@
       </RouterView>
       <!-- Persistent Bottom Navigation Bar -->
       <nav v-if="showBottomNav" class="bottom-nav">
-        <div class="flex justify-around items-center h-full">
+        <!-- Employee Bottom Navigation -->
+        <div v-if="isEmployeeMode" class="flex justify-around items-center h-full">
+          <!-- Upload Invoice Tab (Main screen) -->
+          <RouterLink to="/employee/invoices/create" class="flex flex-col items-center gap-0.5 text-[10px] font-bold transition-all duration-200"
+                      :style="{ color: isRouteActive('/employee/invoices/create') ? 'var(--gold)' : 'var(--muted)' }">
+            <svg class="w-6 h-6 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <span>{{ t('uploadInvoice') }}</span>
+          </RouterLink>
+
+          <!-- Invoices List Tab -->
+          <RouterLink to="/employee/invoices" class="flex flex-col items-center gap-0.5 text-[10px] font-bold transition-all duration-200"
+                      :style="{ color: isRouteActive('/employee/invoices') ? 'var(--gold)' : 'var(--muted)' }">
+            <svg class="w-6 h-6 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+              <rect x="9" y="3" width="6" height="4" rx="2" />
+              <line x1="9" y1="12" x2="15" y2="12" />
+              <line x1="9" y1="16" x2="13" y2="16" />
+            </svg>
+            <span>{{ t('invoices') }}</span>
+          </RouterLink>
+
+          <!-- Profile Tab -->
+          <RouterLink to="/profile" class="flex flex-col items-center gap-0.5 text-[10px] font-bold transition-all duration-200"
+                      :style="{ color: isRouteActive('/profile') ? 'var(--gold)' : 'var(--muted)' }">
+            <svg class="w-6 h-6 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            <span>{{ t('profile') }}</span>
+          </RouterLink>
+
+          <!-- Close button -->
+          <button @click="closeApp" class="flex flex-col items-center gap-0.5 text-[10px] font-bold transition-all duration-200 border-none bg-transparent cursor-pointer"
+                  :style="{ color: 'var(--muted)' }">
+            <svg class="w-6 h-6 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+            <span>{{ t('close') }}</span>
+          </button>
+        </div>
+
+        <!-- Regular Client Bottom Navigation -->
+        <div v-else class="flex justify-around items-center h-full">
           <!-- Cards Tab -->
           <RouterLink to="/" class="flex flex-col items-center gap-0.5 text-[10px] font-bold transition-all duration-200"
                       :style="{ color: isRouteActive('/') ? 'var(--gold)' : 'var(--muted)' }">
@@ -184,12 +230,14 @@ function openSocialLink(url) {
   }
 }
 
+const isEmployeeMode = computed(() => {
+  return route.path.startsWith('/employee')
+})
+
 const showBottomNav = computed(() => {
   return !auth.isLoading && 
          !auth.authError && 
-         !route.path.startsWith('/employee') &&
-         auth.isOnboarded && 
-         !auth.needsConsent &&
+         (auth.canUploadInvoices || (auth.isOnboarded && !auth.needsConsent)) &&
          route.name !== 'onboarding-lang' && 
          route.name !== 'onboarding-phone' &&
          route.name !== 'onboarding-consent' &&
@@ -248,7 +296,7 @@ onMounted(async () => {
     if (auth.canUploadInvoices) {
       const isEmployeeRoute = route.path.startsWith('/employee')
       if (!isEmployeeRoute && (route.name === 'home' || !route.name || ['onboarding-lang', 'onboarding-phone', 'onboarding-consent'].includes(route.name))) {
-        router.replace('/employee/invoices')
+        router.replace('/employee/invoices/create')
       }
     } else if (!auth.isOnboarded) {
       const langSelected = safeStorage.getItem('tma_lang_selected') === 'true'

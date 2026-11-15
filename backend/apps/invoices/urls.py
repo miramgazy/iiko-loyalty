@@ -13,6 +13,7 @@ router.register(r'knowledge-base', SupplierProductAliasViewSet, basename='knowle
 urlpatterns = [
     path('upload/', InvoiceUploadView.as_view(), name='invoice-upload'),
     path('stores/', IikoStoresView.as_view(), name='invoice-stores'),
+    path('iiko/stores/', IikoStoresView.as_view(), name='invoice-iiko-stores'),
     path('suppliers/', IikoSuppliersView.as_view(), name='invoice-suppliers'),
     path('products-catalog/', IikoProductsCatalogView.as_view(), name='invoice-products-catalog'),
     path('test-vision/', TestVisionConnectionView.as_view(), name='invoice-test-vision'),
