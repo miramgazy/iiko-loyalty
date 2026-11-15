@@ -299,5 +299,9 @@ APPLE_WWDR_BASE64 = os.environ.get('APPLE_WWDR_BASE64', '')
 APPLE_CERTIFICATE_PASSWORD = os.environ.get('APPLE_CERTIFICATE_PASSWORD', '')
 APPLE_APNS_SANDBOX = os.environ.get('APPLE_APNS_SANDBOX', 'false').lower() in ('true', '1', 'yes')
 
+# Upload limits (Invoices, multi-page scans, high-res photos)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50 MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50 MB
+
 
 

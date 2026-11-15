@@ -67,6 +67,11 @@ class InvoiceUploadView(APIView):
 
     def post(self, request, *args, **kwargs):
         org = get_current_organization(request)
+        if not org:
+            return Response(
+                {"error": "Организация не найдена. Пожалуйста, убедитесь, что вы авторизованы."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Проверка включения модуля Invoices
         if not org.is_invoices_enabled:
@@ -76,8 +81,16 @@ class InvoiceUploadView(APIView):
             )
 
         source = request.data.get('source', 'web_admin')
-        store_id = request.data.get('iiko_store_id') or org.default_store_id
-        store_name = request.data.get('iiko_store_name') or org.default_store_name
+        raw_store_id = request.data.get('iiko_store_id') or getattr(org, 'default_store_id', None)
+        store_id = None
+        if raw_store_id:
+            try:
+                import uuid
+                store_id = uuid.UUID(str(raw_store_id))
+            except (ValueError, TypeError):
+                store_id = None
+
+        store_name = request.data.get('iiko_store_name') or getattr(org, 'default_store_name', '')
 
         # Проверка прав для TMA
         employee = None
@@ -122,31 +135,38 @@ class InvoiceUploadView(APIView):
         if not files:
             return Response({"error": "Не передано ни одного файла накладной"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Создаем документ
-        invoice = Invoice.objects.create(
-            organization=org,
-            source=source,
-            uploaded_by=request.user if hasattr(request.user, 'is_staff') and request.user.is_staff else None,
-            uploaded_by_employee=employee,
-            iiko_store_id=store_id,
-            iiko_store_name=store_name or "",
-            status=Invoice.STATUS_PENDING
-        )
-
-        for idx, f in enumerate(files, start=1):
-            is_pdf = f.name.lower().endswith('.pdf') or f.content_type == 'application/pdf'
-            InvoiceImage.objects.create(
-                invoice=invoice,
-                image=f,
-                page_number=idx,
-                is_pdf=is_pdf
+        try:
+            # Создаем документ
+            invoice = Invoice.objects.create(
+                organization=org,
+                source=source,
+                uploaded_by=request.user if hasattr(request.user, 'is_staff') and request.user.is_staff else None,
+                uploaded_by_employee=employee,
+                iiko_store_id=store_id,
+                iiko_store_name=store_name or "",
+                status=Invoice.STATUS_PENDING
             )
 
-        # Запуск фоновой Celery таски
-        process_invoice_ocr_task.delay(invoice.id)
+            for idx, f in enumerate(files, start=1):
+                is_pdf = f.name.lower().endswith('.pdf') or f.content_type == 'application/pdf'
+                InvoiceImage.objects.create(
+                    invoice=invoice,
+                    image=f,
+                    page_number=idx,
+                    is_pdf=is_pdf
+                )
 
-        serializer = InvoiceDetailSerializer(invoice, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+            # Запуск фоновой Celery таски
+            process_invoice_ocr_task.delay(invoice.id)
+
+            serializer = InvoiceDetailSerializer(invoice, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            logger.exception("Error creating invoice: %s", e)
+            return Response(
+                {"error": f"Ошибка сохранения накладной: {str(e)}"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class InvoiceViewSet(viewsets.ModelViewSet):

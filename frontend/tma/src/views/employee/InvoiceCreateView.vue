@@ -139,7 +139,8 @@
           <button 
             type="button"
             @click="openCamera"
-            class="py-3 px-3 rounded-xl border border-[color:var(--gold)]/40 bg-[color:var(--gold)]/10 text-[color:var(--gold)] font-extrabold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-sm"
+            :disabled="isProcessingFiles"
+            class="py-3 px-3 rounded-xl border border-[color:var(--gold)]/40 bg-[color:var(--gold)]/10 text-[color:var(--gold)] font-extrabold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-sm disabled:opacity-50"
           >
             <svg class="w-5 h-5 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
@@ -152,13 +153,20 @@
           <button 
             type="button"
             @click="openGallery"
-            class="py-3 px-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--bg-secondary)] text-[color:var(--text)] font-extrabold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-sm"
+            :disabled="isProcessingFiles"
+            class="py-3 px-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--bg-secondary)] text-[color:var(--text)] font-extrabold text-xs flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer shadow-sm disabled:opacity-50"
           >
             <svg class="w-5 h-5 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
             </svg>
             <span>Галерея / PDF</span>
           </button>
+        </div>
+
+        <!-- File processing indicator -->
+        <div v-if="isProcessingFiles" class="flex items-center gap-2 p-2.5 rounded-xl bg-[color:var(--gold)]/10 border border-[color:var(--gold)]/30 text-[color:var(--gold)] text-xs font-semibold animate-pulse">
+          <span class="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+          <span>Оптимизация и сжатие фото...</span>
         </div>
 
         <!-- Instruction Hint -->
@@ -336,6 +344,7 @@ const loadingStores = ref(false)
 const selectedStoreId = ref('')
 
 const isSubmitting = ref(false)
+const isProcessingFiles = ref(false)
 const submitError = ref(null)
 const uploadSuccess = ref(false)
 const createdDocNumber = ref('')
@@ -380,29 +389,100 @@ function openGallery() {
   galleryInputRef.value?.click()
 }
 
-function handleFileInputChange(e) {
+/**
+ * Сжимает изображение на клиенте до ~1-2 МБ (макс 2048px, JPEG 82%).
+ * Сохраняет полную резкость текста документа для Vision LLM,
+ * но предотвращает таймауты и ошибки лимита размера файла.
+ */
+function compressImageFile(file, maxDimension = 2048, quality = 0.82) {
+  if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+    return Promise.resolve(file)
+  }
+
+  return new Promise((resolve) => {
+    const reader = new FileReader()
+    reader.onerror = () => resolve(file)
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onerror = () => resolve(file)
+      img.onload = () => {
+        let width = img.width
+        let height = img.height
+
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width)
+            width = maxDimension
+          } else {
+            width = Math.round((width * maxDimension) / height)
+            height = maxDimension
+          }
+        }
+
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        const ctx = canvas.getContext('2d')
+
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillRect(0, 0, width, height)
+        ctx.drawImage(img, 0, 0, width, height)
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) return resolve(file)
+            const cleanName = file.name.replace(/\.[^/.]+$/, '') + '.jpg'
+            const compressed = new File([blob], cleanName, {
+              type: 'image/jpeg',
+              lastModified: Date.now()
+            })
+            resolve(compressed)
+          },
+          'image/jpeg',
+          quality
+        )
+      }
+      img.src = e.target.result
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+async function handleFileInputChange(e) {
   const files = e.target.files
   if (!files || files.length === 0) return
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i]
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
-    let previewUrl = null
-    if (!isPdf) {
-      previewUrl = URL.createObjectURL(file)
+  isProcessingFiles.value = true
+  triggerHaptic('impact', 'light')
+
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const originalFile = files[i]
+      const isPdf = originalFile.type === 'application/pdf' || originalFile.name.toLowerCase().endsWith('.pdf')
+
+      // Сжимаем фото до 1-2 МБ
+      const fileToUse = isPdf ? originalFile : await compressImageFile(originalFile)
+      let previewUrl = null
+      if (!isPdf) {
+        previewUrl = URL.createObjectURL(fileToUse)
+      }
+
+      filesList.value.push({
+        file: fileToUse,
+        originalSize: originalFile.size,
+        isPdf,
+        previewUrl,
+      })
     }
-    filesList.value.push({
-      file,
-      isPdf,
-      previewUrl,
-    })
+
+    triggerHaptic('notification', 'success')
+  } catch (err) {
+    console.error('Error compressing files:', err)
+  } finally {
+    isProcessingFiles.value = false
+    if (cameraInputRef.value) cameraInputRef.value.value = ''
+    if (galleryInputRef.value) galleryInputRef.value.value = ''
   }
-
-  // Reset input values so same file can be re-selected if needed
-  if (cameraInputRef.value) cameraInputRef.value.value = ''
-  if (galleryInputRef.value) galleryInputRef.value.value = ''
-
-  triggerHaptic('notification', 'success')
 }
 
 function removeFile(idx) {
@@ -508,7 +588,21 @@ async function submitInvoice() {
     triggerHaptic('notification', 'success')
   } catch (e) {
     console.error('Upload error:', e)
-    submitError.value = e.response?.data?.error || 'Ошибка при загрузке накладной. Попробуйте еще раз.'
+    let msg = e.response?.data?.error || e.response?.data?.detail
+    if (!msg) {
+      if (e.response?.status === 413) {
+        msg = 'Размер файла превышает лимит сервера (413). Попробуйте уменьшить количество фото.'
+      } else if (e.response?.status === 403) {
+        msg = 'Доступ запрещен (403). Проверьте права сотрудника в админ-панели.'
+      } else if (e.code === 'ECONNABORTED' || (e.message && e.message.includes('timeout'))) {
+        msg = 'Превышено время ожидания ответа сервера. Проверьте интернет-соединение.'
+      } else if (e.message) {
+        msg = e.message
+      } else {
+        msg = 'Ошибка при загрузке накладной. Попробуйте еще раз.'
+      }
+    }
+    submitError.value = msg
     triggerHaptic('notification', 'error')
   } finally {
     isSubmitting.value = false
