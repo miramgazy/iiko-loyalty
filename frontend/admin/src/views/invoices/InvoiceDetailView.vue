@@ -21,7 +21,10 @@
           </div>
           <p class="text-xs text-slate-400 mt-0.5">
             {{ invoice?.raw_supplier_name || 'Поставщик не определен' }} • Создан {{ formatDate(invoice?.created_at) }}
-            <span v-if="invoice?.uploaded_by_employee" class="ml-2 px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-indigo-300">
+            <span v-if="invoice?.author?.display" class="ml-2 px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-indigo-300">
+              👤 {{ invoice.author.display }}
+            </span>
+            <span v-else-if="invoice?.uploaded_by_employee" class="ml-2 px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-indigo-300">
               📱 TMA: {{ invoice.uploaded_by_employee.first_name || 'Сотрудник' }}
             </span>
           </p>
@@ -91,42 +94,42 @@
         </div>
       </div>
 
-      <!-- Metadata Fields Grid -->
-      <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <!-- Supplier in iiko -->
-        <div>
-          <label class="text-[11px] font-semibold text-slate-400 block mb-1">Поставщик в iiko</label>
-          <div class="flex gap-1.5">
-            <select v-model="invoice.iiko_supplier_id" @change="saveHeader" class="form-input text-xs py-1.5 flex-1">
-              <option :value="null">-- Не выбран --</option>
-              <option v-for="sup in suppliers" :key="sup.id" :value="sup.id">{{ sup.name }}</option>
-            </select>
-            <button @click="showSupplierModal = true" title="Создать контрагента в iiko"
-              class="px-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 rounded-lg text-xs font-bold cursor-pointer">
-              +
-            </button>
+      <!-- Metadata Fields: 2 Columns Layout -->
+      <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+        <!-- Left Column: Дата накладной, затем Номер накладной -->
+        <div class="flex flex-col gap-2.5">
+          <div>
+            <label class="text-[11px] font-semibold text-slate-400 block mb-1">Дата накладной</label>
+            <input v-model="invoice.invoice_date" @blur="saveHeader" type="date" class="form-input text-xs py-1.5 w-full" />
+          </div>
+          <div>
+            <label class="text-[11px] font-semibold text-slate-400 block mb-1">Номер накладной</label>
+            <input v-model="invoice.invoice_number" @blur="saveHeader" type="text" class="form-input text-xs py-1.5 w-full" placeholder="Номер..." />
           </div>
         </div>
 
-        <!-- Store in iiko -->
-        <div>
-          <label class="text-[11px] font-semibold text-slate-400 block mb-1">Склад оприходования</label>
-          <select v-model="invoice.iiko_store_id" @change="onStoreChange" class="form-input text-xs py-1.5">
-            <option :value="null">-- Не выбран --</option>
-            <option v-for="st in stores" :key="st.id" :value="st.id">{{ st.name }}</option>
-          </select>
-        </div>
-
-        <!-- Invoice Number -->
-        <div>
-          <label class="text-[11px] font-semibold text-slate-400 block mb-1">Номер накладной</label>
-          <input v-model="invoice.invoice_number" @blur="saveHeader" type="text" class="form-input text-xs py-1.5" placeholder="Номер..." />
-        </div>
-
-        <!-- Invoice Date -->
-        <div>
-          <label class="text-[11px] font-semibold text-slate-400 block mb-1">Дата накладной</label>
-          <input v-model="invoice.invoice_date" @blur="saveHeader" type="date" class="form-input text-xs py-1.5" />
+        <!-- Right Column: Поставщик в iiko, затем Склад оприходования -->
+        <div class="flex flex-col gap-2.5">
+          <div>
+            <label class="text-[11px] font-semibold text-slate-400 block mb-1">Поставщик в iiko</label>
+            <div class="flex gap-1.5">
+              <select v-model="invoice.iiko_supplier_id" @change="saveHeader" class="form-input text-xs py-1.5 flex-1">
+                <option :value="null">-- Не выбран --</option>
+                <option v-for="sup in suppliers" :key="sup.id" :value="sup.id">{{ sup.name }}</option>
+              </select>
+              <button @click="showSupplierModal = true" title="Создать контрагента в iiko"
+                class="px-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors">
+                +
+              </button>
+            </div>
+          </div>
+          <div>
+            <label class="text-[11px] font-semibold text-slate-400 block mb-1">Склад оприходования</label>
+            <select v-model="invoice.iiko_store_id" @change="onStoreChange" class="form-input text-xs py-1.5 w-full">
+              <option :value="null">-- Не выбран --</option>
+              <option v-for="st in stores" :key="st.id" :value="st.id">{{ st.name }}</option>
+            </select>
+          </div>
         </div>
       </div>
 

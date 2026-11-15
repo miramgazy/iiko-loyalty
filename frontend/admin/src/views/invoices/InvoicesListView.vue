@@ -82,6 +82,7 @@
             <th class="px-6 py-4">Сумма</th>
             <th class="px-6 py-4">Статус</th>
             <th class="px-6 py-4">Источник</th>
+            <th class="px-6 py-4">Автор</th>
             <th class="px-6 py-4 text-right">Действия</th>
           </tr>
         </thead>
@@ -125,6 +126,13 @@
                 {{ inv.source === 'tma' ? '📱 TMA' : '💻 Админка' }}
               </span>
             </td>
+            <td class="px-6 py-4 text-xs">
+              <div v-if="inv.author?.name" class="flex flex-col">
+                <span class="font-medium text-white truncate max-w-[160px]">{{ inv.author.name }}</span>
+                <span v-if="inv.author.role" class="text-[11px] text-slate-400 truncate max-w-[160px]">{{ inv.author.role }}</span>
+              </div>
+              <span v-else class="text-slate-500">—</span>
+            </td>
             <td class="px-6 py-4 text-right">
               <div class="flex items-center justify-end gap-2">
                 <RouterLink :to="`/admin/invoices/${inv.id}`"
@@ -145,7 +153,7 @@
             </td>
           </tr>
           <tr v-if="!invoices.length">
-            <td colspan="7" class="px-6 py-16 text-center text-slate-500 text-sm">
+            <td colspan="8" class="px-6 py-16 text-center text-slate-500 text-sm">
               Накладных не найдено. Загрузите фото или скан накладной, чтобы начать.
             </td>
           </tr>

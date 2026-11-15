@@ -35,6 +35,7 @@ class InvoiceListSerializer(serializers.ModelSerializer):
     items_count = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     source_display = serializers.CharField(source='get_source_display', read_only=True)
+    author = serializers.SerializerMethodField()
 
     class Meta:
         model = Invoice
@@ -43,6 +44,7 @@ class InvoiceListSerializer(serializers.ModelSerializer):
             'raw_supplier_name', 'raw_supplier_inn', 'iiko_supplier_id', 'iiko_supplier_name',
             'iiko_store_id', 'iiko_store_name',
             'total_sum', 'vat_sum', 'status', 'status_display', 'source', 'source_display',
+            'author',
             'error_message', 'iiko_document_number', 'sent_to_iiko_at',
             'images_count', 'items_count', 'created_at', 'updated_at'
         ]
@@ -53,12 +55,43 @@ class InvoiceListSerializer(serializers.ModelSerializer):
     def get_items_count(self, obj):
         return obj.items.count()
 
+    def get_author(self, obj):
+        if obj.uploaded_by_employee:
+            emp = obj.uploaded_by_employee
+            name = f"{emp.first_name} {emp.last_name}".strip() or "Сотрудник"
+            role_disp = emp.get_role_display()
+            return {
+                "id": emp.id,
+                "type": "employee",
+                "name": name,
+                "role": role_disp,
+                "display": f"{name} ({role_disp})" if role_disp else name
+            }
+        elif obj.uploaded_by:
+            u = obj.uploaded_by
+            name = u.get_full_name() or u.username
+            return {
+                "id": u.id,
+                "type": "user",
+                "name": name,
+                "role": "Веб-администратор",
+                "display": name
+            }
+        return {
+            "id": None,
+            "type": "system",
+            "name": "Система",
+            "role": "",
+            "display": "Система"
+        }
+
 
 class InvoiceDetailSerializer(serializers.ModelSerializer):
     images = InvoiceImageSerializer(many=True, read_only=True)
     items = InvoiceItemSerializer(many=True, read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     source_display = serializers.CharField(source='get_source_display', read_only=True)
+    author = serializers.SerializerMethodField()
 
     class Meta:
         model = Invoice
@@ -67,9 +100,40 @@ class InvoiceDetailSerializer(serializers.ModelSerializer):
             'raw_supplier_name', 'raw_supplier_inn', 'iiko_supplier_id', 'iiko_supplier_name',
             'iiko_store_id', 'iiko_store_name',
             'total_sum', 'vat_sum', 'status', 'status_display', 'source', 'source_display',
+            'author',
             'error_message', 'iiko_document_id', 'iiko_document_number', 'sent_to_iiko_at',
             'raw_llm_response', 'images', 'items', 'created_at', 'updated_at'
         ]
+
+    def get_author(self, obj):
+        if obj.uploaded_by_employee:
+            emp = obj.uploaded_by_employee
+            name = f"{emp.first_name} {emp.last_name}".strip() or "Сотрудник"
+            role_disp = emp.get_role_display()
+            return {
+                "id": emp.id,
+                "type": "employee",
+                "name": name,
+                "role": role_disp,
+                "display": f"{name} ({role_disp})" if role_disp else name
+            }
+        elif obj.uploaded_by:
+            u = obj.uploaded_by
+            name = u.get_full_name() or u.username
+            return {
+                "id": u.id,
+                "type": "user",
+                "name": name,
+                "role": "Веб-администратор",
+                "display": name
+            }
+        return {
+            "id": None,
+            "type": "system",
+            "name": "Система",
+            "role": "",
+            "display": "Система"
+        }
 
 
 class SupplierProductAliasSerializer(serializers.ModelSerializer):
