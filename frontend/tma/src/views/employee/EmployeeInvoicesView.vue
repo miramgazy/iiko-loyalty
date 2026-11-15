@@ -4,26 +4,12 @@
     <div class="absolute w-[240px] h-[240px] rounded-full -top-[60px] -right-[40px] pointer-events-none opacity-20"
          style="background: radial-gradient(circle, var(--gold) 0%, transparent 70%);"></div>
 
-    <!-- Employee Dedicated Header Card -->
+    <!-- Section Header: Мои накладные -->
     <div class="card-luxury p-4 text-left shadow-sm mb-4 z-10" style="margin-bottom: 16px;">
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3 min-w-0">
-          <div class="w-11 h-11 rounded-2xl bg-[color:var(--bg-secondary)] border border-[color:var(--border)] flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
-            {{ employeeRoleIcon }}
-          </div>
-          <div class="flex flex-col min-w-0">
-            <div class="flex items-center gap-2">
-              <span class="text-sm font-extrabold text-[color:var(--text)] tracking-tight truncate">
-                {{ employeeDisplayName }}
-              </span>
-              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[color:var(--gold)]/15 text-[color:var(--gold)] border border-[color:var(--gold)]/30 flex-shrink-0">
-                {{ employeeRoleLabel }}
-              </span>
-            </div>
-            <span class="text-xs text-[color:var(--muted)] font-medium truncate">
-              {{ orgName }}
-            </span>
-          </div>
+        <div>
+          <h1 class="text-lg font-black text-[color:var(--text)] tracking-tight">Мои накладные</h1>
+          <p class="text-xs text-[color:var(--muted)] font-medium mt-0.5">Накладные, загруженные вами</p>
         </div>
 
         <button 
@@ -41,51 +27,6 @@
       </div>
     </div>
 
-    <!-- Main CTA Card -->
-    <div class="card-luxury p-4 flex flex-col relative overflow-hidden shadow-sm mb-4 text-left z-10" 
-         style="background: linear-gradient(135deg, rgba(201, 168, 76, 0.16) 0%, rgba(201, 168, 76, 0.05) 100%); border-color: rgba(201, 168, 76, 0.35); margin-bottom: 16px;">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-[11px] uppercase tracking-wider text-[color:var(--gold)] font-extrabold flex items-center gap-1.5">
-          <span class="w-2 h-2 rounded-full bg-[color:var(--gold)] animate-pulse"></span>
-          Приемка товара
-        </span>
-        <span class="text-xs font-semibold text-[color:var(--muted)]">
-          {{ invoices.length }} {{ filesCountWord(invoices.length) }}
-        </span>
-      </div>
-
-      <h2 class="text-base font-black text-[color:var(--text)] tracking-tight mb-1">
-        Загрузка накладной
-      </h2>
-      <p class="text-xs text-[color:var(--muted)] leading-relaxed mb-3">
-        Сфотографируйте все страницы печатной или рукописной накладной. AI сам распознает товары и передаст черновик в iiko.
-      </p>
-
-      <button 
-        @click="goToCreateInvoice"
-        class="btn-primary w-full py-3 text-xs flex items-center justify-center gap-2"
-      >
-        <svg class="w-4 h-4 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-          <circle cx="12" cy="13" r="4"/>
-        </svg>
-        <span>Сфотографировать накладную</span>
-      </button>
-    </div>
-
-    <!-- Section Header & History Title -->
-    <div class="flex items-center justify-between mb-3 z-10 px-1">
-      <div class="flex items-center gap-2">
-        <h3 class="text-xs font-extrabold text-[color:var(--text)] uppercase tracking-wider">
-          Мои накладные
-        </h3>
-        <span v-if="isLoading" class="inline-block w-3 h-3 border-2 border-[color:var(--gold)]/30 border-t-[color:var(--gold)] rounded-full animate-spin"></span>
-      </div>
-      <span class="text-[11px] text-[color:var(--muted)]">
-        Только загруженные вами
-      </span>
-    </div>
-
     <!-- Invoices List -->
     <div v-if="isLoading && invoices.length === 0" class="flex-1 flex items-center justify-center py-12 z-10">
       <div class="text-center">
@@ -100,7 +41,7 @@
       </div>
       <h4 class="text-sm font-extrabold text-[color:var(--text)] mb-1">Пока нет накладных</h4>
       <p class="text-xs text-[color:var(--muted)] max-w-xs mb-4">
-        Вы еще не отправляли накладные. Нажмите кнопку «Загрузить», чтобы сфотографировать первую приходную накладную.
+        Вы еще не отправляли накладные. Перейдите во вкладку «Загрузить», чтобы сфотографировать первую приходную накладную.
       </p>
       <button 
         @click="goToCreateInvoice"
@@ -169,38 +110,11 @@
         </div>
       </div>
     </div>
-
-    <!-- Return to regular client card tile -->
-    <div class="z-10 mb-6">
-      <div @click="$router.push('/')" 
-           class="card-luxury flex justify-between items-center p-4 cursor-pointer transition-all duration-300 active:scale-[0.98] hover:scale-[1.01]"
-           style="background: linear-gradient(135deg, rgba(201, 168, 76, 0.12) 0%, rgba(201, 168, 76, 0.03) 100%); border-color: rgba(201, 168, 76, 0.25); margin-bottom: 0;">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full flex items-center justify-center bg-white/10" style="color: var(--gold)">
-            <svg class="w-5 h-5 stroke-current" viewBox="0 0 24 24" fill="none" stroke-width="2">
-              <rect x="2" y="5" width="20" height="14" rx="2" />
-              <line x1="2" y1="10" x2="22" y2="10" />
-            </svg>
-          </div>
-          <div class="flex flex-col text-left">
-            <span class="text-[14px] font-extrabold text-[color:var(--text)] leading-tight">
-              Карта гостя
-            </span>
-            <span class="text-[10px] text-[color:var(--muted)] font-bold">
-              Перейти к карте лояльности
-            </span>
-          </div>
-        </div>
-        <svg class="w-5 h-5" style="color: var(--gold); opacity: 0.7;" viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
@@ -210,49 +124,6 @@ const auth = useAuthStore()
 
 const invoices = ref([])
 const isLoading = ref(true)
-
-const orgName = computed(() => auth.organization?.name || '')
-
-const employeeDisplayName = computed(() => {
-  const emp = auth.employee
-  if (emp?.first_name) {
-    return `${emp.first_name} ${emp.last_name || ''}`.trim()
-  }
-  const cust = auth.customer
-  if (cust?.first_name) {
-    return `${cust.first_name} ${cust.last_name || ''}`.trim()
-  }
-  return 'Сотрудник'
-})
-
-const employeeRoleIcon = computed(() => {
-  const r = auth.employee?.role || auth.role
-  const map = {
-    chef: '👨‍🍳',
-    barman: '🍹',
-    purchaser: '📦',
-    accountant: '💼',
-    manager: '👔',
-    owner: '👑',
-    cashier: '💳',
-  }
-  return map[r] || '🧑‍🍳'
-})
-
-const employeeRoleLabel = computed(() => {
-  if (auth.employee?.role_display) return auth.employee.role_display
-  const r = auth.employee?.role || auth.role
-  const map = {
-    chef: 'Шеф-повар',
-    barman: 'Бар-менеджер',
-    purchaser: 'Закупщик',
-    accountant: 'Бухгалтер',
-    manager: 'Менеджер',
-    owner: 'Владелец',
-    cashier: 'Кассир',
-  }
-  return map[r] || 'Сотрудник'
-})
 
 function triggerHaptic(type = 'impact', subtype = 'light') {
   const tg = window.Telegram?.WebApp
@@ -333,12 +204,6 @@ function formatDate(dateStr) {
 function formatPrice(val) {
   if (!val) return '0'
   return Math.round(Number(val)).toLocaleString('ru-RU')
-}
-
-function filesCountWord(count) {
-  if (count % 10 === 1 && count % 100 !== 11) return 'накладная'
-  if ([2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100)) return 'накладные'
-  return 'накладных'
 }
 
 onMounted(() => {
