@@ -215,6 +215,46 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if status_filter:
             qs = qs.filter(status=status_filter)
 
+        # Номер накладной
+        number = self.request.query_params.get('number')
+        if number:
+            qs = qs.filter(
+                Q(invoice_number__icontains=number) |
+                Q(internal_number__icontains=number)
+            )
+
+        # Контрагент (поставщик)
+        supplier_id = self.request.query_params.get('supplier_id')
+        if supplier_id:
+            try:
+                import uuid
+                sup_uuid = uuid.UUID(str(supplier_id))
+                qs = qs.filter(iiko_supplier_id=sup_uuid)
+            except (ValueError, TypeError):
+                pass
+
+        supplier = self.request.query_params.get('supplier')
+        if supplier and not supplier_id:
+            qs = qs.filter(
+                Q(iiko_supplier_name__icontains=supplier) |
+                Q(raw_supplier_name__icontains=supplier)
+            )
+
+        # Период дат
+        date_from = self.request.query_params.get('date_from')
+        if date_from:
+            qs = qs.filter(
+                Q(invoice_date__gte=date_from) |
+                Q(invoice_date__isnull=True, created_at__date__gte=date_from)
+            )
+
+        date_to = self.request.query_params.get('date_to')
+        if date_to:
+            qs = qs.filter(
+                Q(invoice_date__lte=date_to) |
+                Q(invoice_date__isnull=True, created_at__date__lte=date_to)
+            )
+
         search = self.request.query_params.get('search')
         if search:
             qs = qs.filter(
@@ -381,9 +421,33 @@ class IikoSuppliersView(APIView):
 
     def get(self, request, *args, **kwargs):
         org = get_current_organization(request)
+        if not org:
+            return Response([])
+
         service = IikoSupplierService(org)
         force = request.query_params.get('refresh') == 'true'
-        suppliers = service.get_suppliers(force_refresh=force)
+        suppliers = []
+        try:
+            suppliers = service.get_suppliers(force_refresh=force) or []
+        except Exception as e:
+            logger.warning("Could not fetch suppliers from iiko server: %s", e)
+            suppliers = []
+
+        # Объединяем с уникальными поставщиками из уже загруженных накладных организации
+        existing_names = {s['name'].strip().lower() for s in suppliers if s.get('name')}
+        invoice_suppliers = Invoice.objects.filter(organization=org).values_list('iiko_supplier_name', 'raw_supplier_name').distinct()
+        for iiko_name, raw_name in invoice_suppliers:
+            name = (iiko_name or raw_name or '').strip()
+            if name and name.lower() not in existing_names:
+                suppliers.append({
+                    "id": None,
+                    "name": name,
+                    "code": "",
+                    "inn": ""
+                })
+                existing_names.add(name.lower())
+
+        suppliers.sort(key=lambda x: (x.get('name') or '').lower())
         return Response(suppliers)
 
     def post(self, request, *args, **kwargs):

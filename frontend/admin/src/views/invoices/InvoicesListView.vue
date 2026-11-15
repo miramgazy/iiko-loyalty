@@ -39,31 +39,203 @@
       </div>
     </div>
 
-    <!-- Filters & Search -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-      <div class="flex items-center gap-2 overflow-x-auto pb-1">
-        <button
-          v-for="st in filterStatuses"
-          :key="st.value"
-          @click="selectedStatus = st.value; loadInvoices()"
-          class="px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all"
-          :class="selectedStatus === st.value
-            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-            : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-850'"
-        >
-          {{ st.label }}
-        </button>
+    <!-- Filters Block -->
+    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+      <!-- Top row: Status pills & Reset button -->
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <!-- Status Pills -->
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+          <button
+            v-for="st in filterStatuses"
+            :key="st.value"
+            @click="selectedStatus = st.value; loadInvoices()"
+            class="px-3 py-1.5 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer"
+            :class="selectedStatus === st.value
+              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
+              : 'bg-slate-950/60 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800'"
+          >
+            {{ st.label }}
+          </button>
+        </div>
+
+        <!-- Reset Button & Active Count -->
+        <div v-if="hasActiveFilters" class="flex items-center gap-2 self-end lg:self-auto flex-shrink-0">
+          <span class="text-[11px] px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">
+            Активно фильтров: {{ activeFiltersCount }}
+          </span>
+          <button
+            type="button"
+            @click="resetAllFilters"
+            class="text-xs text-rose-400 hover:text-rose-300 font-semibold hover:underline flex items-center gap-1 cursor-pointer transition-colors"
+          >
+            <span>✕</span>
+            <span>Сбросить всё</span>
+          </button>
+        </div>
       </div>
 
-      <div class="relative w-full md:w-72">
-        <input
-          v-model="searchQuery"
-          @input="debounceSearch"
-          type="text"
-          placeholder="Поиск по номеру, поставщику..."
-          class="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-        />
-        <span class="absolute right-3 top-2.5 text-slate-500 text-xs">🔍</span>
+      <!-- Main Filter Controls Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-3.5 pt-3 border-t border-slate-800/80">
+        <!-- 1. Supplier / Counterparty Combobox (5 cols) -->
+        <div class="md:col-span-5 relative" ref="supplierDropdownRef">
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+            <span class="flex items-center gap-1.5">
+              <span>🏢</span> Контрагент (поставщик)
+            </span>
+            <span v-if="selectedSupplier" class="text-[10px] text-indigo-400 font-mono">Выбран из списка</span>
+          </label>
+          <div class="relative">
+            <input
+              v-model="supplierSearchText"
+              @focus="isSupplierDropdownOpen = true"
+              @input="handleSupplierInput"
+              type="text"
+              placeholder="Начните вводить название поставщика..."
+              class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors pr-8"
+            />
+            <button
+              v-if="supplierSearchText"
+              type="button"
+              @click="clearSupplier"
+              class="absolute right-2.5 top-2 text-slate-500 hover:text-slate-300 text-xs cursor-pointer p-0.5"
+              title="Очистить"
+            >
+              ✕
+            </button>
+            <span v-else class="absolute right-3 top-2.5 text-slate-500 text-[10px] pointer-events-none">▼</span>
+          </div>
+
+          <!-- Dropdown List with matching suppliers -->
+          <Transition name="fade">
+            <div
+              v-if="isSupplierDropdownOpen"
+              class="absolute left-0 right-0 top-full mt-1.5 max-h-60 overflow-y-auto bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl z-30 divide-y divide-slate-800/80"
+            >
+              <div
+                v-if="filteredSuppliers.length === 0"
+                class="p-3 text-center text-xs text-slate-500"
+              >
+                Поставщик не найден
+              </div>
+              <div v-else>
+                <div
+                  @click="clearSupplier"
+                  class="px-3.5 py-2 text-xs text-indigo-300 hover:bg-slate-800 cursor-pointer flex items-center justify-between transition-colors"
+                >
+                  <span class="font-semibold">Все поставщики</span>
+                  <span v-if="!selectedSupplier && !supplierSearchText" class="text-indigo-400 font-bold">✓</span>
+                </div>
+                <div
+                  v-for="sup in filteredSuppliers"
+                  :key="sup.id || sup.name"
+                  @click="selectSupplier(sup)"
+                  class="px-3.5 py-2 text-xs text-slate-200 hover:bg-slate-800 hover:text-white cursor-pointer flex items-center justify-between transition-colors"
+                  :class="selectedSupplier?.name === sup.name ? 'bg-indigo-950/40 text-indigo-200 font-bold' : ''"
+                >
+                  <div class="truncate pr-2">
+                    <p class="truncate">{{ sup.name }}</p>
+                    <p v-if="sup.inn" class="text-[10px] text-slate-500 font-mono">ИНН: {{ sup.inn }}</p>
+                  </div>
+                  <span v-if="selectedSupplier?.name === sup.name" class="text-indigo-400 font-bold">✓</span>
+                </div>
+              </div>
+            </div>
+          </Transition>
+        </div>
+
+        <!-- 2. Invoice Number Input (3 cols) -->
+        <div class="md:col-span-3">
+          <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <span>🧾</span> Номер накладной
+          </label>
+          <div class="relative">
+            <input
+              v-model="invoiceNumberQuery"
+              @input="handleNumberInput"
+              type="text"
+              placeholder="Номер документа..."
+              class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors pr-8"
+            />
+            <button
+              v-if="invoiceNumberQuery"
+              type="button"
+              @click="clearNumber"
+              class="absolute right-2.5 top-2 text-slate-500 hover:text-slate-300 text-xs cursor-pointer p-0.5"
+              title="Очистить"
+            >
+              ✕
+            </button>
+            <span v-else class="absolute right-3 top-2.5 text-slate-500 text-xs pointer-events-none">🔍</span>
+          </div>
+        </div>
+
+        <!-- 3. Date Range (4 cols) -->
+        <div class="md:col-span-4">
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span>📅</span> Период
+            </label>
+            <!-- Presets links -->
+            <div class="flex items-center gap-1.5 text-[10px]">
+              <button
+                type="button"
+                @click="setDatePreset('today')"
+                class="text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer"
+                :class="activeDatePreset === 'today' ? 'text-indigo-400 font-bold underline' : ''"
+              >
+                Сегодня
+              </button>
+              <span class="text-slate-700">•</span>
+              <button
+                type="button"
+                @click="setDatePreset('week')"
+                class="text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer"
+                :class="activeDatePreset === 'week' ? 'text-indigo-400 font-bold underline' : ''"
+              >
+                7 дней
+              </button>
+              <span class="text-slate-700">•</span>
+              <button
+                type="button"
+                @click="setDatePreset('month')"
+                class="text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer"
+                :class="activeDatePreset === 'month' ? 'text-indigo-400 font-bold underline' : ''"
+              >
+                30 дней
+              </button>
+              <span class="text-slate-700">•</span>
+              <button
+                type="button"
+                @click="setDatePreset('this_month')"
+                class="text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer"
+                :class="activeDatePreset === 'this_month' ? 'text-indigo-400 font-bold underline' : ''"
+              >
+                Месяц
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div class="relative">
+              <input
+                v-model="dateFrom"
+                @change="handleDateChange"
+                type="date"
+                class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none transition-colors [color-scheme:dark]"
+                title="Дата с"
+              />
+            </div>
+            <div class="relative">
+              <input
+                v-model="dateTo"
+                @change="handleDateChange"
+                type="date"
+                class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none transition-colors [color-scheme:dark]"
+                title="Дата по"
+              />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -272,7 +444,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/services/api'
 import { useAuthStore } from '@/stores/auth'
@@ -284,7 +456,9 @@ const toast = useToastStore()
 
 const invoices = ref([])
 const stores = ref([])
+const suppliers = ref([])
 const loading = ref(true)
+const loadingSuppliers = ref(false)
 const isDragging = ref(false)
 const showUploadModal = ref(false)
 const uploading = ref(false)
@@ -293,6 +467,155 @@ const fileInputRef = ref(null)
 
 const invoiceToDelete = ref(null)
 const deleting = ref(false)
+
+// Фильтры
+const selectedStatus = ref('')
+const invoiceNumberQuery = ref('')
+const selectedSupplier = ref(null)
+const supplierSearchText = ref('')
+const isSupplierDropdownOpen = ref(false)
+const supplierDropdownRef = ref(null)
+
+const dateFrom = ref('')
+const dateTo = ref('')
+const activeDatePreset = ref('')
+let searchTimeout = null
+
+const filterStatuses = [
+  { value: '', label: 'Все' },
+  { value: 'pending', label: 'В очереди' },
+  { value: 'processing', label: 'Распознавание (AI)' },
+  { value: 'recognized', label: 'Ожидает сверки' },
+  { value: 'sent_to_iiko', label: 'Отправлено в iiko' },
+  { value: 'failed', label: 'Ошибки' },
+]
+
+// Живая фильтрация выпадающего списка поставщиков при вводе текста
+const filteredSuppliers = computed(() => {
+  const query = supplierSearchText.value.trim().toLowerCase()
+  if (!query) {
+    return suppliers.value
+  }
+  return suppliers.value.filter(s => {
+    const nameMatch = s.name?.toLowerCase().includes(query)
+    const innMatch = s.inn?.toLowerCase().includes(query)
+    return nameMatch || innMatch
+  })
+})
+
+const hasActiveFilters = computed(() => {
+  return !!(
+    selectedStatus.value ||
+    invoiceNumberQuery.value.trim() ||
+    supplierSearchText.value.trim() ||
+    selectedSupplier.value ||
+    dateFrom.value ||
+    dateTo.value
+  )
+})
+
+const activeFiltersCount = computed(() => {
+  let count = 0
+  if (selectedStatus.value) count++
+  if (invoiceNumberQuery.value.trim()) count++
+  if (selectedSupplier.value || supplierSearchText.value.trim()) count++
+  if (dateFrom.value || dateTo.value) count++
+  return count
+})
+
+function selectSupplier(sup) {
+  selectedSupplier.value = sup
+  supplierSearchText.value = sup ? sup.name : ''
+  isSupplierDropdownOpen.value = false
+  loadInvoices()
+}
+
+function clearSupplier() {
+  selectedSupplier.value = null
+  supplierSearchText.value = ''
+  isSupplierDropdownOpen.value = false
+  loadInvoices()
+}
+
+function handleSupplierInput() {
+  isSupplierDropdownOpen.value = true
+  if (selectedSupplier.value && selectedSupplier.value.name !== supplierSearchText.value) {
+    selectedSupplier.value = null
+  }
+  debounceSearch()
+}
+
+function handleNumberInput() {
+  debounceSearch()
+}
+
+function clearNumber() {
+  invoiceNumberQuery.value = ''
+  loadInvoices()
+}
+
+function setDatePreset(preset) {
+  activeDatePreset.value = preset
+  const today = new Date()
+  const formatDateISO = (d) => {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  if (preset === 'today') {
+    dateFrom.value = formatDateISO(today)
+    dateTo.value = formatDateISO(today)
+  } else if (preset === 'week') {
+    const past = new Date()
+    past.setDate(past.getDate() - 7)
+    dateFrom.value = formatDateISO(past)
+    dateTo.value = formatDateISO(today)
+  } else if (preset === 'month') {
+    const past = new Date()
+    past.setDate(past.getDate() - 30)
+    dateFrom.value = formatDateISO(past)
+    dateTo.value = formatDateISO(today)
+  } else if (preset === 'this_month') {
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
+    dateFrom.value = formatDateISO(firstDay)
+    dateTo.value = formatDateISO(today)
+  } else if (preset === 'all') {
+    dateFrom.value = ''
+    dateTo.value = ''
+  }
+  loadInvoices()
+}
+
+function handleDateChange() {
+  activeDatePreset.value = 'custom'
+  loadInvoices()
+}
+
+function resetAllFilters() {
+  selectedStatus.value = ''
+  invoiceNumberQuery.value = ''
+  selectedSupplier.value = null
+  supplierSearchText.value = ''
+  dateFrom.value = ''
+  dateTo.value = ''
+  activeDatePreset.value = ''
+  loadInvoices()
+}
+
+function debounceSearch() {
+  clearTimeout(searchTimeout)
+  searchTimeout = setTimeout(() => {
+    loadInvoices()
+  }, 350)
+}
+
+function onDocClick(e) {
+  if (supplierDropdownRef.value && !supplierDropdownRef.value.contains(e.target)) {
+    isSupplierDropdownOpen.value = false
+  }
+}
 
 function promptDeleteInvoice(inv) {
   invoiceToDelete.value = inv
@@ -321,26 +644,17 @@ const uploadForm = ref({
   iiko_store_name: '',
 })
 
-const selectedStatus = ref('')
-const searchQuery = ref('')
-let searchTimeout = null
-
-const filterStatuses = [
-  { value: '', label: 'Все' },
-  { value: 'pending', label: 'В очереди' },
-  { value: 'processing', label: 'Распознавание (AI)' },
-  { value: 'recognized', label: 'Ожидает сверки' },
-  { value: 'sent_to_iiko', label: 'Отправлено в iiko' },
-  { value: 'failed', label: 'Ошибки' },
-]
-
 async function loadInvoices() {
   loading.value = true
   try {
     const params = {
       organization_id: auth.currentOrgId,
       status: selectedStatus.value || undefined,
-      search: searchQuery.value || undefined
+      number: invoiceNumberQuery.value.trim() || undefined,
+      supplier_id: selectedSupplier.value?.id || undefined,
+      supplier: (selectedSupplier.value?.name || supplierSearchText.value.trim()) || undefined,
+      date_from: dateFrom.value || undefined,
+      date_to: dateTo.value || undefined,
     }
     const res = await api.get('/invoices/documents/', { params })
     invoices.value = res.data.results || res.data || []
@@ -366,11 +680,18 @@ async function loadStores() {
   }
 }
 
-function debounceSearch() {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    loadInvoices()
-  }, 400)
+async function loadSuppliers() {
+  loadingSuppliers.value = true
+  try {
+    const res = await api.get('/invoices/suppliers/', {
+      params: { organization_id: auth.currentOrgId }
+    })
+    suppliers.value = res.data || []
+  } catch (e) {
+    console.warn('Could not load suppliers:', e)
+  } finally {
+    loadingSuppliers.value = false
+  }
 }
 
 function onFileChange(e) {
@@ -471,5 +792,12 @@ function statusDotClass(status) {
 onMounted(() => {
   loadInvoices()
   loadStores()
+  loadSuppliers()
+  document.addEventListener('click', onDocClick)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocClick)
+  if (searchTimeout) clearTimeout(searchTimeout)
 })
 </script>

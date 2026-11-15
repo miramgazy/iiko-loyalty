@@ -207,4 +207,63 @@ class InvoiceApiTest(APITestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(Invoice.objects.filter(id=invoice.id).exists())
 
+    def test_filter_invoices_by_supplier_and_number_and_date(self):
+        import datetime
+        from decimal import Decimal
+        inv1 = Invoice.objects.create(
+            organization=self.org,
+            internal_number="INV-FILTER-001",
+            invoice_number="НАКЛ-101",
+            invoice_date=datetime.date(2026, 11, 1),
+            raw_supplier_name="ТОО Мясной Двор",
+            total_sum=Decimal("25000.00")
+        )
+        inv2 = Invoice.objects.create(
+            organization=self.org,
+            internal_number="INV-FILTER-002",
+            invoice_number="НАКЛ-202",
+            invoice_date=datetime.date(2026, 11, 10),
+            raw_supplier_name="ИП Молоко",
+            total_sum=Decimal("15000.00")
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        # 1. Фильтр по поставщику
+        res = self.client.get(f"/api/invoices/documents/?organization_id={self.org.id}&supplier=Мясной")
+        self.assertEqual(res.status_code, 200)
+        results = res.data if isinstance(res.data, list) else res.data.get('results', [])
+        ids = [i['id'] for i in results]
+        self.assertIn(inv1.id, ids)
+        self.assertNotIn(inv2.id, ids)
+
+        # 2. Фильтр по номеру
+        res = self.client.get(f"/api/invoices/documents/?organization_id={self.org.id}&number=202")
+        self.assertEqual(res.status_code, 200)
+        results = res.data if isinstance(res.data, list) else res.data.get('results', [])
+        ids = [i['id'] for i in results]
+        self.assertIn(inv2.id, ids)
+        self.assertNotIn(inv1.id, ids)
+
+        # 3. Фильтр по дате
+        res = self.client.get(f"/api/invoices/documents/?organization_id={self.org.id}&date_from=2026-11-05&date_to=2026-11-15")
+        self.assertEqual(res.status_code, 200)
+        results = res.data if isinstance(res.data, list) else res.data.get('results', [])
+        ids = [i['id'] for i in results]
+        self.assertIn(inv2.id, ids)
+        self.assertNotIn(inv1.id, ids)
+
+    def test_suppliers_list_includes_invoice_suppliers(self):
+        Invoice.objects.create(
+            organization=self.org,
+            internal_number="INV-SUP-001",
+            raw_supplier_name="ТОО Экзотик Фрут"
+        )
+        self.client.force_authenticate(user=self.user)
+        res = self.client.get(f"/api/invoices/suppliers/?organization_id={self.org.id}")
+        self.assertEqual(res.status_code, 200)
+        names = [s['name'] for s in res.data]
+        self.assertIn("ТОО Экзотик Фрут", names)
+
+
 
