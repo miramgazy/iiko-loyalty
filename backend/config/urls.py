@@ -21,6 +21,9 @@ urlpatterns = [
     # AI Agent app routes
     path('api/ai_agent/', include('apps.ai_agent.urls')),
     
+    # Invoices app routes
+    path('api/invoices/', include('apps.invoices.urls')),
+    
     # Organization webhook setting
     path('api/organization/set-webhook/', SetWebhookView.as_view(), name='set_webhook'),
 ]

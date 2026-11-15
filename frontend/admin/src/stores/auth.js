@@ -37,6 +37,11 @@ export const useAuthStore = defineStore('auth', () => {
     return currentRole.value === 'org_admin'
   })
 
+  const isAccountant = computed(() => {
+    if (isOrgManager.value) return true
+    return currentRole.value === 'accountant'
+  })
+
   async function login(username, password) {
     const res = await axios.post(`${API_BASE}/accounts/token/`, { username, password })
     accessToken.value = res.data.access
@@ -98,7 +103,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     accessToken, refreshToken, user, currentOrgId,
     isAuthenticated, isSuperAdmin, currentMembership, currentRole,
-    isOrgManager, isOrgAdmin,
+    isOrgManager, isOrgAdmin, isAccountant,
     login, refreshAccessToken, setCurrentOrg, updateOrganization, logout,
   }
 })

@@ -187,6 +187,7 @@ function openSocialLink(url) {
 const showBottomNav = computed(() => {
   return !auth.isLoading && 
          !auth.authError && 
+         !route.path.startsWith('/employee') &&
          auth.isOnboarded && 
          !auth.needsConsent &&
          route.name !== 'onboarding-lang' && 
@@ -243,8 +244,13 @@ onMounted(async () => {
       setLocale(auth.customer.language)
     }
 
-    // Navigate based on onboarding status
-    if (!auth.isOnboarded) {
+    // Navigate based on employee / onboarding status
+    if (auth.canUploadInvoices) {
+      const isEmployeeRoute = route.path.startsWith('/employee')
+      if (!isEmployeeRoute && (route.name === 'home' || !route.name || ['onboarding-lang', 'onboarding-phone', 'onboarding-consent'].includes(route.name))) {
+        router.replace('/employee/invoices')
+      }
+    } else if (!auth.isOnboarded) {
       const langSelected = safeStorage.getItem('tma_lang_selected') === 'true'
       router.replace(langSelected ? '/onboarding/phone' : '/onboarding/lang')
     } else if (auth.needsConsent) {

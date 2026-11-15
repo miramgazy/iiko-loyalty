@@ -76,6 +76,24 @@ const routes = [
     meta: { requiresAuth: true, requiresOrgAdmin: true },
   },
   {
+    path: '/admin/invoices',
+    name: 'invoices',
+    component: () => import('@/views/invoices/InvoicesListView.vue'),
+    meta: { requiresAuth: true, requiresAccountant: true },
+  },
+  {
+    path: '/admin/invoices/knowledge-base',
+    name: 'invoice-knowledge-base',
+    component: () => import('@/views/invoices/InvoiceKnowledgeBaseView.vue'),
+    meta: { requiresAuth: true, requiresAccountant: true },
+  },
+  {
+    path: '/admin/invoices/:id',
+    name: 'invoice-detail',
+    component: () => import('@/views/invoices/InvoiceDetailView.vue'),
+    meta: { requiresAuth: true, requiresAccountant: true },
+  },
+  {
     path: '/join/:slug',
     name: 'web-onboarding',
     component: () => import('@/views/WebOnboardingView.vue'),
@@ -120,6 +138,7 @@ router.beforeEach((to, from, next) => {
 
   if (to.name === 'login' && auth.isAuthenticated) {
     if (auth.isSuperAdmin) return next('/superadmin')
+    if (auth.currentRole === 'accountant') return next('/admin/invoices')
     if (auth.currentOrgId) return next('/admin/customers')
     return next('/select-org')
   }
@@ -130,7 +149,8 @@ router.beforeEach((to, from, next) => {
 
   if (to.meta.requiresSuperAdmin && !auth.isSuperAdmin) return next('/')
   if (to.meta.requiresOrgManager && !auth.isOrgManager) return next('/')
-  if (to.meta.requiresOrgAdmin && !auth.isOrgAdmin) return next('/')
+  if (to.meta.requiresOrgAdmin && !auth.isOrgAdmin && !auth.isAccountant) return next('/')
+  if (to.meta.requiresAccountant && !auth.isAccountant && !auth.isOrgAdmin) return next('/')
 
   // Redirect to org selector if no org selected and not superadmin
   if (!to.meta.requiresSuperAdmin && !auth.currentOrgId && !auth.isSuperAdmin) {

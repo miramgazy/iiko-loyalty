@@ -61,6 +61,10 @@
                   AI-Агент
                 </label>
                 <label class="inline-flex items-center gap-1.5 text-slate-300 cursor-pointer">
+                  <input type="checkbox" :checked="org.is_invoices_enabled" @change="toggleModule(org, 'is_invoices_enabled')" :disabled="updatingModule === org.id" class="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-slate-900" />
+                  Накладные (Invoices)
+                </label>
+                <label class="inline-flex items-center gap-1.5 text-slate-300 cursor-pointer">
                   <input type="checkbox" :checked="org.is_bonus_confirmation_enabled" @change="toggleModule(org, 'is_bonus_confirmation_enabled')" :disabled="updatingModule === org.id" class="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-600 focus:ring-offset-slate-900" />
                   Подтверждение бонусов
                 </label>

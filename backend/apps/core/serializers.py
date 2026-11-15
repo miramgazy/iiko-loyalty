@@ -29,7 +29,7 @@ class SuperAdminOrganizationSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'slug', 'is_active', 'created_at', 
             'owner_email', 'temp_password',
-            'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled',
+            'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled', 'is_invoices_enabled',
             'is_bonus_confirmation_enabled', 'terminal_secret', 'target_payment_type_name',
             'active_terminals_count', 'total_terminals_count'
         ]
@@ -99,10 +99,12 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
             'is_web_onboarding_enabled', 'web_onboarding_settings',
             'is_client_classification_enabled', 'client_classification_settings', 'brand_color',
             'branding', 'instagram_link', 'whatsapp_link',
-            'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled',
-            'llm_provider', 'llm_model_name', 'llm_api_key', 'llm_system_prompt'
+            'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled', 'is_invoices_enabled',
+            'default_store_id', 'default_store_name',
+            'llm_provider', 'llm_model_name', 'llm_api_key', 'llm_system_prompt',
+            'vision_llm_provider', 'vision_llm_model', 'vision_llm_api_key', 'vision_llm_base_url'
         ]
-        read_only_fields = ['id', 'slug', 'is_waba_configured', 'is_smsc_configured', 'brand_color', 'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled']
+        read_only_fields = ['id', 'slug', 'is_waba_configured', 'is_smsc_configured', 'brand_color', 'is_loyalty_enabled', 'is_analytics_enabled', 'is_ai_agent_enabled', 'is_invoices_enabled']
 
     def validate(self, attrs):
         is_onboarding = attrs.get('is_web_onboarding_enabled')
@@ -198,8 +200,9 @@ from apps.core.models import Employee
 
 class TmaEmployeeSerializer(serializers.ModelSerializer):
     is_active = serializers.BooleanField(default=True, required=False)
+    can_upload_invoices = serializers.BooleanField(default=False, required=False)
 
     class Meta:
         model = Employee
-        fields = ['id', 'first_name', 'last_name', 'telegram_id', 'role', 'is_active']
+        fields = ['id', 'first_name', 'last_name', 'telegram_id', 'role', 'can_upload_invoices', 'is_active']
         read_only_fields = ['id']

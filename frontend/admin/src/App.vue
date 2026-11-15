@@ -107,6 +107,16 @@
               <span>🤖</span> Чат с AI
             </RouterLink>
           </template>
+
+          <!-- Invoices Module Links -->
+          <template v-if="auth.currentMembership?.organization?.is_invoices_enabled || auth.isAccountant">
+            <RouterLink to="/admin/invoices" @click="closeSettings" class="nav-link" active-class="nav-link-active">
+              <span>🧾</span> Накладные
+            </RouterLink>
+            <RouterLink to="/admin/invoices/knowledge-base" @click="closeSettings" class="nav-link" active-class="nav-link-active">
+              <span>🧠</span> База знаний
+            </RouterLink>
+          </template>
         </template>
       </nav>
 
@@ -179,6 +189,9 @@ const settingsSubTabs = computed(() => {
   if (org?.is_ai_agent_enabled) {
     list.push({ id: 'llm', label: 'Настройки LLM', icon: '🤖' })
   }
+  if (org?.is_invoices_enabled) {
+    list.push({ id: 'vision_llm', label: 'Настройки Vision LLM', icon: '👁️' })
+  }
   return list
 })
 
@@ -229,6 +242,7 @@ function roleLabel(role) {
     superadmin: 'SuperAdmin',
     org_manager: 'Менеджер',
     org_admin: 'Администратор',
+    accountant: 'Бухгалтер',
   }
   if (!role && auth.isSuperAdmin) return 'SuperAdmin'
   return labels[role] || role || ''

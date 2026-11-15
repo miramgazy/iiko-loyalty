@@ -669,6 +669,21 @@
               <label class="form-label">Пароль пользователя</label>
               <input id="input-iiko-server-password" v-model="form.iiko_server_password" type="password" class="form-input" placeholder="••••••••••" />
             </div>
+            <div class="md:col-span-2 pt-2 border-t border-slate-800/80">
+              <label class="form-label flex items-center justify-between">
+                <span>Склад по умолчанию для накладных (defaultStore)</span>
+                <button type="button" @click="loadIikoStores(true)" class="text-xs text-indigo-400 hover:text-indigo-300">
+                  ↻ Обновить склады
+                </button>
+              </label>
+              <select id="select-default-store" v-model="form.default_store_id" @change="onDefaultStoreChange" class="form-input">
+                <option :value="null">-- Не выбран (выбирать при каждой загрузке) --</option>
+                <option v-for="store in availableStores" :key="store.id" :value="store.id">
+                  {{ store.name }}
+                </option>
+              </select>
+              <p class="text-[11px] text-slate-500 mt-1">Этот склад будет автоматически подставляться по умолчанию при загрузке накладных через TMA и админку.</p>
+            </div>
           </div>
         </div>
 
@@ -2955,6 +2970,90 @@
             <SaveButton :saving="savingLlm" @save="saveLlmSettings" />
           </div>
         </div>
+
+        <!-- TAB: Vision LLM Settings -->
+        <div v-show="activeTab === 'vision_llm'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
+          <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div>
+              <h3 class="text-white font-medium flex items-center gap-2">
+                <span>👁️</span> Настройки Vision LLM модели
+              </h3>
+              <p class="text-xs text-slate-400 mt-0.5">Нейросеть для распознавания печатных и рукописных накладных (ТОРГ-12, УПД, чеки).</p>
+            </div>
+            <span class="text-xs px-2.5 py-1 bg-indigo-950/60 text-indigo-400 border border-indigo-800/60 rounded-full font-semibold">
+              Модуль Invoices
+            </span>
+          </div>
+
+          <div>
+            <label class="form-label">Провайдер Vision LLM</label>
+            <select id="input-vision-provider" v-model="form.vision_llm_provider" @change="onVisionProviderChange" class="form-input">
+              <option value="gemini">Google Gemini (Рекомендуется)</option>
+              <option value="openai">OpenAI (GPT-4o)</option>
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="deepseek">DeepSeek / OpenAI-compatible</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="form-label">Модель Vision LLM</label>
+            <select v-model="selectedVisionModelOption" class="form-input mb-3">
+              <option v-for="model in availableVisionModels" :key="model.value" :value="model.value">
+                {{ model.label }}
+              </option>
+            </select>
+            <div v-if="selectedVisionModelOption === 'custom'" class="transition-all duration-200">
+              <label class="form-label text-xs text-slate-400">Имя кастомной модели</label>
+              <input id="input-vision-model" v-model="customVisionModelName" type="text" class="form-input" placeholder="например: gemini-2.5-flash-lite, gpt-4o-2024-08-06" />
+            </div>
+          </div>
+
+          <div>
+            <label class="form-label">API Ключ Vision модели</label>
+            <div class="relative">
+              <input id="input-vision-api-key" v-model="form.vision_llm_api_key" :type="showVisionKey ? 'text' : 'password'" class="form-input pr-12" placeholder="Введите API ключ (Gemini, OpenAI или Claude)..." />
+              <button type="button" @click="showVisionKey = !showVisionKey"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
+                {{ showVisionKey ? '🙈' : '👁' }}
+              </button>
+            </div>
+            <p class="text-[10px] text-slate-500 mt-1">Ключ хранится в зашифрованном виде. При повторном сохранении оставьте плейсхолдер ••••••••, чтобы не перезаписывать существующий ключ.</p>
+          </div>
+
+          <div>
+            <label class="form-label">Кастомный Base URL (опционально)</label>
+            <input id="input-vision-base-url" v-model="form.vision_llm_base_url" type="url" class="form-input" placeholder="https://api.openai.com/v1 или корпоративный прокси..." />
+            <p class="text-[10px] text-slate-500 mt-1">Оставьте пустым для прямого обращения к официальным серверам провайдера.</p>
+          </div>
+
+          <!-- Результат теста подключения -->
+          <div v-if="visionTestResult" class="p-4 rounded-xl border text-xs flex items-center justify-between"
+            :class="visionTestResult.success ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300' : 'bg-rose-950/40 border-rose-800 text-rose-300'">
+            <div class="flex items-center gap-2">
+              <span>{{ visionTestResult.success ? '✅' : '❌' }}</span>
+              <span>{{ visionTestResult.message || visionTestResult.error }}</span>
+            </div>
+            <span v-if="visionTestResult.latency_ms" class="text-[11px] font-mono text-emerald-400">
+              {{ visionTestResult.latency_ms }} мс
+            </span>
+          </div>
+
+          <div class="flex justify-between items-center pt-2 border-t border-slate-800">
+            <button 
+              type="button"
+              @click="testVisionConnection" 
+              :disabled="testingVision" 
+              class="px-4 py-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+            >
+              <svg v-if="testingVision" class="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>{{ testingVision ? 'Тестирование...' : '🧪 Проверить подключение' }}</span>
+            </button>
+            <SaveButton :saving="saving" @save="saveSettings" />
+          </div>
+        </div>
       </div>
 
     <!-- Preset Modal -->
@@ -3590,8 +3689,10 @@ const form = ref({
   },
   branding: {},
   instagram_link: '', whatsapp_link: '',
-  is_loyalty_enabled: true, is_analytics_enabled: false, is_ai_agent_enabled: false,
+  is_loyalty_enabled: true, is_analytics_enabled: false, is_ai_agent_enabled: false, is_invoices_enabled: false,
+  default_store_id: null, default_store_name: '',
   llm_provider: 'openai', llm_model_name: 'gpt-4o-mini', llm_api_key: '', llm_system_prompt: '',
+  vision_llm_provider: 'gemini', vision_llm_model: 'gemini-2.5-flash', vision_llm_api_key: '', vision_llm_base_url: '',
 })
 
 // Onboarding page reactive state & WABA guard
@@ -4047,6 +4148,116 @@ function initLlmModelFields() {
   }
 }
 
+// Vision LLM logic
+const providerVisionModels = {
+  gemini: [
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Рекомендуется, высокая скорость и точность)' },
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
+    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }
+  ],
+  openai: [
+    { value: 'gpt-4o', label: 'GPT-4o (Vision флагман)' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini (Быстрая)' }
+  ],
+  anthropic: [
+    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+    { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' }
+  ],
+  deepseek: [
+    { value: 'deepseek-chat', label: 'DeepSeek Chat (V3 / Vision-compatible)' }
+  ]
+}
+
+const selectedVisionModelOption = ref('gemini-2.5-flash')
+const customVisionModelName = ref('')
+const showVisionKey = ref(false)
+const testingVision = ref(false)
+const visionTestResult = ref(null)
+
+const availableVisionModels = computed(() => {
+  const provider = form.value.vision_llm_provider || 'gemini'
+  const models = providerVisionModels[provider] || []
+  return [...models, { value: 'custom', label: 'Ввести имя модели вручную...' }]
+})
+
+function onVisionProviderChange() {
+  const provider = form.value.vision_llm_provider
+  const models = providerVisionModels[provider] || []
+  if (models.length > 0) {
+    selectedVisionModelOption.value = models[0].value
+    form.value.vision_llm_model = models[0].value
+  } else {
+    selectedVisionModelOption.value = 'custom'
+  }
+}
+
+watch(selectedVisionModelOption, (newVal) => {
+  if (newVal !== 'custom') {
+    form.value.vision_llm_model = newVal
+  } else {
+    form.value.vision_llm_model = customVisionModelName.value
+  }
+})
+
+watch(customVisionModelName, (newVal) => {
+  if (selectedVisionModelOption.value === 'custom') {
+    form.value.vision_llm_model = newVal
+  }
+})
+
+function initVisionModelFields() {
+  const provider = form.value.vision_llm_provider || 'gemini'
+  const models = providerVisionModels[provider] || []
+  const found = models.find(m => m.value === form.value.vision_llm_model)
+  if (found) {
+    selectedVisionModelOption.value = form.value.vision_llm_model
+  } else {
+    selectedVisionModelOption.value = 'custom'
+    customVisionModelName.value = form.value.vision_llm_model
+  }
+}
+
+async function testVisionConnection() {
+  testingVision.value = true
+  visionTestResult.value = null
+  try {
+    const payload = {
+      organization_id: auth.currentOrgId,
+      vision_llm_provider: form.value.vision_llm_provider,
+      vision_llm_model: form.value.vision_llm_model,
+      vision_llm_api_key: form.value.vision_llm_api_key,
+      vision_llm_base_url: form.value.vision_llm_base_url
+    }
+    const res = await api.post('/invoices/test-vision/', payload)
+    visionTestResult.value = res.data
+    toast.success('Тест подключения к Vision LLM успешен!')
+  } catch (err) {
+    visionTestResult.value = {
+      success: false,
+      error: err.response?.data?.error || err.message || 'Ошибка соединения'
+    }
+    toast.error('Ошибка проверки подключения Vision LLM')
+  } finally {
+    testingVision.value = false
+  }
+}
+
+// Управление складами iiko
+const availableStores = ref([])
+async function loadIikoStores(force = false) {
+  try {
+    const res = await api.get('/invoices/stores/', { params: { organization_id: auth.currentOrgId, refresh: force } })
+    availableStores.value = res.data || []
+  } catch (e) {
+    console.warn('Could not load iiko stores:', e)
+  }
+}
+
+function onDefaultStoreChange() {
+  const found = availableStores.value.find(s => String(s.id) === String(form.value.default_store_id))
+  form.value.default_store_name = found ? found.name : ''
+}
+
 const presets = ref([])
 const showPresetModal = ref(false)
 const presetModalMode = ref('create')
@@ -4199,6 +4410,8 @@ async function load() {
     }
     
     initLlmModelFields()
+    initVisionModelFields()
+    loadIikoStores()
     
     if (!form.value.client_classification_settings) {
       form.value.client_classification_settings = {

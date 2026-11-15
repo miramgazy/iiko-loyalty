@@ -11,6 +11,9 @@ export const useAuthStore = defineStore('tma-auth', () => {
   const role = ref(safeStorage.getItem('tma_role') || null)
   const customer = ref(JSON.parse(safeStorage.getItem('tma_customer') || 'null'))
   const organization = ref(JSON.parse(safeStorage.getItem('tma_organization') || 'null'))
+  const isEmployee = ref(safeStorage.getItem('tma_is_employee') === 'true')
+  const canUploadInvoices = ref(safeStorage.getItem('tma_can_upload_invoices') === 'true')
+  const employee = ref(JSON.parse(safeStorage.getItem('tma_employee') || 'null'))
   const botUsername = ref(null)
   const authError = ref(null)
   const isLoading = ref(true)
@@ -48,12 +51,18 @@ export const useAuthStore = defineStore('tma-auth', () => {
       role.value = res.data.role
       customer.value = res.data.customer
       organization.value = res.data.organization
+      isEmployee.value = !!res.data.is_employee
+      canUploadInvoices.value = !!res.data.can_upload_invoices
+      employee.value = res.data.employee || null
 
       safeStorage.setItem('tma_access_token', res.data.access)
       safeStorage.setItem('tma_refresh_token', res.data.refresh)
       safeStorage.setItem('tma_role', res.data.role)
       safeStorage.setItem('tma_customer', JSON.stringify(res.data.customer))
       safeStorage.setItem('tma_organization', JSON.stringify(res.data.organization))
+      safeStorage.setItem('tma_is_employee', isEmployee.value ? 'true' : 'false')
+      safeStorage.setItem('tma_can_upload_invoices', canUploadInvoices.value ? 'true' : 'false')
+      safeStorage.setItem('tma_employee', JSON.stringify(employee.value))
 
       return true
     } catch (e) {
@@ -75,15 +84,22 @@ export const useAuthStore = defineStore('tma-auth', () => {
     role.value = null
     customer.value = null
     organization.value = null
+    isEmployee.value = false
+    canUploadInvoices.value = false
+    employee.value = null
     safeStorage.removeItem('tma_access_token')
     safeStorage.removeItem('tma_refresh_token')
     safeStorage.removeItem('tma_role')
     safeStorage.removeItem('tma_customer')
     safeStorage.removeItem('tma_organization')
+    safeStorage.removeItem('tma_is_employee')
+    safeStorage.removeItem('tma_can_upload_invoices')
+    safeStorage.removeItem('tma_employee')
   }
 
   return {
     accessToken, refreshToken, role, customer, organization,
+    isEmployee, canUploadInvoices, employee,
     botUsername, authError, isLoading,
     isAuthenticated, isOnboarded, needsConsent,
     authenticate, updateCustomer, logout,

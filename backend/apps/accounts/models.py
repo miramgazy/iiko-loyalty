@@ -17,12 +17,14 @@ class UserOrganization(models.Model):
     ROLE_SUPERADMIN = 'superadmin'    # Администратор платформы (поддержка)
     ROLE_ORG_MANAGER = 'org_manager'  # Владелец / Управляющий конкретной ресторанной сети
     ROLE_ORG_ADMIN = 'org_admin'      # Администратор конкретной точки / ресторана
+    ROLE_ACCOUNTANT = 'accountant'    # Бухгалтер ресторана
     
     ROLE_CHOICES = [
         (ROLE_SUPERUSER, 'SuperUser'),
         (ROLE_SUPERADMIN, 'SuperAdmin'),
         (ROLE_ORG_MANAGER, 'OrgManager'),
         (ROLE_ORG_ADMIN, 'OrgAdmin'),
+        (ROLE_ACCOUNTANT, 'Accountant'),
     ]
 
     user = models.ForeignKey(

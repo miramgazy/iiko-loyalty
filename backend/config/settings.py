@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'apps.analytics',
     'apps.inventory',
     'apps.ai_agent',
+    'apps.invoices',
 ]
 
 MIDDLEWARE = [

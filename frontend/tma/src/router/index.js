@@ -39,6 +39,16 @@ const routes = [
     name: 'owner-dashboard',
     component: () => import('@/views/OwnerDashboardView.vue'),
   },
+  {
+    path: '/employee/invoices',
+    name: 'employee-invoices',
+    component: () => import('@/views/employee/EmployeeInvoicesView.vue'),
+  },
+  {
+    path: '/employee/invoices/create',
+    name: 'employee-invoices-create',
+    component: () => import('@/views/employee/InvoiceCreateView.vue'),
+  },
 ]
 
 const router = createRouter({
@@ -55,8 +65,21 @@ router.beforeEach((to, from, next) => {
   // If not authenticated, stay on current page (auth happens in App.vue)
   if (!auth.isAuthenticated && to.name !== 'home') return next('/')
 
+  // Employee invoices routes guard
+  if (to.path.startsWith('/employee')) {
+    if (auth.canUploadInvoices) {
+      return next()
+    } else {
+      return next('/')
+    }
+  }
+
   // If authenticated but not onboarded (no phone yet)
   if (auth.isAuthenticated && !auth.isOnboarded) {
+    if (auth.canUploadInvoices) {
+      return next('/employee/invoices')
+    }
+
     safeStorage.setItem('tma_onboarding_in_progress', 'true')
     const langSelected = safeStorage.getItem('tma_lang_selected') === 'true'
     

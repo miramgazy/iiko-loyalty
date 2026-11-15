@@ -22,6 +22,7 @@
             <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Сотрудник</th>
             <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Telegram ID</th>
             <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Роль</th>
+            <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Накладные (TMA)</th>
             <th class="text-left px-6 py-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Статус</th>
             <th class="px-6 py-4"></th>
           </tr>
@@ -44,6 +45,17 @@
                 :class="roleClass(emp.role)">
                 {{ roleLabel(emp.role) }}
               </span>
+            </td>
+            <td class="px-6 py-4">
+              <button
+                @click="toggleCanUploadInvoices(emp)"
+                :disabled="togglingInvoices === emp.id"
+                class="text-xs font-medium px-2.5 py-1 rounded-full border transition-all disabled:opacity-50 flex items-center gap-1.5"
+                :class="emp.can_upload_invoices
+                  ? 'bg-indigo-950/50 text-indigo-300 border-indigo-800 hover:bg-indigo-900/40'
+                  : 'bg-slate-800/80 text-slate-400 border-slate-700 hover:bg-slate-800'">
+                <span>{{ emp.can_upload_invoices ? '📸 Доступен' : '— Отключен' }}</span>
+              </button>
             </td>
             <td class="px-6 py-4">
               <button
@@ -100,7 +112,18 @@
                 <option value="owner">Владелец</option>
                 <option value="manager">Менеджер</option>
                 <option value="cashier">Кассир</option>
+                <option value="chef">Шеф-повар / Кухня</option>
+                <option value="barman">Бар-менеджер / Бар</option>
+                <option value="purchaser">Закупщик / Склад</option>
+                <option value="accountant">Бухгалтер</option>
               </select>
+            </div>
+
+            <div class="pt-1">
+              <label class="inline-flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" v-model="newEmp.can_upload_invoices" class="rounded border-slate-700 bg-slate-800 text-indigo-600 focus:ring-indigo-600" />
+                <span class="text-xs text-slate-200">Разрешить загрузку накладных в TMA</span>
+              </label>
             </div>
 
             <div class="flex gap-3 pt-2">
@@ -134,9 +157,10 @@ const employees = ref([])
 const loading = ref(true)
 const removing = ref(null)
 const toggling = ref(null)
+const togglingInvoices = ref(null)
 const showModal = ref(false)
 const adding = ref(false)
-const newEmp = ref({ first_name: '', last_name: '', telegram_id: null, role: 'owner' })
+const newEmp = ref({ first_name: '', last_name: '', telegram_id: null, role: 'owner', can_upload_invoices: false })
 
 async function loadEmployees() {
   loading.value = true
@@ -158,6 +182,7 @@ async function addEmployee() {
       last_name: newEmp.value.last_name,
       telegram_id: newEmp.value.telegram_id,
       role: newEmp.value.role,
+      can_upload_invoices: newEmp.value.can_upload_invoices,
       is_active: true
     }
     const res = await api.post(`/core/organizations/${auth.currentOrgId}/tma-employees/`, payload)
@@ -204,9 +229,25 @@ async function toggleStatus(emp) {
   }
 }
 
+async function toggleCanUploadInvoices(emp) {
+  togglingInvoices.value = emp.id
+  try {
+    const updatedVal = !emp.can_upload_invoices
+    const res = await api.patch(`/core/organizations/${auth.currentOrgId}/tma-employees/${emp.id}/`, {
+      can_upload_invoices: updatedVal
+    })
+    emp.can_upload_invoices = res.data.can_upload_invoices
+    toast.success(`Доступ к загрузке накладных: ${emp.can_upload_invoices ? 'Разрешен' : 'Запрещен'}`)
+  } catch {
+    toast.error('Не удалось изменить права на накладные')
+  } finally {
+    togglingInvoices.value = null
+  }
+}
+
 function closeModal() {
   showModal.value = false
-  newEmp.value = { first_name: '', last_name: '', telegram_id: null, role: 'owner' }
+  newEmp.value = { first_name: '', last_name: '', telegram_id: null, role: 'owner', can_upload_invoices: false }
 }
 
 function initials(emp) {
@@ -214,17 +255,23 @@ function initials(emp) {
 }
 
 function roleLabel(role) {
-  return { owner: 'Владелец', manager: 'Менеджер', cashier: 'Кассир' }[role] || role
+  const labels = {
+    owner: 'Владелец',
+    manager: 'Менеджер',
+    cashier: 'Кассир',
+    chef: 'Шеф-повар',
+    barman: 'Бар-менеджер',
+    purchaser: 'Закупщик',
+    accountant: 'Бухгалтер'
+  }
+  return labels[role] || role
 }
 
 function roleClass(role) {
-  if (role === 'owner') {
-    return 'bg-purple-900/50 text-purple-300 border-purple-800'
-  } else if (role === 'manager') {
-    return 'bg-indigo-900/50 text-indigo-300 border-indigo-800'
-  } else {
-    return 'bg-slate-800 text-slate-300 border-slate-700'
-  }
+  if (role === 'owner') return 'bg-purple-900/50 text-purple-300 border-purple-800'
+  if (role === 'manager' || role === 'accountant') return 'bg-indigo-900/50 text-indigo-300 border-indigo-800'
+  if (role === 'chef' || role === 'barman' || role === 'purchaser') return 'bg-amber-900/50 text-amber-300 border-amber-800'
+  return 'bg-slate-800 text-slate-300 border-slate-700'
 }
 
 onMounted(loadEmployees)

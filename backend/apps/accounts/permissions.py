@@ -103,3 +103,85 @@ class IsOwner(permissions.BasePermission):
             return True
 
         return False
+
+
+class IsAccountantOrAdmin(permissions.BasePermission):
+    """
+    Разрешает доступ пользователям с ролью Бухгалтер (accountant),
+    управляющим (org_manager), администраторам (org_admin) или суперадминам.
+    Также для безопасных методов чтения (GET/HEAD/OPTIONS) разрешает авторизованным сотрудникам TMA (Employee с can_upload_invoices=True).
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if getattr(request.user, 'is_superuser', False):
+            return True
+
+        from apps.accounts.models import User, UserOrganization
+        from apps.core.models import Employee
+
+        # Если это пользователь User (из админки)
+        if isinstance(request.user, User):
+            if UserOrganization.objects.filter(
+                user=request.user,
+                role__in=[UserOrganization.ROLE_SUPERUSER, UserOrganization.ROLE_SUPERADMIN]
+            ).exists():
+                return True
+
+            org_id = (
+                view.kwargs.get('organization_id') or
+                request.data.get('organization_id') or
+                request.query_params.get('organization_id')
+            )
+
+            if not org_id:
+                return UserOrganization.objects.filter(
+                    user=request.user,
+                    role__in=[
+                        UserOrganization.ROLE_ACCOUNTANT,
+                        UserOrganization.ROLE_ORG_MANAGER,
+                        UserOrganization.ROLE_ORG_ADMIN,
+                        UserOrganization.ROLE_SUPERUSER,
+                        UserOrganization.ROLE_SUPERADMIN,
+                    ]
+                ).exists()
+
+            return UserOrganization.objects.filter(
+                user=request.user,
+                organization_id=org_id,
+                role__in=[
+                    UserOrganization.ROLE_ACCOUNTANT,
+                    UserOrganization.ROLE_ORG_MANAGER,
+                    UserOrganization.ROLE_ORG_ADMIN,
+                    UserOrganization.ROLE_SUPERUSER,
+                    UserOrganization.ROLE_SUPERADMIN,
+                ]
+            ).exists()
+
+        # Если это Customer из TMA (сотрудник)
+        telegram_id = getattr(request.user, 'telegram_id', None)
+        if telegram_id:
+            # Для управляющих через telegram_id
+            if UserOrganization.objects.filter(
+                user__telegram_id=telegram_id,
+                role__in=[
+                    UserOrganization.ROLE_ACCOUNTANT,
+                    UserOrganization.ROLE_ORG_MANAGER,
+                    UserOrganization.ROLE_ORG_ADMIN,
+                    UserOrganization.ROLE_SUPERUSER,
+                    UserOrganization.ROLE_SUPERADMIN,
+                ]
+            ).exists():
+                return True
+
+            # Для сотрудников TMA с правом загрузки накладных разрешаем чтение списка
+            if request.method in permissions.SAFE_METHODS:
+                return Employee.objects.filter(
+                    telegram_id=telegram_id,
+                    is_active=True,
+                    can_upload_invoices=True
+                ).exists()
+
+        return False
+

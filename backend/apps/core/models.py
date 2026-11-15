@@ -89,7 +89,12 @@ class Organization(models.Model):
     is_loyalty_enabled = models.BooleanField("Включена система лояльности", default=True)
     is_analytics_enabled = models.BooleanField("Включена аналитика и закупки", default=False)
     is_ai_agent_enabled = models.BooleanField("Включен AI-агент", default=False)
+    is_invoices_enabled = models.BooleanField("Включен модуль распознавания накладных", default=False)
     is_bonus_confirmation_enabled = models.BooleanField("Включено подтверждение списания бонусов (OTP)", default=False)
+
+    # Склад по умолчанию для накладных iiko
+    default_store_id = models.UUIDField("Склад по умолчанию iiko (UUID)", null=True, blank=True)
+    default_store_name = models.CharField("Название склада по умолчанию", max_length=255, blank=True, default="")
 
     # Терминалы iikoFront
     terminal_secret = models.CharField("Секретный ключ для iikoFront терминалов", max_length=128, blank=True, null=True, unique=True)
@@ -130,6 +135,37 @@ class Organization(models.Model):
         blank=True,
         null=True,
         default="Вы — полезный AI-финансовый аналитик и закупщик для ресторана. Помогайте управлять заказами, анализировать фудкост, цены и упущенную выручку."
+    )
+
+    # Настройки Vision LLM (для распознавания накладных)
+    VISION_LLM_PROVIDER_CHOICES = (
+        ('gemini', 'Google Gemini'),
+        ('openai', 'OpenAI'),
+        ('anthropic', 'Anthropic Claude'),
+        ('deepseek', 'DeepSeek'),
+    )
+    vision_llm_provider = models.CharField(
+        "Провайдер Vision LLM",
+        max_length=20,
+        choices=VISION_LLM_PROVIDER_CHOICES,
+        default='gemini'
+    )
+    vision_llm_model = models.CharField(
+        "Название модели Vision LLM",
+        max_length=100,
+        default='gemini-2.5-flash',
+        blank=True
+    )
+    vision_llm_api_key = EncryptedCharField(
+        "API ключ Vision LLM",
+        max_length=255,
+        blank=True,
+        null=True
+    )
+    vision_llm_base_url = models.URLField(
+        "Кастомный Base URL для Vision LLM",
+        blank=True,
+        null=True
     )
 
     # Веб-онбординг
@@ -227,12 +263,17 @@ class Employee(models.Model):
         ('owner', 'Владелец'),
         ('manager', 'Менеджер'),
         ('cashier', 'Кассир'),
+        ('chef', 'Шеф-повар'),
+        ('barman', 'Бар-менеджер'),
+        ('purchaser', 'Закупщик'),
+        ('accountant', 'Бухгалтер'),
     )
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name='employees')
     first_name = models.CharField("Имя", max_length=150)
     last_name = models.CharField("Фамилия", max_length=150, blank=True)
     telegram_id = models.BigIntegerField("Telegram ID", null=True, blank=True, db_index=True)
     role = models.CharField("Роль", max_length=20, choices=ROLE_CHOICES, default='owner')
+    can_upload_invoices = models.BooleanField("Доступ к загрузке накладных в TMA", default=False)
     is_active = models.BooleanField("Активен", default=True)
 
     class Meta:

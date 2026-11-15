@@ -92,8 +92,12 @@ class TmaAuthView(APIView):
         from apps.core.models import Employee
         from apps.accounts.models import UserOrganization, User
         employee = Employee.objects.filter(telegram_id=telegram_id, organization=org, is_active=True).first()
+        is_employee = bool(employee)
+        can_upload_invoices = False
+
         if employee:
             role = employee.role
+            can_upload_invoices = employee.can_upload_invoices
         else:
             is_org_manager = UserOrganization.objects.filter(
                 user__telegram_id=telegram_id,
@@ -101,18 +105,36 @@ class TmaAuthView(APIView):
                 role__in=[UserOrganization.ROLE_ORG_MANAGER, UserOrganization.ROLE_SUPERUSER, UserOrganization.ROLE_SUPERADMIN]
             ).exists()
             is_super = User.objects.filter(telegram_id=telegram_id, is_superuser=True).exists()
-            role = 'owner' if (is_org_manager or is_super) else 'customer'
+            if is_org_manager or is_super:
+                role = 'owner'
+                is_employee = True
+                can_upload_invoices = True
+            else:
+                role = 'customer'
 
         return Response({
             "access": tokens["access"],
             "refresh": tokens["refresh"],
             "role": role,
+            "is_employee": is_employee,
+            "can_upload_invoices": can_upload_invoices,
+            "employee": {
+                "id": employee.id,
+                "first_name": employee.first_name,
+                "last_name": employee.last_name,
+                "role": employee.role,
+                "role_display": employee.get_role_display(),
+                "can_upload_invoices": employee.can_upload_invoices
+            } if employee else None,
             "organization": {
                 "id": org.id,
                 "slug": org.slug,
                 "name": org.name,
                 "brand_color": org.brand_color,
                 "branding": org.branding,
+                "is_invoices_enabled": org.is_invoices_enabled,
+                "default_store_id": str(org.default_store_id) if org.default_store_id else None,
+                "default_store_name": org.default_store_name,
                 "is_client_classification_enabled": org.is_client_classification_enabled,
                 "client_classification_settings": org.client_classification_settings,
                 "is_google_wallet_enabled": org.is_google_wallet_enabled,
