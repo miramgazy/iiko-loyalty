@@ -3468,6 +3468,7 @@ const tabs = computed(() => {
     { id: 'smsc', label: 'SMS-Центр (SMSC)' },
     { id: 'iiko', label: 'Интеграция iiko Cloud API' },
     { id: 'iiko_server', label: 'Интеграция iiko Server API' },
+    { id: 'vision_llm', label: 'Vision LLM Сервис' },
   ]
   if (form.value.is_loyalty_enabled) {
     list.push(
@@ -4437,6 +4438,7 @@ async function load() {
       is_loyalty_enabled: form.value.is_loyalty_enabled,
       is_analytics_enabled: form.value.is_analytics_enabled,
       is_ai_agent_enabled: form.value.is_ai_agent_enabled,
+      is_invoices_enabled: form.value.is_invoices_enabled,
     })
   } catch {
     toast.error('Не удалось загрузить настройки')
@@ -4483,6 +4485,12 @@ async function saveSettings() {
       iiko_server_url: form.value.iiko_server_url || null,
       iiko_server_login: form.value.iiko_server_login || undefined,
       iiko_server_password: form.value.iiko_server_password || undefined,
+      default_store_id: form.value.default_store_id || null,
+      default_store_name: form.value.default_store_name || '',
+      vision_llm_provider: form.value.vision_llm_provider,
+      vision_llm_model: form.value.vision_llm_model,
+      vision_llm_api_key: form.value.vision_llm_api_key || undefined,
+      vision_llm_base_url: form.value.vision_llm_base_url || '',
       instagram_link: form.value.instagram_link || null,
       whatsapp_link: form.value.whatsapp_link || null,
       is_web_onboarding_enabled: form.value.is_web_onboarding_enabled,
@@ -4497,6 +4505,7 @@ async function saveSettings() {
       is_loyalty_enabled: form.value.is_loyalty_enabled,
       is_analytics_enabled: form.value.is_analytics_enabled,
       is_ai_agent_enabled: form.value.is_ai_agent_enabled,
+      is_invoices_enabled: form.value.is_invoices_enabled,
     })
     toast.success('Настройки сохранены')
   } catch (e) {

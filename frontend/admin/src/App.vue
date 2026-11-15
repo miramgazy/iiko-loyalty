@@ -175,6 +175,7 @@ const settingsSubTabs = computed(() => {
     { id: 'smsc', label: 'SMS-Центр (SMSC)', icon: '📱' },
     { id: 'iiko', label: 'Интеграция iiko Cloud API', icon: '☁️' },
     { id: 'iiko_server', label: 'Интеграция iiko Server API', icon: '🖥️' },
+    { id: 'vision_llm', label: 'Vision LLM Сервис', icon: '👁️' },
   ]
   if (org?.is_loyalty_enabled) {
     list.push(
@@ -188,9 +189,6 @@ const settingsSubTabs = computed(() => {
   }
   if (org?.is_ai_agent_enabled) {
     list.push({ id: 'llm', label: 'Настройки LLM', icon: '🤖' })
-  }
-  if (org?.is_invoices_enabled) {
-    list.push({ id: 'vision_llm', label: 'Настройки Vision LLM', icon: '👁️' })
   }
   return list
 })

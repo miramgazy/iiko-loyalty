@@ -129,7 +129,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         # Mask sensitive keys
-        for field in ['waba_access_token', 'smsc_password', 'llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
+        for field in ['waba_access_token', 'smsc_password', 'llm_api_key', 'vision_llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
             if getattr(instance, field, None):
                 data[field] = '••••••••'
             else:
@@ -138,7 +138,7 @@ class OrganizationSettingsSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # Prevent overwriting with masked placeholders
-        for field in ['waba_access_token', 'smsc_password', 'llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
+        for field in ['waba_access_token', 'smsc_password', 'llm_api_key', 'vision_llm_api_key', 'iiko_api_login', 'iiko_app_id', 'iiko_client_secret', 'iiko_webhook_password', 'iiko_server_password']:
             if field in validated_data:
                 val = validated_data[field]
                 if val == '••••••••':
