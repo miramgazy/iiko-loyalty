@@ -171,6 +171,15 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         serializer = InvoiceListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
+    def perform_destroy(self, instance):
+        for img in instance.images.all():
+            if img.image:
+                try:
+                    img.image.delete(save=False)
+                except Exception:
+                    pass
+        instance.delete()
+
     @action(detail=True, methods=['post'], url_path='reprocess')
     def reprocess(self, request, pk=None):
         """Повторный запуск OCR распознавания."""

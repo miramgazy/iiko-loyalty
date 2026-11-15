@@ -126,11 +126,22 @@
               </span>
             </td>
             <td class="px-6 py-4 text-right">
-              <RouterLink :to="`/admin/invoices/${inv.id}`"
-                class="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1.5">
-                <span>Открыть</span>
-                <span>➔</span>
-              </RouterLink>
+              <div class="flex items-center justify-end gap-2">
+                <RouterLink :to="`/admin/invoices/${inv.id}`"
+                  class="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1.5">
+                  <span>Открыть</span>
+                  <span>➔</span>
+                </RouterLink>
+                <button
+                  @click="promptDeleteInvoice(inv)"
+                  title="Удалить накладную"
+                  class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 rounded-lg text-xs transition-colors cursor-pointer"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
             </td>
           </tr>
           <tr v-if="!invoices.length">
@@ -207,6 +218,46 @@
         </div>
       </div>
     </Transition>
+
+    <!-- Delete Confirmation Modal -->
+    <Transition name="fade">
+      <div v-if="invoiceToDelete" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl space-y-4">
+          <div class="flex items-center gap-3 text-rose-400">
+            <div class="w-11 h-11 rounded-2xl bg-rose-500/15 border border-rose-500/20 flex items-center justify-center text-xl flex-shrink-0">
+              🗑️
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-white">Удалить накладную?</h3>
+              <p class="text-xs text-slate-400 font-mono mt-0.5">
+                {{ invoiceToDelete.invoice_number ? `№ ${invoiceToDelete.invoice_number}` : invoiceToDelete.internal_number }}
+              </p>
+            </div>
+          </div>
+          <p class="text-xs text-slate-300 leading-relaxed">
+            Вы уверены, что хотите удалить эту накладную? Прикрепленные изображения страниц, позиции товаров и черновик будут удалены безвозвратно.
+          </p>
+          <div class="flex gap-3 pt-2">
+            <button 
+              type="button" 
+              @click="invoiceToDelete = null" 
+              class="flex-1 py-2.5 border border-slate-700 text-slate-300 hover:bg-slate-800 rounded-xl text-xs font-semibold transition-colors"
+            >
+              Отмена
+            </button>
+            <button 
+              type="button" 
+              @click="deleteInvoice" 
+              :disabled="deleting" 
+              class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-2"
+            >
+              <span v-if="deleting" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+              <span>{{ deleting ? 'Удаление...' : 'Да, удалить' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -229,6 +280,31 @@ const showUploadModal = ref(false)
 const uploading = ref(false)
 const uploadFiles = ref([])
 const fileInputRef = ref(null)
+
+const invoiceToDelete = ref(null)
+const deleting = ref(false)
+
+function promptDeleteInvoice(inv) {
+  invoiceToDelete.value = inv
+}
+
+async function deleteInvoice() {
+  if (!invoiceToDelete.value) return
+  deleting.value = true
+  try {
+    await api.delete(`/invoices/documents/${invoiceToDelete.value.id}/`, {
+      params: { organization_id: auth.currentOrgId }
+    })
+    toast.success('Накладная успешно удалена')
+    invoices.value = invoices.value.filter(i => i.id !== invoiceToDelete.value.id)
+    invoiceToDelete.value = null
+  } catch (e) {
+    const err = e.response?.data?.error || 'Не удалось удалить накладную'
+    toast.error(err)
+  } finally {
+    deleting.value = false
+  }
+}
 
 const uploadForm = ref({
   iiko_store_id: null,

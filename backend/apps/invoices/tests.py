@@ -196,3 +196,15 @@ class InvoiceApiTest(APITestCase):
         )
         self.assertEqual(response.status_code, 403)
 
+    def test_delete_invoice(self):
+        invoice = Invoice.objects.create(
+            organization=self.org,
+            internal_number="INV-DEL-001",
+            status=Invoice.STATUS_PENDING
+        )
+        self.client.force_authenticate(user=self.user)
+        response = self.client.delete(f"/api/invoices/documents/{invoice.id}/?organization_id={self.org.id}")
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(Invoice.objects.filter(id=invoice.id).exists())
+
+
