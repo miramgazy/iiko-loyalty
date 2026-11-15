@@ -73,92 +73,94 @@
         <div class="w-8 h-8 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
       </div>
 
-      <table v-else class="w-full text-left text-sm text-slate-300">
-        <thead>
-          <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase tracking-wider bg-slate-950/40">
-            <th class="px-6 py-4">Документ</th>
-            <th class="px-6 py-4">Поставщик</th>
-            <th class="px-6 py-4">Склад iiko</th>
-            <th class="px-6 py-4">Сумма</th>
-            <th class="px-6 py-4">Статус</th>
-            <th class="px-6 py-4">Источник</th>
-            <th class="px-6 py-4">Автор</th>
-            <th class="px-6 py-4 text-right">Действия</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-800">
-          <tr v-for="inv in invoices" :key="inv.id" class="hover:bg-slate-850/50 transition-colors">
-            <td class="px-6 py-4">
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-sm font-mono text-indigo-300 flex-shrink-0">
-                  📄
-                </div>
-                <div>
-                  <div class="font-bold text-white flex items-center gap-2">
-                    {{ inv.invoice_number || inv.internal_number }}
-                    <span v-if="inv.images_count > 1" class="text-[10px] px-1.5 py-0.2 bg-slate-800 text-slate-400 rounded">
-                      {{ inv.images_count }} стр.
-                    </span>
+      <div v-else class="overflow-x-auto">
+        <table class="w-full min-w-max text-left text-sm text-slate-300">
+          <thead>
+            <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase tracking-wider bg-slate-950/40 whitespace-nowrap">
+              <th class="px-6 py-4">Документ</th>
+              <th class="px-6 py-4">Поставщик</th>
+              <th class="px-6 py-4">Склад iiko</th>
+              <th class="px-6 py-4">Сумма</th>
+              <th class="px-6 py-4">Статус</th>
+              <th class="px-6 py-4">Источник</th>
+              <th class="px-6 py-4">Автор</th>
+              <th class="px-6 py-4 text-right">Действия</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-800 whitespace-nowrap">
+            <tr v-for="inv in invoices" :key="inv.id" class="hover:bg-slate-850/50 transition-colors">
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-sm font-mono text-indigo-300 flex-shrink-0">
+                    📄
                   </div>
-                  <p class="text-[11px] text-slate-500">{{ inv.invoice_date || formatDate(inv.created_at) }}</p>
+                  <div>
+                    <div class="font-bold text-white flex items-center gap-2">
+                      {{ inv.invoice_number || inv.internal_number }}
+                      <span v-if="inv.images_count > 1" class="text-[10px] px-1.5 py-0.2 bg-slate-800 text-slate-400 rounded">
+                        {{ inv.images_count }} стр.
+                      </span>
+                    </div>
+                    <p class="text-[11px] text-slate-500">{{ inv.invoice_date || formatDate(inv.created_at) }}</p>
+                  </div>
                 </div>
-              </div>
-            </td>
-            <td class="px-6 py-4">
-              <p class="font-medium text-white">{{ inv.iiko_supplier_name || inv.raw_supplier_name || '—' }}</p>
-              <p v-if="inv.raw_supplier_inn" class="text-[11px] text-slate-500 font-mono">ИНН: {{ inv.raw_supplier_inn }}</p>
-            </td>
-            <td class="px-6 py-4">
-              <span class="text-xs text-slate-300">{{ inv.iiko_store_name || 'Не выбран' }}</span>
-            </td>
-            <td class="px-6 py-4 font-mono font-bold text-white">
-              {{ inv.total_sum ? Number(inv.total_sum).toLocaleString('ru-RU', { minimumFractionDigits: 2 }) + ' ₸' : '—' }}
-            </td>
-            <td class="px-6 py-4">
-              <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border"
-                :class="statusBadgeClass(inv.status)">
-                <span class="w-1.5 h-1.5 rounded-full" :class="statusDotClass(inv.status)"></span>
-                {{ inv.status_display }}
-              </span>
-            </td>
-            <td class="px-6 py-4 text-xs text-slate-400">
-              <span class="px-2 py-0.5 rounded bg-slate-800 font-mono text-[11px]">
-                {{ inv.source === 'tma' ? '📱 TMA' : '💻 Админка' }}
-              </span>
-            </td>
-            <td class="px-6 py-4 text-xs">
-              <div v-if="inv.author?.name" class="flex flex-col">
-                <span class="font-medium text-white truncate max-w-[160px]">{{ inv.author.name }}</span>
-                <span v-if="inv.author.role" class="text-[11px] text-slate-400 truncate max-w-[160px]">{{ inv.author.role }}</span>
-              </div>
-              <span v-else class="text-slate-500">—</span>
-            </td>
-            <td class="px-6 py-4 text-right">
-              <div class="flex items-center justify-end gap-2">
-                <RouterLink :to="`/admin/invoices/${inv.id}`"
-                  class="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1.5">
-                  <span>Открыть</span>
-                  <span>➔</span>
-                </RouterLink>
-                <button
-                  @click="promptDeleteInvoice(inv)"
-                  title="Удалить накладную"
-                  class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 rounded-lg text-xs transition-colors cursor-pointer"
-                >
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="!invoices.length">
-            <td colspan="8" class="px-6 py-16 text-center text-slate-500 text-sm">
-              Накладных не найдено. Загрузите фото или скан накладной, чтобы начать.
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <p class="font-medium text-white">{{ inv.iiko_supplier_name || inv.raw_supplier_name || '—' }}</p>
+                <p v-if="inv.raw_supplier_inn" class="text-[11px] text-slate-500 font-mono">ИНН: {{ inv.raw_supplier_inn }}</p>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span class="text-xs text-slate-300">{{ inv.iiko_store_name || 'Не выбран' }}</span>
+              </td>
+              <td class="px-6 py-4 font-mono font-bold text-white whitespace-nowrap">
+                {{ inv.total_sum ? Number(inv.total_sum).toLocaleString('ru-RU', { minimumFractionDigits: 2 }) + ' ₸' : '—' }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border whitespace-nowrap"
+                  :class="statusBadgeClass(inv.status)">
+                  <span class="w-1.5 h-1.5 rounded-full" :class="statusDotClass(inv.status)"></span>
+                  {{ inv.status_display }}
+                </span>
+              </td>
+              <td class="px-6 py-4 text-xs text-slate-400 whitespace-nowrap">
+                <span class="px-2 py-0.5 rounded bg-slate-800 font-mono text-[11px] whitespace-nowrap">
+                  {{ inv.source === 'tma' ? '📱 TMA' : '💻 Админка' }}
+                </span>
+              </td>
+              <td class="px-6 py-4 text-xs whitespace-nowrap">
+                <div v-if="inv.author?.name" class="flex flex-col whitespace-nowrap">
+                  <span class="font-medium text-white">{{ inv.author.name }}</span>
+                  <span v-if="inv.author.role" class="text-[11px] text-slate-400">{{ inv.author.role }}</span>
+                </div>
+                <span v-else class="text-slate-500">—</span>
+              </td>
+              <td class="px-6 py-4 text-right whitespace-nowrap">
+                <div class="flex items-center justify-end gap-2 whitespace-nowrap">
+                  <RouterLink :to="`/admin/invoices/${inv.id}`"
+                    class="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-semibold transition-all inline-flex items-center gap-1.5">
+                    <span>Открыть</span>
+                    <span>➔</span>
+                  </RouterLink>
+                  <button
+                    @click="promptDeleteInvoice(inv)"
+                    title="Удалить накладную"
+                    class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 rounded-lg text-xs transition-colors cursor-pointer"
+                  >
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="!invoices.length">
+              <td colspan="8" class="px-6 py-16 text-center text-slate-500 text-sm">
+                Накладных не найдено. Загрузите фото или скан накладной, чтобы начать.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <!-- Upload Modal -->

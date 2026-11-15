@@ -120,7 +120,7 @@
           ref="cameraInputRef" 
           type="file" 
           accept="image/*" 
-          capture="environment" 
+          multiple
           class="hidden" 
           @change="handleFileInputChange" 
         />
@@ -253,14 +253,17 @@
             'opacity-50 cursor-not-allowed': isSubmitting || filesList.length === 0,
           }"
         >
-          <span v-if="isSubmitting" class="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+          <span v-if="isSubmitting" class="flex items-center gap-2">
+            <span class="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></span>
+            <span>Отправка на сервер...</span>
+          </span>
           <template v-else>
             <svg class="w-5 h-5 stroke-current fill-none" viewBox="0 0 24 24" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"/>
               <polygon points="22 2 15 22 11 13 2 9 22 2"/>
             </svg>
             <span>
-              {{ filesList.length === 0 ? 'Сделайте фото для отправки' : `Отправить накладную (${filesList.length} стр.)` }}
+              {{ filesList.length === 0 ? 'Отправить на сервер' : `Отправить на сервер (${filesList.length} стр.)` }}
             </span>
           </template>
         </button>
