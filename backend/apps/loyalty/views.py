@@ -97,7 +97,7 @@ class TmaAuthView(APIView):
 
         if employee:
             role = employee.role
-            can_upload_invoices = employee.can_upload_invoices
+            can_upload_invoices = bool(employee.can_upload_invoices and org.is_invoices_enabled)
         else:
             is_org_manager = UserOrganization.objects.filter(
                 user__telegram_id=telegram_id,
@@ -108,7 +108,7 @@ class TmaAuthView(APIView):
             if is_org_manager or is_super:
                 role = 'owner'
                 is_employee = True
-                can_upload_invoices = True
+                can_upload_invoices = bool(org.is_invoices_enabled)
             else:
                 role = 'customer'
 
@@ -124,7 +124,7 @@ class TmaAuthView(APIView):
                 "last_name": employee.last_name,
                 "role": employee.role,
                 "role_display": employee.get_role_display(),
-                "can_upload_invoices": employee.can_upload_invoices
+                "can_upload_invoices": bool(employee.can_upload_invoices and org.is_invoices_enabled)
             } if employee else None,
             "organization": {
                 "id": org.id,

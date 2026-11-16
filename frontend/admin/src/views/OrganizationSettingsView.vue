@@ -2972,7 +2972,7 @@
         </div>
 
         <!-- TAB: Vision LLM Settings -->
-        <div v-show="activeTab === 'vision_llm'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
+        <div v-if="form.is_invoices_enabled" v-show="activeTab === 'vision_llm'" class="bg-slate-900 rounded-2xl border border-slate-800 p-6 space-y-6">
           <div class="flex items-center justify-between pb-3 border-b border-slate-800">
             <div>
               <h3 class="text-white font-medium flex items-center gap-2">
@@ -3468,8 +3468,10 @@ const tabs = computed(() => {
     { id: 'smsc', label: 'SMS-Центр (SMSC)' },
     { id: 'iiko', label: 'Интеграция iiko Cloud API' },
     { id: 'iiko_server', label: 'Интеграция iiko Server API' },
-    { id: 'vision_llm', label: 'Vision LLM Сервис' },
   ]
+  if (form.value.is_invoices_enabled) {
+    list.push({ id: 'vision_llm', label: 'Vision LLM Сервис' })
+  }
   if (form.value.is_loyalty_enabled) {
     list.push(
       { id: 'card_tiers', label: 'Ранги и дизайн карт' },
@@ -3487,6 +3489,13 @@ const tabs = computed(() => {
 })
 
 const activeTab = ref(route.query.tab ? String(route.query.tab) : 'general')
+
+// Если модуль Накладные не активен, предотвращаем просмотр вкладки vision_llm
+watch([() => form.value.is_invoices_enabled, activeTab], ([invoicesEnabled, currentTab]) => {
+  if (currentTab === 'vision_llm' && !invoicesEnabled) {
+    activeTab.value = 'general'
+  }
+})
 
 const currentTabLabel = computed(() => {
   const t = tabs.value.find(tab => tab.id === activeTab.value)

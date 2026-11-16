@@ -109,7 +109,7 @@
           </template>
 
           <!-- Invoices Module Links -->
-          <template v-if="auth.currentMembership?.organization?.is_invoices_enabled || auth.isAccountant">
+          <template v-if="auth.currentMembership?.organization?.is_invoices_enabled">
             <RouterLink to="/admin/invoices" @click="closeSettings" class="nav-link" active-class="nav-link-active">
               <span>🧾</span> Накладные
             </RouterLink>

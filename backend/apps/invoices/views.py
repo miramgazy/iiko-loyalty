@@ -178,7 +178,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         org = get_current_organization(self.request)
-        if not org:
+        if not org or not org.is_invoices_enabled:
             return Invoice.objects.none()
 
         qs = Invoice.objects.filter(organization=org).select_related('organization', 'uploaded_by', 'uploaded_by_employee')
@@ -491,6 +491,8 @@ class SupplierProductAliasViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         org = get_current_organization(self.request)
+        if not org or not org.is_invoices_enabled:
+            return SupplierProductAlias.objects.none()
         qs = SupplierProductAlias.objects.filter(organization=org)
         search = self.request.query_params.get('search')
         if search:
@@ -513,13 +515,16 @@ class TestVisionConnectionView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsAccountantOrAdmin]
 
     def post(self, request, *args, **kwargs):
+        org = get_current_organization(request)
+        if not org or not org.is_invoices_enabled:
+            return Response({"success": False, "error": "Модуль накладных отключен для данной организации"}, status=status.HTTP_403_FORBIDDEN)
+
         provider = request.data.get('vision_llm_provider', 'gemini')
         model = request.data.get('vision_llm_model', 'gemini-2.5-flash')
         api_key = request.data.get('vision_llm_api_key')
         base_url = request.data.get('vision_llm_base_url')
 
         if not api_key or api_key == '••••••••':
-            org = get_current_organization(request)
             api_key = org.vision_llm_api_key
 
         if not api_key:
