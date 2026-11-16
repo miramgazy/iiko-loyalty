@@ -35,6 +35,46 @@ body {
   border-radius: 4px;
 }
 
+/* Global Form input & label defaults */
+.form-input {
+  background-color: #020617;
+  border: 1px solid #334155;
+  color: #f8fafc;
+  border-radius: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  transition: all 0.15s ease-in-out;
+  outline: none;
+  color-scheme: dark;
+}
+
+.form-input:hover {
+  border-color: #64748b;
+}
+
+.form-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
+.form-input::placeholder {
+  color: #64748b;
+}
+
+select.form-input option {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+
+.form-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 0.375rem;
+}
+
 /* Toast transitions */
 .toast-enter-active,
 .toast-leave-active {

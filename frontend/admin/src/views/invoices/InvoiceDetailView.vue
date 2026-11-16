@@ -99,33 +99,69 @@
         <!-- Left Column: Дата накладной, затем Номер накладной -->
         <div class="flex flex-col gap-2.5">
           <div>
-            <label class="text-[11px] font-semibold text-slate-400 block mb-1">Дата накладной</label>
-            <input v-model="invoice.invoice_date" @blur="saveHeader" type="date" class="form-input text-xs py-1.5 w-full" />
+            <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5 mb-1">
+              <span class="text-indigo-400">📅</span>
+              Дата накладной
+            </label>
+            <input 
+              v-model="invoice.invoice_date" 
+              @blur="saveHeader" 
+              type="date" 
+              class="form-input text-xs py-2 px-3 w-full bg-slate-950/90 border border-slate-700/90 hover:border-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 rounded-xl text-white font-mono shadow-inner [color-scheme:dark] transition-all" 
+            />
           </div>
           <div>
-            <label class="text-[11px] font-semibold text-slate-400 block mb-1">Номер накладной</label>
-            <input v-model="invoice.invoice_number" @blur="saveHeader" type="text" class="form-input text-xs py-1.5 w-full" placeholder="Номер..." />
+            <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5 mb-1">
+              <span class="text-indigo-400">🔢</span>
+              Номер накладной
+            </label>
+            <input 
+              v-model="invoice.invoice_number" 
+              @blur="saveHeader" 
+              type="text" 
+              class="form-input text-xs py-2 px-3 w-full bg-slate-950/90 border border-slate-700/90 hover:border-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 rounded-xl text-white font-mono shadow-inner transition-all placeholder:text-slate-500" 
+              placeholder="Номер накладной..." 
+            />
           </div>
         </div>
 
         <!-- Right Column: Поставщик в iiko, затем Склад оприходования -->
         <div class="flex flex-col gap-2.5">
           <div>
-            <label class="text-[11px] font-semibold text-slate-400 block mb-1">Поставщик в iiko</label>
-            <div class="flex gap-1.5">
-              <select v-model="invoice.iiko_supplier_id" @change="saveHeader" class="form-input text-xs py-1.5 flex-1">
+            <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5 mb-1">
+              <span class="text-indigo-400">🏢</span>
+              Поставщик в iiko
+            </label>
+            <div class="flex items-center gap-2">
+              <select 
+                v-model="invoice.iiko_supplier_id" 
+                @change="saveHeader" 
+                class="form-input text-xs py-2 px-3 flex-1 bg-slate-950/90 border border-slate-700/90 hover:border-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 rounded-xl text-white shadow-inner transition-all truncate"
+              >
                 <option :value="null">-- Не выбран --</option>
                 <option v-for="sup in suppliers" :key="sup.id" :value="sup.id">{{ sup.name }}</option>
               </select>
-              <button @click="showSupplierModal = true" title="Создать контрагента в iiko"
-                class="px-2.5 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 rounded-lg text-xs font-bold cursor-pointer transition-colors">
-                +
+              <button 
+                @click="openSupplierModal" 
+                type="button"
+                title="Создать нового контрагента в iiko"
+                class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/30 border border-indigo-400/40 cursor-pointer transition-all flex-shrink-0"
+              >
+                <span class="text-base font-extrabold leading-none">+</span>
+                <span class="font-semibold text-xs">Новый</span>
               </button>
             </div>
           </div>
           <div>
-            <label class="text-[11px] font-semibold text-slate-400 block mb-1">Склад оприходования</label>
-            <select v-model="invoice.iiko_store_id" @change="onStoreChange" class="form-input text-xs py-1.5 w-full">
+            <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5 mb-1">
+              <span class="text-indigo-400">🏬</span>
+              Склад оприходования
+            </label>
+            <select 
+              v-model="invoice.iiko_store_id" 
+              @change="onStoreChange" 
+              class="form-input text-xs py-2 px-3 w-full bg-slate-950/90 border border-slate-700/90 hover:border-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 rounded-xl text-white shadow-inner transition-all truncate"
+            >
               <option :value="null">-- Не выбран --</option>
               <option v-for="st in stores" :key="st.id" :value="st.id">{{ st.name }}</option>
             </select>
@@ -413,31 +449,114 @@
 
     <!-- Create Supplier Modal -->
     <Transition name="fade">
-      <div v-if="showSupplierModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4" @click.self="showSupplierModal = false">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
-          <div class="flex items-center justify-between pb-2 border-b border-slate-800">
-            <h3 class="text-sm font-bold text-white">Создать контрагента в iiko</h3>
-            <button @click="showSupplierModal = false" class="text-slate-400 hover:text-white">✕</button>
+      <div 
+        v-if="showSupplierModal" 
+        class="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6" 
+        @click.self="showSupplierModal = false"
+      >
+        <div class="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+          <!-- Modal Header -->
+          <div class="px-6 py-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-lg flex-shrink-0 shadow-inner">
+                🏢
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white">Создать контрагента в iiko</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">Новый поставщик будет зарегистрирован в iiko Server и привязан к накладной</p>
+              </div>
+            </div>
+            <button 
+              type="button"
+              @click="showSupplierModal = false" 
+              class="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-white flex items-center justify-center transition-colors text-sm font-bold cursor-pointer"
+            >
+              ✕
+            </button>
           </div>
 
-          <form @submit.prevent="createSupplierInIiko" class="space-y-3 text-xs">
+          <!-- Modal Body / Form -->
+          <form @submit.prevent="createSupplierInIiko" class="p-6 space-y-4">
+            <!-- Supplier Name Field -->
             <div>
-              <label class="form-label">Наименование поставщика</label>
-              <input v-model="newSupplierForm.name" type="text" class="form-input text-xs" required />
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
+                <span class="flex items-center gap-1.5">
+                  <span class="text-indigo-400">🏷️</span>
+                  Наименование поставщика <span class="text-rose-400">*</span>
+                </span>
+                <span v-if="invoice?.raw_supplier_name && newSupplierForm.name === invoice.raw_supplier_name" class="text-[10px] font-normal text-indigo-400 flex items-center gap-1 bg-indigo-950/60 border border-indigo-800/60 px-2 py-0.5 rounded-full">
+                  ✨ из накладной
+                </span>
+              </label>
+              <input 
+                v-model="newSupplierForm.name" 
+                type="text" 
+                class="form-input text-xs py-2.5 px-3.5 w-full bg-slate-950/90 border border-slate-700/80 hover:border-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 rounded-xl text-white placeholder-slate-500 shadow-inner outline-none transition-all" 
+                placeholder="например: ТОО Фуд Дистрибьюшн" 
+                required 
+                autofocus
+              />
             </div>
+
+            <!-- 2-Columns: INN/BIN and Code -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                  <span class="text-indigo-400">🪪</span>
+                  БИН / ИНН
+                </label>
+                <input 
+                  v-model="newSupplierForm.inn" 
+                  type="text" 
+                  class="form-input text-xs py-2.5 px-3.5 w-full bg-slate-950/90 border border-slate-700/80 hover:border-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 rounded-xl text-white placeholder-slate-500 shadow-inner font-mono outline-none transition-all" 
+                  placeholder="12 цифр..." 
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                  <span class="text-indigo-400">🔖</span>
+                  Артикул / Код
+                </label>
+                <input 
+                  v-model="newSupplierForm.code" 
+                  type="text" 
+                  class="form-input text-xs py-2.5 px-3.5 w-full bg-slate-950/90 border border-slate-700/80 hover:border-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 rounded-xl text-white placeholder-slate-500 shadow-inner font-mono outline-none transition-all" 
+                  placeholder="Код в iiko..." 
+                />
+              </div>
+            </div>
+
+            <!-- Phone field (optional) -->
             <div>
-              <label class="form-label">ИНН / БИН</label>
-              <input v-model="newSupplierForm.inn" type="text" class="form-input text-xs" />
+              <label class="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                <span class="text-indigo-400">📞</span>
+                Номер телефона <span class="text-[10px] text-slate-500 font-normal">(опционально)</span>
+              </label>
+              <input 
+                v-model="newSupplierForm.phone" 
+                type="tel" 
+                class="form-input text-xs py-2.5 px-3.5 w-full bg-slate-950/90 border border-slate-700/80 hover:border-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 rounded-xl text-white placeholder-slate-500 shadow-inner font-mono outline-none transition-all" 
+                placeholder="+7 (700) 000-00-00" 
+              />
             </div>
-            <div>
-              <label class="form-label">Артикул / Код (опционально)</label>
-              <input v-model="newSupplierForm.code" type="text" class="form-input text-xs" />
-            </div>
-            <div class="flex gap-2 pt-2">
-              <button type="button" @click="showSupplierModal = false" class="flex-1 py-2 border border-slate-700 rounded-xl text-slate-300">Отмена</button>
-              <button type="submit" :disabled="creatingSupplier" class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold flex items-center justify-center gap-2">
+
+            <!-- Modal Action Buttons -->
+            <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+              <button 
+                type="button" 
+                @click="showSupplierModal = false" 
+                class="px-4 py-2.5 border border-slate-700 hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold cursor-pointer transition-colors"
+              >
+                Отмена
+              </button>
+              <button 
+                type="submit" 
+                :disabled="creatingSupplier || !newSupplierForm.name.trim()" 
+                class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-95"
+              >
                 <span v-if="creatingSupplier" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                <span>Создать в iiko</span>
+                <span>{{ creatingSupplier ? 'Создание...' : 'Создать в iiko' }}</span>
               </button>
             </div>
           </form>
@@ -641,7 +760,15 @@ async function selectProductForActiveItem(prod) {
 // Create Supplier Modal
 const showSupplierModal = ref(false)
 const creatingSupplier = ref(false)
-const newSupplierForm = ref({ name: '', inn: '', code: '' })
+const newSupplierForm = ref({ name: '', inn: '', code: '', phone: '' })
+
+function openSupplierModal() {
+  if (!newSupplierForm.value.name.trim() && invoice.value?.raw_supplier_name) {
+    newSupplierForm.value.name = invoice.value.raw_supplier_name
+    newSupplierForm.value.inn = invoice.value.raw_supplier_inn || ''
+  }
+  showSupplierModal.value = true
+}
 
 async function createSupplierInIiko() {
   creatingSupplier.value = true
@@ -656,6 +783,7 @@ async function createSupplierInIiko() {
     await saveHeader()
     toast.success(`Поставщик '${res.data.name}' создан в iiko и привязан!`)
     showSupplierModal.value = false
+    newSupplierForm.value = { name: '', inn: '', code: '', phone: '' }
   } catch (e) {
     const err = e.response?.data?.error || 'Ошибка при создании контрагента в iiko'
     toast.error(err)
@@ -728,3 +856,33 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
 })
 </script>
+
+<style scoped>
+.form-input {
+  background-color: #020617; /* slate-950 */
+  border: 1px solid #334155; /* slate-700 */
+  color: #f8fafc;
+  border-radius: 0.75rem;
+  transition: all 0.15s ease-in-out;
+  outline: none;
+  color-scheme: dark;
+}
+
+.form-input:hover {
+  border-color: #64748b; /* slate-500 */
+}
+
+.form-input:focus {
+  border-color: #6366f1; /* indigo-500 */
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+}
+
+.form-input::placeholder {
+  color: #64748b;
+}
+
+select.form-input option {
+  background-color: #0f172a;
+  color: #f8fafc;
+}
+</style>
