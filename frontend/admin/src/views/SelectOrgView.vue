@@ -40,10 +40,14 @@ const router = useRouter()
 
 function select(membership) {
   auth.setCurrentOrg(membership.organization.id)
-  router.push('/admin/customers')
+  if (membership.role === 'accountant') {
+    router.push(membership.organization?.is_invoices_enabled ? '/admin/invoices' : '/admin/tma-employees')
+  } else {
+    router.push('/admin/customers')
+  }
 }
 
 function roleLabel(role) {
-  return { org_manager: 'Менеджер', org_admin: 'Администратор' }[role] || role
+  return { org_manager: 'Менеджер', org_admin: 'Администратор', accountant: 'Бухгалтер' }[role] || role
 }
 </script>

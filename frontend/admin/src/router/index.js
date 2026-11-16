@@ -31,7 +31,7 @@ const routes = [
     path: '/admin/settings',
     name: 'org-settings',
     component: () => import('@/views/OrganizationSettingsView.vue'),
-    meta: { requiresAuth: true, requiresOrgManager: true },
+    meta: { requiresAuth: true, requiresOrgManagerOrAccountant: true },
   },
   {
     path: '/admin/employees',
@@ -43,7 +43,7 @@ const routes = [
     path: '/admin/tma-employees',
     name: 'tma-employees',
     component: () => import('@/views/TmaEmployeeListView.vue'),
-    meta: { requiresAuth: true, requiresOrgManager: true },
+    meta: { requiresAuth: true, requiresOrgManagerOrAccountant: true },
   },
   {
     path: '/admin/customers',
@@ -140,7 +140,7 @@ router.beforeEach((to, from, next) => {
     if (auth.isSuperAdmin) return next('/superadmin')
     if (auth.currentRole === 'accountant') {
       const isInvoices = auth.currentMembership?.organization?.is_invoices_enabled
-      return next(isInvoices ? '/admin/invoices' : '/admin/customers')
+      return next(isInvoices ? '/admin/invoices' : '/admin/tma-employees')
     }
     if (auth.currentOrgId) return next('/admin/customers')
     return next('/select-org')
@@ -151,15 +151,24 @@ router.beforeEach((to, from, next) => {
   if (!auth.isAuthenticated) return next('/login')
 
   if (to.meta.requiresSuperAdmin && !auth.isSuperAdmin) return next('/')
-  if (to.meta.requiresOrgManager && !auth.isOrgManager) return next('/')
-  if (to.meta.requiresOrgAdmin && !auth.isOrgAdmin && !auth.isAccountant) return next('/')
-  if (to.meta.requiresAccountant && !auth.isAccountant && !auth.isOrgAdmin) return next('/')
+  if (to.meta.requiresOrgManager && !auth.isOrgManager) {
+    return next(auth.isAccountant ? '/admin/invoices' : (auth.isOrgAdmin ? '/admin/customers' : '/'))
+  }
+  if (to.meta.requiresOrgManagerOrAccountant && !auth.isOrgManager && !auth.isAccountant) {
+    return next(auth.isOrgAdmin ? '/admin/customers' : '/')
+  }
+  if (to.meta.requiresOrgAdmin && (!auth.isOrgAdmin || auth.currentRole === 'accountant')) {
+    return next(auth.isAccountant ? '/admin/invoices' : '/')
+  }
+  if (to.meta.requiresAccountant && !auth.isAccountant) {
+    return next(auth.isOrgAdmin ? '/admin/customers' : '/')
+  }
 
   // Проверка активности модуля Накладные (Invoices)
   if (to.meta.requiresInvoicesModule) {
     const org = auth.currentMembership?.organization
     if (!org?.is_invoices_enabled) {
-      return next(auth.isOrgAdmin ? '/admin/customers' : '/')
+      return next(auth.isOrgAdmin ? '/admin/customers' : (auth.isAccountant ? '/admin/tma-employees' : '/'))
     }
   }
 

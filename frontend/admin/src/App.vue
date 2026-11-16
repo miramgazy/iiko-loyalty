@@ -27,7 +27,7 @@
         </template>
         <template v-if="auth.currentOrgId">
           <!-- Dynamic Collapsible Settings Menu -->
-          <div v-if="auth.isOrgManager" class="space-y-1">
+          <div v-if="auth.isOrgManager || (auth.isAccountant && auth.currentMembership?.organization?.is_invoices_enabled)" class="space-y-1">
             <button
               type="button"
               id="sidebar-nav-settings"
@@ -77,22 +77,22 @@
           <RouterLink v-if="auth.isOrgManager" to="/admin/employees" @click="closeSettings" class="nav-link" active-class="nav-link-active">
             <span>👥</span> Сотрудники
           </RouterLink>
-          <RouterLink v-if="auth.isOrgManager" to="/admin/tma-employees" @click="closeSettings" class="nav-link" active-class="nav-link-active">
+          <RouterLink v-if="auth.isOrgManager || auth.isAccountant" to="/admin/tma-employees" @click="closeSettings" class="nav-link" active-class="nav-link-active">
             <span>👥</span> Персонал TMA
           </RouterLink>
 
           <!-- Loyalty Module Links -->
-          <template v-if="auth.currentMembership?.organization?.is_loyalty_enabled">
-            <RouterLink v-if="auth.isOrgAdmin" to="/admin/customers" @click="closeSettings" class="nav-link" active-class="nav-link-active">
+          <template v-if="auth.currentMembership?.organization?.is_loyalty_enabled && auth.isOrgAdmin">
+            <RouterLink to="/admin/customers" @click="closeSettings" class="nav-link" active-class="nav-link-active">
               <span>🎯</span> Клиенты
             </RouterLink>
-            <RouterLink v-if="auth.isOrgAdmin" to="/admin/mailings" @click="closeSettings" class="nav-link" active-class="nav-link-active">
+            <RouterLink to="/admin/mailings" @click="closeSettings" class="nav-link" active-class="nav-link-active">
               <span>📢</span> Рассылки
             </RouterLink>
           </template>
 
           <!-- Analytics & Inventory Module Links -->
-          <template v-if="auth.currentMembership?.organization?.is_analytics_enabled">
+          <template v-if="auth.currentMembership?.organization?.is_analytics_enabled && auth.isOrgAdmin">
             <RouterLink to="/admin/analytics" @click="closeSettings" class="nav-link" active-class="nav-link-active">
               <span>📊</span> Аналитика
             </RouterLink>
@@ -102,14 +102,14 @@
           </template>
 
           <!-- AI Agent Module Links -->
-          <template v-if="auth.currentMembership?.organization?.is_ai_agent_enabled">
+          <template v-if="auth.currentMembership?.organization?.is_ai_agent_enabled && auth.isOrgAdmin">
             <RouterLink to="/admin/ai-agent" @click="closeSettings" class="nav-link" active-class="nav-link-active">
               <span>🤖</span> Чат с AI
             </RouterLink>
           </template>
 
           <!-- Invoices Module Links -->
-          <template v-if="auth.currentMembership?.organization?.is_invoices_enabled">
+          <template v-if="auth.currentMembership?.organization?.is_invoices_enabled && auth.isAccountant">
             <RouterLink to="/admin/invoices" @click="closeSettings" class="nav-link" active-class="nav-link-active">
               <span>🧾</span> Накладные
             </RouterLink>
@@ -169,14 +169,25 @@ const activeSettingsTab = computed(() => (route.query.tab ? String(route.query.t
 
 const settingsSubTabs = computed(() => {
   const org = auth.currentMembership?.organization
+
+  // Для бухгалтера в настройках доступен ТОЛЬКО раздел Vision LLM
+  if (auth.currentRole === 'accountant') {
+    if (org?.is_invoices_enabled) {
+      return [{ id: 'vision_llm', label: 'Vision LLM Сервис', icon: '👁️' }]
+    }
+    return []
+  }
+
   const list = [
     { id: 'general', label: 'Основные / Telegram', icon: '⚙️' },
     { id: 'waba', label: 'Настройка WABA', icon: '💬' },
     { id: 'smsc', label: 'SMS-Центр (SMSC)', icon: '📱' },
     { id: 'iiko', label: 'Интеграция iiko Cloud API', icon: '☁️' },
     { id: 'iiko_server', label: 'Интеграция iiko Server API', icon: '🖥️' },
-    { id: 'vision_llm', label: 'Vision LLM Сервис', icon: '👁️' },
   ]
+  if (org?.is_invoices_enabled) {
+    list.push({ id: 'vision_llm', label: 'Vision LLM Сервис', icon: '👁️' })
+  }
   if (org?.is_loyalty_enabled) {
     list.push(
       { id: 'card_tiers', label: 'Ранги и дизайн карт', icon: '💳' },
@@ -202,14 +213,15 @@ watch(() => route.path, (newPath) => {
 }, { immediate: true })
 
 function toggleSettings() {
+  const defaultTab = auth.currentRole === 'accountant' ? 'vision_llm' : 'general'
   if (!isSettingsOpen.value) {
     isSettingsOpen.value = true
-    router.push({ path: '/admin/settings', query: { tab: 'general' } })
+    router.push({ path: '/admin/settings', query: { tab: defaultTab } })
   } else if (!isSettingsRoute.value) {
-    router.push({ path: '/admin/settings', query: { tab: 'general' } })
+    router.push({ path: '/admin/settings', query: { tab: defaultTab } })
   } else {
-    if (activeSettingsTab.value !== 'general') {
-      router.push({ path: '/admin/settings', query: { tab: 'general' } })
+    if (activeSettingsTab.value !== defaultTab) {
+      router.push({ path: '/admin/settings', query: { tab: defaultTab } })
     } else {
       isSettingsOpen.value = false
     }

@@ -9,9 +9,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from apps.core.models import Organization, PosTerminal
 from apps.core.serializers import SuperAdminOrganizationSerializer, OrganizationSettingsSerializer, PosTerminalSerializer
-from apps.accounts.permissions import IsSuperAdmin, IsOrgManager
+from apps.accounts.permissions import IsSuperAdmin, IsOrgManager, IsOrgManagerOrAccountant
 from apps.loyalty.google_wallet_service import GoogleWalletService
-from apps.accounts.permissions import IsSuperAdmin, IsOrgManager
 
 class SuperAdminOrganizationViewSet(viewsets.ModelViewSet):
     """
@@ -38,9 +37,9 @@ class SuperAdminOrganizationViewSet(viewsets.ModelViewSet):
 
 class OrganizationSettingsView(APIView):
     """
-    View for OrgManager to view and modify their organization's settings.
+    View for OrgManager or Accountant to view and modify their organization's settings.
     """
-    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+    permission_classes = [permissions.IsAuthenticated, IsOrgManagerOrAccountant]
 
     def get(self, request, organization_id, *args, **kwargs):
         org = get_object_or_404(Organization, id=organization_id)
@@ -49,12 +48,27 @@ class OrganizationSettingsView(APIView):
 
     def patch(self, request, organization_id, *args, **kwargs):
         org = get_object_or_404(Organization, id=organization_id)
-        serializer = OrganizationSettingsSerializer(org, data=request.data, partial=True)
+        
+        # Если пользователь Бухгалтер (и не управляющий/суперадмин), разрешаем изменять только настройки Vision LLM
+        from apps.accounts.models import UserOrganization
+        is_manager = getattr(request.user, 'is_superuser', False) or UserOrganization.objects.filter(
+            user=request.user,
+            organization=org,
+            role__in=[UserOrganization.ROLE_ORG_MANAGER, UserOrganization.ROLE_SUPERUSER, UserOrganization.ROLE_SUPERADMIN]
+        ).exists()
+
+        if not is_manager:
+            allowed_fields = {'vision_llm_provider', 'vision_llm_model', 'vision_llm_api_key', 'vision_llm_base_url'}
+            patch_data = {k: v for k, v in request.data.items() if k in allowed_fields}
+        else:
+            patch_data = request.data
+
+        serializer = OrganizationSettingsSerializer(org, data=patch_data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         
         # Trigger webhook registration if bot token is updated
-        if 'tg_bot_token' in request.data:
+        if 'tg_bot_token' in request.data and is_manager:
             from apps.loyalty.tasks import register_tg_webhook
             register_tg_webhook.delay(org.id)
             
@@ -493,9 +507,9 @@ from apps.core.serializers import TmaEmployeeSerializer
 
 class TmaEmployeeViewSet(viewsets.ModelViewSet):
     """
-    ViewSet for OrgManager to manage TMA Employees (Owners, Managers, Cashiers).
+    ViewSet for OrgManager or Accountant to manage TMA Employees (Owners, Managers, Cashiers).
     """
-    permission_classes = [permissions.IsAuthenticated, IsOrgManager]
+    permission_classes = [permissions.IsAuthenticated, IsOrgManagerOrAccountant]
     serializer_class = TmaEmployeeSerializer
 
     def get_queryset(self):

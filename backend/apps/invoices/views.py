@@ -194,7 +194,6 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                 role__in=[
                     UserOrganization.ROLE_ACCOUNTANT,
                     UserOrganization.ROLE_ORG_MANAGER,
-                    UserOrganization.ROLE_ORG_ADMIN,
                     UserOrganization.ROLE_SUPERUSER,
                     UserOrganization.ROLE_SUPERADMIN,
                 ]

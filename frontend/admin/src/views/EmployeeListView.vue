@@ -42,7 +42,9 @@
               <span class="text-xs font-medium px-2.5 py-1 rounded-full border"
                 :class="emp.role === 'org_manager'
                   ? 'bg-indigo-900/50 text-indigo-300 border-indigo-800'
-                  : 'bg-slate-800 text-slate-300 border-slate-700'">
+                  : (emp.role === 'accountant'
+                    ? 'bg-amber-900/50 text-amber-300 border-amber-800'
+                    : 'bg-slate-800 text-slate-300 border-slate-700')">
                 {{ roleLabel(emp.role) }}
               </span>
             </td>
@@ -91,6 +93,7 @@
               <select id="select-emp-role" v-model="newEmp.role" class="form-input">
                 <option value="org_manager">Менеджер (OrgManager)</option>
                 <option value="org_admin">Администратор (OrgAdmin)</option>
+                <option value="accountant">Бухгалтер (Accountant)</option>
               </select>
             </div>
             <div>
@@ -187,7 +190,7 @@ function initials(emp) {
 }
 
 function roleLabel(role) {
-  return { org_manager: 'Менеджер', org_admin: 'Администратор' }[role] || role
+  return { org_manager: 'Менеджер', org_admin: 'Администратор', accountant: 'Бухгалтер' }[role] || role
 }
 
 onMounted(loadEmployees)

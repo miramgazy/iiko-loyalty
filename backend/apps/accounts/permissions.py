@@ -43,6 +43,37 @@ class IsOrgManager(permissions.BasePermission):
             role=UserOrganization.ROLE_ORG_MANAGER
         ).exists()
 
+class IsOrgManagerOrAccountant(permissions.BasePermission):
+    """
+    Разрешает доступ управляющим (org_manager), бухгалтерам (accountant) или суперадминам.
+    """
+    def has_permission(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return False
+
+        if getattr(request.user, 'is_superuser', False):
+            return True
+
+        if UserOrganization.objects.filter(
+            user=request.user,
+            role__in=[UserOrganization.ROLE_SUPERUSER, UserOrganization.ROLE_SUPERADMIN]
+        ).exists():
+            return True
+
+        org_id = (
+            view.kwargs.get('organization_id') or
+            request.data.get('organization_id') or
+            request.query_params.get('organization_id')
+        )
+        if not org_id:
+            return False
+
+        return UserOrganization.objects.filter(
+            user=request.user,
+            organization_id=org_id,
+            role__in=[UserOrganization.ROLE_ORG_MANAGER, UserOrganization.ROLE_ACCOUNTANT]
+        ).exists()
+
 class IsOrgEmployee(permissions.BasePermission):
     def has_permission(self, request, view):
         if not request.user or not request.user.is_authenticated:
@@ -141,7 +172,6 @@ class IsAccountantOrAdmin(permissions.BasePermission):
                     role__in=[
                         UserOrganization.ROLE_ACCOUNTANT,
                         UserOrganization.ROLE_ORG_MANAGER,
-                        UserOrganization.ROLE_ORG_ADMIN,
                         UserOrganization.ROLE_SUPERUSER,
                         UserOrganization.ROLE_SUPERADMIN,
                     ]
@@ -153,7 +183,6 @@ class IsAccountantOrAdmin(permissions.BasePermission):
                 role__in=[
                     UserOrganization.ROLE_ACCOUNTANT,
                     UserOrganization.ROLE_ORG_MANAGER,
-                    UserOrganization.ROLE_ORG_ADMIN,
                     UserOrganization.ROLE_SUPERUSER,
                     UserOrganization.ROLE_SUPERADMIN,
                 ]
@@ -168,7 +197,6 @@ class IsAccountantOrAdmin(permissions.BasePermission):
                 role__in=[
                     UserOrganization.ROLE_ACCOUNTANT,
                     UserOrganization.ROLE_ORG_MANAGER,
-                    UserOrganization.ROLE_ORG_ADMIN,
                     UserOrganization.ROLE_SUPERUSER,
                     UserOrganization.ROLE_SUPERADMIN,
                 ]

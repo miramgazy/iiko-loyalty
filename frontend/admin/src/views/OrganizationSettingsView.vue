@@ -3462,6 +3462,14 @@ const route = useRoute()
 const router = useRouter()
 
 const tabs = computed(() => {
+  // Для бухгалтера доступна только вкладка Vision LLM (если модуль накладных включен)
+  if (auth.currentRole === 'accountant') {
+    if (form.value.is_invoices_enabled) {
+      return [{ id: 'vision_llm', label: 'Vision LLM Сервис' }]
+    }
+    return []
+  }
+
   const list = [
     { id: 'general', label: 'Основные / Telegram' },
     { id: 'waba', label: 'Настройка WABA' },
@@ -3488,10 +3496,20 @@ const tabs = computed(() => {
   return list
 })
 
-const activeTab = ref(route.query.tab ? String(route.query.tab) : 'general')
+const activeTab = ref(
+  route.query.tab 
+    ? String(route.query.tab) 
+    : (auth.currentRole === 'accountant' ? 'vision_llm' : 'general')
+)
 
-// Если модуль Накладные не активен, предотвращаем просмотр вкладки vision_llm
+// Если бухгалтер или модуль Накладные не активен, предотвращаем просмотр неразрешенных вкладок
 watch([() => form.value.is_invoices_enabled, activeTab], ([invoicesEnabled, currentTab]) => {
+  if (auth.currentRole === 'accountant') {
+    if (currentTab !== 'vision_llm') {
+      activeTab.value = 'vision_llm'
+    }
+    return
+  }
   if (currentTab === 'vision_llm' && !invoicesEnabled) {
     activeTab.value = 'general'
   }
