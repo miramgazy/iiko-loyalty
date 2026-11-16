@@ -684,7 +684,7 @@ async function loadSuppliers() {
   loadingSuppliers.value = true
   try {
     const res = await api.get('/invoices/suppliers/', {
-      params: { organization_id: auth.currentOrgId }
+      params: { organization_id: auth.currentOrgId, include_raw: true }
     })
     suppliers.value = res.data || []
   } catch (e) {

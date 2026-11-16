@@ -454,22 +454,26 @@ class IikoSuppliersView(APIView):
             logger.warning("Could not fetch suppliers from iiko server: %s", e)
             suppliers = []
 
-        # Объединяем с уникальными поставщиками из уже загруженных накладных организации
-        existing_names = {s['name'].strip().lower() for s in suppliers if s.get('name')}
-        invoice_suppliers = Invoice.objects.filter(organization=org).values_list('iiko_supplier_name', 'raw_supplier_name').distinct()
-        for iiko_name, raw_name in invoice_suppliers:
-            name = (iiko_name or raw_name or '').strip()
-            if name and name.lower() not in existing_names:
-                suppliers.append({
-                    "id": None,
-                    "name": name,
-                    "code": "",
-                    "inn": ""
-                })
-                existing_names.add(name.lower())
+        # По умолчанию возвращаем только реальных поставщиков из iiko Server (с заполненным ID)
+        valid_suppliers = [s for s in suppliers if s.get('id')]
 
-        suppliers.sort(key=lambda x: (x.get('name') or '').lower())
-        return Response(suppliers)
+        # Опционально: для фильтрации в списке накладных можно включить текстовые имена из истории
+        if request.query_params.get('include_raw') == 'true':
+            existing_names = {s['name'].strip().lower() for s in valid_suppliers if s.get('name')}
+            invoice_suppliers = Invoice.objects.filter(organization=org).values_list('iiko_supplier_name', 'raw_supplier_name').distinct()
+            for iiko_name, raw_name in invoice_suppliers:
+                name = (iiko_name or raw_name or '').strip()
+                if name and name.lower() not in existing_names:
+                    valid_suppliers.append({
+                        "id": None,
+                        "name": name,
+                        "code": "",
+                        "inn": ""
+                    })
+                    existing_names.add(name.lower())
+
+        valid_suppliers.sort(key=lambda x: (x.get('name') or '').lower())
+        return Response(valid_suppliers)
 
     def post(self, request, *args, **kwargs):
         org = get_current_organization(request)

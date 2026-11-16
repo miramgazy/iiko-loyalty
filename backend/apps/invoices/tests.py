@@ -260,7 +260,14 @@ class InvoiceApiTest(APITestCase):
             raw_supplier_name="ТОО Экзотик Фрут"
         )
         self.client.force_authenticate(user=self.user)
-        res = self.client.get(f"/api/invoices/suppliers/?organization_id={self.org.id}")
+        # По умолчанию без include_raw не должно содержать неподтвержденных поставщиков
+        res_default = self.client.get(f"/api/invoices/suppliers/?organization_id={self.org.id}")
+        self.assertEqual(res_default.status_code, 200)
+        names_default = [s['name'] for s in res_default.data]
+        self.assertNotIn("ТОО Экзотик Фрут", names_default)
+
+        # С флагом include_raw=true включает для фильтрации
+        res = self.client.get(f"/api/invoices/suppliers/?organization_id={self.org.id}&include_raw=true")
         self.assertEqual(res.status_code, 200)
         names = [s['name'] for s in res.data]
         self.assertIn("ТОО Экзотик Фрут", names)
