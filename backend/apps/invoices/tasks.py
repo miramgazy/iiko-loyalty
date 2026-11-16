@@ -74,7 +74,8 @@ def process_invoice_ocr_task(self, invoice_id: int):
         created_items = []
         for idx, it in enumerate(items_data, start=1):
             raw_name = it.get('raw_name', '').strip()
-            if not raw_name:
+            clean_name = it.get('clean_name', '').strip()
+            if not raw_name and not clean_name:
                 continue
 
             raw_amount = float(it.get('raw_amount') or 0.0)
@@ -85,6 +86,7 @@ def process_invoice_ocr_task(self, invoice_id: int):
 
             match_res = matching_service.match_item(
                 raw_name=raw_name,
+                clean_name=clean_name,
                 supplier_id=str(invoice.iiko_supplier_id) if invoice.iiko_supplier_id else None,
                 raw_amount=raw_amount,
                 raw_price=raw_price,
@@ -96,7 +98,8 @@ def process_invoice_ocr_task(self, invoice_id: int):
                 InvoiceItem(
                     invoice=invoice,
                     num=idx,
-                    raw_name=raw_name,
+                    raw_name=raw_name or clean_name,
+                    clean_name=clean_name,
                     raw_unit=raw_unit,
                     raw_amount=raw_amount,
                     raw_price=raw_price,
@@ -108,6 +111,7 @@ def process_invoice_ocr_task(self, invoice_id: int):
                     confidence=match_res['confidence'],
                     match_status=match_res['match_status'],
                     match_source=match_res['match_source'],
+                    candidates=match_res.get('candidates', []),
                     packaging_coefficient=match_res['packaging_coefficient'],
                     iiko_container_id=match_res.get('container_id'),
                     iiko_container_name=match_res.get('container_name') or "",

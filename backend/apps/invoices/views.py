@@ -331,6 +331,28 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             item.match_source = 'manual'
             item.confidence = Decimal('1.00')
 
+            # Мгновенное самообучение: сохраняем связку в базу знаний
+            if invoice.iiko_supplier_id and item.raw_name:
+                try:
+                    norm_raw = normalize_product_name(item.raw_name)
+                    if norm_raw:
+                        SupplierProductAlias.objects.update_or_create(
+                            organization=invoice.organization,
+                            supplier_id=invoice.iiko_supplier_id,
+                            normalized_raw_name=norm_raw,
+                            defaults={
+                                'supplier_name': invoice.iiko_supplier_name or invoice.raw_supplier_name,
+                                'raw_product_name': item.raw_name,
+                                'iiko_product_id': item.iiko_product_id,
+                                'iiko_product_name': item.iiko_product_name,
+                                'default_packaging_coefficient': item.packaging_coefficient,
+                                'default_container_id': item.iiko_container_id,
+                                'default_container_name': item.iiko_container_name,
+                            }
+                        )
+                except Exception as e:
+                    logger.warning(f"Could not auto-save alias in update_item: {e}")
+
         if 'iiko_container_id' in data:
             item.iiko_container_id = data['iiko_container_id']
             item.iiko_container_name = data.get('iiko_container_name', '')

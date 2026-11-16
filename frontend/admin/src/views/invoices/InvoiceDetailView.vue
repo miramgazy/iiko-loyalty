@@ -231,6 +231,9 @@
               <!-- Raw name from invoice -->
               <td class="px-4 py-2">
                 <p class="font-medium text-white text-xs leading-snug">{{ item.raw_name }}</p>
+                <p v-if="item.clean_name && item.clean_name !== item.raw_name" class="text-[10px] text-indigo-300 font-medium mt-0.5 flex items-center gap-1">
+                  <span>✨ Поиск:</span> {{ item.clean_name }}
+                </p>
                 <p class="text-[10px] text-slate-500 mt-0.5">
                   {{ item.raw_amount }} {{ item.raw_unit }} • по {{ item.raw_price }} ₸
                 </p>
@@ -253,6 +256,22 @@
                       :class="item.iiko_product_id ? 'text-slate-100 font-medium' : 'text-rose-400 border-rose-800/80'"
                     />
                   </div>
+                </div>
+
+                <!-- Quick Candidate Suggestions Pills -->
+                <div v-if="item.candidates && item.candidates.length > 0 && item.match_status !== 'green'" class="flex flex-wrap items-center gap-1.5 mt-1.5 pl-6">
+                  <span class="text-[10px] text-slate-400">💡 Похожие:</span>
+                  <button
+                    v-for="cand in item.candidates.slice(0, 3)"
+                    :key="cand.id"
+                    type="button"
+                    @click.stop="quickSelectCandidate(item, cand)"
+                    class="px-2 py-0.5 rounded-lg bg-indigo-950/70 hover:bg-indigo-600 hover:text-white text-indigo-300 border border-indigo-800/80 text-[10px] font-medium transition-colors cursor-pointer flex items-center gap-1"
+                    :title="`Выбрать: ${cand.name} (${Math.round(cand.score * 100)}% совпадение)`"
+                  >
+                    <span>{{ cand.name }}</span>
+                    <span class="opacity-75 font-mono text-[9px]">{{ Math.round(cand.score * 100) }}%</span>
+                  </button>
                 </div>
               </td>
 
@@ -409,12 +428,42 @@
 
           <div>
             <p class="text-[11px] text-slate-400 mb-1">Строка из накладной:</p>
-            <p class="text-xs font-bold text-indigo-300 bg-slate-950/50 p-2 rounded border border-slate-800">
-              {{ activeSearchItem?.raw_name }}
+            <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 space-y-1">
+              <p class="text-xs font-bold text-white">{{ activeSearchItem?.raw_name }}</p>
+              <p v-if="activeSearchItem?.clean_name && activeSearchItem.clean_name !== activeSearchItem.raw_name" class="text-[11px] text-indigo-400 font-medium flex items-center gap-1">
+                <span>✨ Смысловое ядро (AI):</span> {{ activeSearchItem.clean_name }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Suggested candidates if present -->
+          <div v-if="activeSearchItem?.candidates && activeSearchItem.candidates.length > 0" class="space-y-1.5">
+            <p class="text-[11px] font-semibold text-slate-300 flex items-center gap-1">
+              <span>💡</span> Рекомендованные совпадения (AI):
             </p>
+            <div class="flex flex-col gap-1.5 max-h-36 overflow-y-auto">
+              <div
+                v-for="cand in activeSearchItem.candidates"
+                :key="cand.id"
+                @click="selectProductForActiveItem(cand)"
+                class="p-2 rounded-xl bg-indigo-950/40 hover:bg-indigo-600/30 border border-indigo-800/60 cursor-pointer flex items-center justify-between transition-colors text-xs"
+              >
+                <div>
+                  <p class="font-medium text-white">{{ cand.name }}</p>
+                  <p class="text-[10px] text-slate-400 font-mono">{{ cand.code ? `Арт: ${cand.code}` : '' }} • Ед: {{ cand.unit || 'кг' }}</p>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-indigo-900/60 text-indigo-300">
+                    {{ Math.round(cand.score * 100) }}%
+                  </span>
+                  <span class="text-xs text-indigo-400 font-bold">Выбрать ➔</span>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div>
+            <label class="text-[11px] font-semibold text-slate-400 block mb-1">Поиск по каталогу iiko:</label>
             <input
               v-model="catalogQuery"
               @input="searchCatalog"
@@ -727,9 +776,18 @@ let catalogSearchTimeout = null
 
 function openSearchFor(item) {
   activeSearchItem.value = item
-  catalogQuery.value = item.raw_name || ''
+  catalogQuery.value = item.clean_name || item.raw_name || ''
   searchModalOpen.value = true
   searchCatalog()
+}
+
+async function quickSelectCandidate(item, cand) {
+  item.iiko_product_id = cand.id
+  item.iiko_product_name = cand.name
+  item.iiko_product_code = cand.code
+  item.match_status = 'green'
+  await updateItemValues(item)
+  toast.success(`Привязано: ${cand.name}`)
 }
 
 async function searchCatalog() {

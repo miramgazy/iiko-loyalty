@@ -21,10 +21,61 @@ def normalize_product_name(s: str) -> str:
     s = s.lower().replace('ё', 'е')
     # Заменяем знаки препинания на пробелы
     s = re.sub(r'["\'«»“”()\[\],.:;!/?\\_+\-*#%№@]', ' ', s)
-    # Удаляем распространенные стоп-слова
-    stop_words = {'ооо', 'зао', 'оао', 'пао', 'тоо', 'ип', 'чуп', 'кг', 'гр', 'г', 'л', 'мл', 'шт', 'уп', 'кор', 'бан'}
-    tokens = [w for w in s.split() if w not in stop_words]
+    # Удаляем распространенные стоп-слова, юр. формы и тару
+    stop_words = {
+        'ооо', 'зао', 'оао', 'пао', 'тоо', 'ип', 'чуп', 'тм',
+        'кг', 'гр', 'г', 'л', 'мл', 'шт', 'уп', 'кор', 'бан',
+        'арт', 'артикул', 'код', 'сорт', 'кат', 'срт', 'категория',
+        'блок', 'ящик', 'пакет', 'бутылка', 'бут', 'упак', 'пачка', 'пач',
+        'нетто', 'брутто', 'вес', 'весовой', 'охл', 'зам', 'с/м'
+    }
+    tokens = [w for w in s.split() if w not in stop_words and not (w.isdigit() and len(w) >= 4)]
     return ' '.join(tokens)
+
+
+def score_catalog_item(clean_name: str, raw_name: str, norm_clean: str, norm_raw: str, prod: Dict[str, Any]) -> float:
+    """
+    Вычисляет оценку схожести (0.0..1.0) между товаром из накладной и позицией каталога iiko.
+    Приоритет отдается очищенному смысловому наименованию clean_name.
+    """
+    prod_name = prod.get('name', '')
+    if not prod_name:
+        return 0.0
+
+    norm_prod = normalize_product_name(prod_name)
+
+    # 1. Точное совпадение после нормализации
+    if norm_prod and (norm_prod == norm_clean or norm_prod == norm_raw):
+        return 1.0
+
+    # 2. Полное вхождение подстроки (например "сыр моцарелла" полностью входит в "сыр моцарелла 45%")
+    if norm_prod and len(norm_prod) >= 4:
+        if (norm_clean and norm_prod in norm_clean) or (norm_raw and norm_prod in norm_raw):
+            return 0.95
+        if norm_clean and norm_clean in norm_prod:
+            return 0.92
+
+    # 3. Метрики на clean_name (primary)
+    score_clean = 0.0
+    if clean_name:
+        w_clean = fuzz.WRatio(clean_name, prod_name)
+        set_clean = fuzz.token_set_ratio(clean_name, prod_name)
+        score_clean = max(w_clean, set_clean)
+
+    # 4. Метрики на raw_name (secondary, с небольшой скидкой на шум)
+    score_raw = 0.0
+    if raw_name:
+        w_raw = fuzz.WRatio(raw_name, prod_name)
+        set_raw = fuzz.token_set_ratio(raw_name, prod_name)
+        score_raw = max(w_raw, set_raw) * 0.90
+
+    # 5. Проверка совпадения артикула iiko в тексте накладной
+    prod_code = str(prod.get('code') or '').strip()
+    if prod_code and len(prod_code) >= 3 and prod_code in raw_name:
+        return 0.98
+
+    best = max(score_clean, score_raw)
+    return round(best / 100.0, 3)
 
 
 class InvoiceMatchingService:
@@ -136,6 +187,7 @@ class InvoiceMatchingService:
     def match_item(
         self,
         raw_name: str,
+        clean_name: str = "",
         supplier_id: Optional[str] = None,
         raw_amount: float = 0.0,
         raw_price: float = 0.0,
@@ -144,6 +196,7 @@ class InvoiceMatchingService:
     ) -> Dict[str, Any]:
         """
         Сопоставляет строку документа со справочником iiko.
+        Использует приоритет очищенного имени (clean_name), базу знаний и взвешенный алгоритм RapidFuzz.
         Возвращает:
         - match_status: 'green' | 'yellow' | 'red'
         - match_source: 'knowledge_base' | 'fuzzy' | 'manual'
@@ -153,17 +206,21 @@ class InvoiceMatchingService:
         - container_id, container_name
         - candidates: список топ-5 похожих вариантов
         """
-        norm_name = normalize_product_name(raw_name)
+        raw_name = (raw_name or "").strip()
+        clean_name = (clean_name or "").strip()
 
-        # 1-й Уровень: База знаний (Exact Match по алиасам)
-        alias_query = SupplierProductAlias.objects.filter(
-            organization=self.org,
-            normalized_raw_name=norm_name
-        )
+        norm_raw = normalize_product_name(raw_name)
+        norm_clean = normalize_product_name(clean_name) if clean_name else norm_raw
+
+        # 1-й Уровень: База знаний (Exact Match по алиасам для поставщика)
+        alias_query = SupplierProductAlias.objects.filter(organization=self.org)
         if supplier_id:
-            alias = alias_query.filter(supplier_id=supplier_id).first()
-        else:
-            alias = alias_query.first()
+            alias_query = alias_query.filter(supplier_id=supplier_id)
+
+        alias = (
+            alias_query.filter(normalized_raw_name=norm_raw).first() or
+            (alias_query.filter(normalized_raw_name=norm_clean).first() if norm_clean else None)
+        )
 
         if alias:
             calc = PackagingCalculationService.calculate_item_values(
@@ -183,56 +240,12 @@ class InvoiceMatchingService:
                 **calc
             }
 
-        # 2-й Уровень: Fuzzy поиск по каталогу iiko (RapidFuzz)
-        catalog = self.get_cached_products()
-        if not catalog:
-            # Если каталог пуст, возвращаем статус RED
-            calc = PackagingCalculationService.calculate_item_values(raw_amount, raw_price, raw_sum, 1.0)
-            return {
-                'match_status': InvoiceItem.MATCH_STATUS_RED,
-                'match_source': 'manual',
-                'confidence': 0.0,
-                'product_id': None,
-                'product_name': '',
-                'product_code': '',
-                'packaging_coefficient': 1.0,
-                'container_id': None,
-                'container_name': '',
-                'candidates': [],
-                **calc
-            }
-
-        choices_names = [p['name'] for p in catalog]
-        # Извлекаем топ-5 наиболее похожих названий
-        extracted = process.extract(
-            raw_name,
-            choices_names,
-            scorer=fuzz.token_sort_ratio,
-            limit=5
-        )
-
-        candidates = []
-        for name_match, score, index in extracted:
-            prod = catalog[index]
-            candidates.append({
-                'id': prod['id'],
-                'name': prod['name'],
-                'code': prod['code'],
-                'unit': prod.get('unit', 'кг'),
-                'score': round(score / 100.0, 2)
-            })
-
-        best_candidate = candidates[0] if candidates else None
-        best_score = best_candidate['score'] if best_candidate else 0.0
-
         # Определение фасовки из текста
         packaging_coeff = Decimal('1.000')
         container_id = None
         container_name = ""
 
-        # Анализ подсказки фасовки
-        full_text = f"{raw_name} {packaging_hint}".lower()
-        # Ищем паттерны вида "0.5л", "500г", "5 кг", "10кг"
+        full_text = f"{raw_name} {clean_name} {packaging_hint}".lower()
         weight_match = re.search(r'(\d+(?:[.,]\d+)?)\s*(кг|г|гр|л|мл)\b', full_text)
         if weight_match:
             num_val = float(weight_match.group(1).replace(',', '.'))
@@ -246,11 +259,53 @@ class InvoiceMatchingService:
             raw_amount, raw_price, raw_sum, packaging_coeff
         )
 
+        # 2-й Уровень: Умный поиск по каталогу iiko (RapidFuzz WRatio + token_set_ratio)
+        catalog = self.get_cached_products()
+        if not catalog:
+            return {
+                'match_status': InvoiceItem.MATCH_STATUS_RED,
+                'match_source': 'manual',
+                'confidence': 0.0,
+                'product_id': None,
+                'product_name': '',
+                'product_code': '',
+                'packaging_coefficient': float(packaging_coeff),
+                'container_id': None,
+                'container_name': '',
+                'candidates': [],
+                **calc
+            }
+
+        scored_candidates = []
+        for prod in catalog:
+            score = score_catalog_item(
+                clean_name=clean_name,
+                raw_name=raw_name,
+                norm_clean=norm_clean,
+                norm_raw=norm_raw,
+                prod=prod
+            )
+            if score >= 0.35:
+                scored_candidates.append({
+                    'id': str(prod['id']),
+                    'name': prod['name'],
+                    'code': prod.get('code') or '',
+                    'unit': prod.get('unit') or 'кг',
+                    'score': score
+                })
+
+        # Сортируем кандидатов по убыванию схожести и берем топ-5
+        scored_candidates.sort(key=lambda x: x['score'], reverse=True)
+        candidates = scored_candidates[:5]
+
+        best_candidate = candidates[0] if candidates else None
+        best_score = best_candidate['score'] if best_candidate else 0.0
+
         # Градация уверенности:
-        # Score >= 0.88 -> ЗЕЛЕНЫЙ
-        # 0.60 <= Score < 0.88 -> ЖЕЛТЫЙ
-        # Score < 0.60 -> КРАСНЫЙ
-        if best_score >= 0.88 and best_candidate:
+        # Score >= 0.85 -> ЗЕЛЕНЫЙ (Точное / уверенное совпадение)
+        # 0.55 <= Score < 0.85 -> ЖЕЛТЫЙ (Вероятный вариант, предлагаем подтвердить или выбрать из кандидатов)
+        # Score < 0.55 -> КРАСНЫЙ (Не найдено, но кандидаты доступны для выбора в 1 клик)
+        if best_score >= 0.85 and best_candidate:
             return {
                 'match_status': InvoiceItem.MATCH_STATUS_GREEN,
                 'match_source': 'fuzzy',
@@ -264,7 +319,7 @@ class InvoiceMatchingService:
                 'candidates': candidates,
                 **calc
             }
-        elif best_score >= 0.60 and best_candidate:
+        elif best_score >= 0.55 and best_candidate:
             return {
                 'match_status': InvoiceItem.MATCH_STATUS_YELLOW,
                 'match_source': 'fuzzy',

@@ -142,6 +142,7 @@ class InvoiceItem(models.Model):
 
     # Исходные данные из накладной (OCR/LLM)
     raw_name = models.CharField("Наименование из накладной", max_length=255)
+    clean_name = models.CharField("Очищенное наименование (AI)", max_length=255, blank=True, default="")
     raw_unit = models.CharField("Единица из накладной", max_length=50, blank=True, default="")
     raw_amount = models.DecimalField("Количество по накладной", max_digits=12, decimal_places=3, default=0.0)
     raw_price = models.DecimalField("Цена по накладной", max_digits=12, decimal_places=2, default=0.0)
@@ -155,6 +156,7 @@ class InvoiceItem(models.Model):
     confidence = models.DecimalField("Уверенность сопоставления", max_digits=5, decimal_places=2, default=0.0)
     match_status = models.CharField("Цветовой статус", max_length=10, choices=MATCH_STATUS_CHOICES, default=MATCH_STATUS_RED)
     match_source = models.CharField("Источник совпадения", max_length=20, choices=MATCH_SOURCE_CHOICES, default='manual')
+    candidates = models.JSONField("Топ похожих товаров iiko", default=list, blank=True)
 
     # Фасовка и пересчет для складского учета iiko
     packaging_coefficient = models.DecimalField(

@@ -22,9 +22,9 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = InvoiceItem
         fields = [
-            'id', 'num', 'raw_name', 'raw_unit', 'raw_amount', 'raw_price', 'raw_sum', 'raw_vat_percent',
+            'id', 'num', 'raw_name', 'clean_name', 'raw_unit', 'raw_amount', 'raw_price', 'raw_sum', 'raw_vat_percent',
             'iiko_product_id', 'iiko_product_name', 'iiko_product_code',
-            'confidence', 'match_status', 'match_source',
+            'confidence', 'match_status', 'match_source', 'candidates',
             'packaging_coefficient', 'iiko_container_id', 'iiko_container_name',
             'iiko_amount', 'iiko_price', 'iiko_sum', 'sum_diff'
         ]
