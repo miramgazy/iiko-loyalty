@@ -5,12 +5,15 @@ from decimal import Decimal
 import xml.etree.ElementTree as ET
 import httpx
 from django.core.cache import cache
+from django.utils import timezone
+from django.db import connection
 from rapidfuzz import fuzz, process
 
 from apps.core.models import Organization
 from apps.loyalty.services import IikoServerAuthService, IikoAuthService
-from apps.invoices.models import SupplierProductAlias, InvoiceItem
+from apps.invoices.models import SupplierProductAlias, InvoiceItem, IikoProductEmbedding
 from apps.invoices.services.calculation_service import PackagingCalculationService
+from apps.invoices.services.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +100,31 @@ class InvoiceMatchingService:
             cache.set(cache_key, products, timeout=3600)
         return products
 
+    def _fetch_assembly_charts_strategies(self, base_url: str, token: str) -> Dict[str, str]:
+        """
+        Запрашивает актуальные технологические карты (/resto/api/v2/assemblyCharts/getAll)
+        и возвращает словарь {assembledProductId: productWriteoffStrategy}.
+        - 'ASSEMBLE': списание по ингредиентам (кухонные блюда, соусы, полуфабрикаты). Исключаем!
+        - 'DIRECT': списание готовым блюдом (самостоятельные штучные единицы на складе). Оставляем!
+        """
+        strategies = {}
+        try:
+            today_str = timezone.now().date().strftime("%Y-%m-%d")
+            url = f"{base_url}/resto/api/v2/assemblyCharts/getAll"
+            with httpx.Client(timeout=30, verify=False) as client:
+                resp = client.get(url, params={"key": token, "dateFrom": today_str, "dateTo": today_str})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    charts = data.get("assemblyCharts", []) if isinstance(data, dict) else data
+                    for c in charts:
+                        pid = c.get("assembledProductId")
+                        strategy = c.get("productWriteoffStrategy")
+                        if pid and strategy:
+                            strategies[str(pid).lower()] = strategy
+        except Exception as e:
+            logger.warning(f"Failed to fetch assembly charts for org {self.org.id}: {e}")
+        return strategies
+
     def _fetch_products_from_iiko(self) -> List[Dict[str, Any]]:
         products = []
 
@@ -107,6 +135,9 @@ class InvoiceMatchingService:
                 token = auth_service.get_access_token()
                 base_url = self.org.iiko_server_url.rstrip('/')
 
+                # Получаем стратегии списания из активных ТТК
+                strategies = self._fetch_assembly_charts_strategies(base_url, token)
+
                 # Попытка v2 JSON
                 v2_url = f"{base_url}/resto/api/v2/entities/products/list"
                 with httpx.Client(timeout=30, verify=False) as client:
@@ -115,15 +146,33 @@ class InvoiceMatchingService:
                         data = resp.json()
                         raw_items = data if isinstance(data, list) else data.get("products", [])
                         for item in raw_items:
-                            # Фильтруем удаленные
                             if item.get("deleted"):
                                 continue
+
+                            ptype = (item.get("type") or "GOODS").upper()
+                            # Исключаем услуги, модификаторы, тарифы
+                            if ptype in ("SERVICE", "MODIFIER", "RATE"):
+                                continue
+
+                            pid = str(item.get("id")).lower()
+                            strategy = strategies.get(pid)
+
+                            # Для блюд и заготовок:
+                            # Если списание по ингредиентам (ASSEMBLE) -> исключаем!
+                            # Если списание готовым блюдом (DIRECT) -> оставляем!
+                            if ptype in ("DISH", "PREPARED"):
+                                if strategy == "ASSEMBLE":
+                                    continue
+                                if strategy != "DIRECT" and ptype == "DISH":
+                                    continue
+
                             products.append({
                                 "id": str(item.get("id")),
                                 "name": item.get("name", ""),
                                 "code": item.get("code") or item.get("article") or "",
                                 "unit": item.get("mainUnit") or item.get("unit") or "кг",
-                                "containers": item.get("containers", [])
+                                "containers": item.get("containers", []),
+                                "type": ptype
                             })
                         if products:
                             return products
@@ -140,14 +189,29 @@ class InvoiceMatchingService:
                             code = prod_elem.findtext('num') or prod_elem.findtext('code') or ""
                             main_unit = prod_elem.findtext('mainUnit') or "кг"
                             deleted = prod_elem.findtext('deleted') == 'true'
+                            ptype = (prod_elem.findtext('productType') or prod_elem.findtext('type') or 'GOODS').upper()
+
                             if deleted or not pid or not name:
                                 continue
+
+                            if ptype in ("SERVICE", "MODIFIER", "RATE"):
+                                continue
+
+                            pid_lower = str(pid).lower()
+                            strategy = strategies.get(pid_lower)
+                            if ptype in ("DISH", "PREPARED"):
+                                if strategy == "ASSEMBLE":
+                                    continue
+                                if strategy != "DIRECT" and ptype == "DISH":
+                                    continue
+
                             products.append({
                                 "id": pid,
                                 "name": name,
                                 "code": code,
                                 "unit": main_unit,
-                                "containers": []
+                                "containers": [],
+                                "type": ptype
                             })
                         if products:
                             return products
@@ -172,17 +236,104 @@ class InvoiceMatchingService:
                         for p in data.get("products", []):
                             if p.get("isDeleted"):
                                 continue
+                            ptype = (p.get("type") or "GOODS").upper()
+                            if ptype in ("SERVICE", "MODIFIER", "RATE", "DISH"):
+                                continue
                             products.append({
                                 "id": str(p.get("id")),
                                 "name": p.get("name", ""),
                                 "code": p.get("code") or "",
                                 "unit": p.get("unit") or "кг",
-                                "containers": []
+                                "containers": [],
+                                "type": ptype
                             })
             except Exception as e:
                 logger.error(f"Failed to fetch nomenclature from iiko Cloud for org {self.org.id}: {e}")
 
         return products
+
+    def _find_vector_candidates(self, query_text: str) -> List[Dict[str, Any]]:
+        """
+        Выполняет семантический векторный поиск в pgvector (IikoProductEmbedding)
+        по тексту (clean_name или raw_name).
+        """
+        if not query_text:
+            return []
+
+        emb_service = EmbeddingService(self.org)
+        if not emb_service.is_configured():
+            return []
+
+        try:
+            has_embeddings = IikoProductEmbedding.objects.filter(
+                organization=self.org,
+                embedding__isnull=False
+            ).exists()
+            if not has_embeddings:
+                return []
+
+            query_vec = emb_service.get_embedding(query_text)
+            if not query_vec:
+                return []
+
+            vector_candidates = []
+            if connection.vendor == 'postgresql':
+                from pgvector.django import CosineDistance
+                qs = (
+                    IikoProductEmbedding.objects.filter(
+                        organization=self.org,
+                        embedding__isnull=False
+                    )
+                    .annotate(distance=CosineDistance('embedding', query_vec))
+                    .order_by('distance')[:10]
+                )
+                for item in qs:
+                    dist = float(item.distance) if item.distance is not None else 1.0
+                    sim = round(max(0.0, 1.0 - dist), 3)
+                    if sim >= 0.40:
+                        vector_candidates.append({
+                            'id': str(item.iiko_product_id),
+                            'name': item.name,
+                            'code': item.code or '',
+                            'unit': item.unit or 'кг',
+                            'score': sim,
+                            'source': 'vector'
+                        })
+            else:
+                # Python / NumPy fallback для SQLite и модульных тестов
+                import numpy as np
+                emb_items = list(
+                    IikoProductEmbedding.objects.filter(
+                        organization=self.org,
+                        embedding__isnull=False
+                    )[:2000]
+                )
+                if emb_items:
+                    q_arr = np.array(query_vec, dtype=np.float32)
+                    q_norm = np.linalg.norm(q_arr)
+                    if q_norm > 0:
+                        q_arr = q_arr / q_norm
+                        for item in emb_items:
+                            v_arr = np.array(item.embedding, dtype=np.float32)
+                            v_norm = np.linalg.norm(v_arr)
+                            if v_norm > 0:
+                                sim = float(np.dot(q_arr, v_arr / v_norm))
+                                if sim >= 0.40:
+                                    vector_candidates.append({
+                                        'id': str(item.iiko_product_id),
+                                        'name': item.name,
+                                        'code': item.code or '',
+                                        'unit': item.unit or 'кг',
+                                        'score': round(sim, 3),
+                                        'source': 'vector'
+                                    })
+                        vector_candidates.sort(key=lambda x: x['score'], reverse=True)
+                        vector_candidates = vector_candidates[:10]
+
+            return vector_candidates
+        except Exception as e:
+            logger.warning(f"Vector search failed for org {self.org.id}: {e}")
+            return []
 
     def match_item(
         self,
@@ -260,21 +411,7 @@ class InvoiceMatchingService:
         )
 
         # 2-й Уровень: Умный поиск по каталогу iiko (RapidFuzz WRatio + token_set_ratio)
-        catalog = self.get_cached_products()
-        if not catalog:
-            return {
-                'match_status': InvoiceItem.MATCH_STATUS_RED,
-                'match_source': 'manual',
-                'confidence': 0.0,
-                'product_id': None,
-                'product_name': '',
-                'product_code': '',
-                'packaging_coefficient': float(packaging_coeff),
-                'container_id': None,
-                'container_name': '',
-                'candidates': [],
-                **calc
-            }
+        catalog = self.get_cached_products() or []
 
         scored_candidates = []
         for prod in catalog:
@@ -291,15 +428,39 @@ class InvoiceMatchingService:
                     'name': prod['name'],
                     'code': prod.get('code') or '',
                     'unit': prod.get('unit') or 'кг',
-                    'score': score
+                    'score': score,
+                    'source': 'fuzzy'
                 })
 
-        # Сортируем кандидатов по убыванию схожести и берем топ-5
-        scored_candidates.sort(key=lambda x: x['score'], reverse=True)
-        candidates = scored_candidates[:5]
+        # 3-й Уровень: Семантический векторный поиск в pgvector
+        query_text = clean_name if clean_name else raw_name
+        vector_candidates = self._find_vector_candidates(query_text)
+
+        # Объединяем результаты RapidFuzz и Vector search
+        candidates_by_id = {}
+        for c in scored_candidates:
+            candidates_by_id[c['id']] = c
+
+        for vc in vector_candidates:
+            pid = vc['id']
+            if pid in candidates_by_id:
+                existing = candidates_by_id[pid]
+                fuzz_sc = existing['score']
+                vec_sc = vc['score']
+                # Синергия: если и вектор, и fuzzy находят товар, оценка усиливается
+                combined = max(fuzz_sc, vec_sc, round(0.5 * fuzz_sc + 0.5 * vec_sc + 0.05, 3))
+                existing['score'] = min(combined, 1.0)
+                existing['source'] = 'vector+fuzzy'
+            else:
+                candidates_by_id[pid] = vc
+
+        combined_candidates = list(candidates_by_id.values())
+        combined_candidates.sort(key=lambda x: x['score'], reverse=True)
+        candidates = combined_candidates[:5]
 
         best_candidate = candidates[0] if candidates else None
         best_score = best_candidate['score'] if best_candidate else 0.0
+        best_source = best_candidate.get('source', 'fuzzy') if best_candidate else 'fuzzy'
 
         # Градация уверенности:
         # Score >= 0.85 -> ЗЕЛЕНЫЙ (Точное / уверенное совпадение)
@@ -308,7 +469,7 @@ class InvoiceMatchingService:
         if best_score >= 0.85 and best_candidate:
             return {
                 'match_status': InvoiceItem.MATCH_STATUS_GREEN,
-                'match_source': 'fuzzy',
+                'match_source': best_source,
                 'confidence': best_score,
                 'product_id': best_candidate['id'],
                 'product_name': best_candidate['name'],
@@ -322,7 +483,7 @@ class InvoiceMatchingService:
         elif best_score >= 0.55 and best_candidate:
             return {
                 'match_status': InvoiceItem.MATCH_STATUS_YELLOW,
-                'match_source': 'fuzzy',
+                'match_source': best_source,
                 'confidence': best_score,
                 'product_id': best_candidate['id'],
                 'product_name': best_candidate['name'],

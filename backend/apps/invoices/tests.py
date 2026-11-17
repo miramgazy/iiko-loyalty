@@ -5,10 +5,12 @@ from django.test import TestCase
 from django.utils import timezone
 from apps.core.models import Organization, Employee
 from apps.accounts.models import User, UserOrganization
-from apps.invoices.models import Invoice, InvoiceItem, SupplierProductAlias
+from apps.invoices.models import Invoice, InvoiceItem, SupplierProductAlias, IikoProductEmbedding
 from apps.invoices.services.calculation_service import PackagingCalculationService
 from apps.invoices.services.matching_service import InvoiceMatchingService, normalize_product_name
 from apps.invoices.services.iiko_invoice_service import IikoIncomingInvoiceService
+from apps.invoices.services.embedding_service import EmbeddingService
+from apps.invoices.tasks import sync_and_vectorize_organization_task
 
 
 class PackagingCalculationServiceTest(TestCase):
@@ -90,6 +92,109 @@ class MatchingServiceTest(TestCase):
         )
         self.assertIn(match["match_status"], [InvoiceItem.MATCH_STATUS_GREEN, InvoiceItem.MATCH_STATUS_YELLOW])
         self.assertEqual(match["product_name"], "Филе куриное охлажденное 1кг")
+
+    def test_filtering_dishes_with_assemble_and_keeping_direct(self):
+        service = InvoiceMatchingService(self.org)
+        pid_goods = str(uuid.uuid4())
+        pid_dish_assemble = str(uuid.uuid4())
+        pid_dish_direct = str(uuid.uuid4())
+        pid_service = str(uuid.uuid4())
+        pid_modifier = str(uuid.uuid4())
+
+        strategies = {
+            pid_dish_assemble.lower(): "ASSEMBLE",
+            pid_dish_direct.lower(): "DIRECT",
+        }
+
+        raw_items = [
+            {"id": pid_goods, "name": "Мука пшеничная в/с", "type": "GOODS", "mainUnit": "кг"},
+            {"id": pid_dish_assemble, "name": "Пицца Маргарита", "type": "DISH", "mainUnit": "порц"},
+            {"id": pid_dish_direct, "name": "Багет сырно-чесночный", "type": "DISH", "mainUnit": "шт"},
+            {"id": pid_service, "name": "Аренда зала", "type": "SERVICE", "mainUnit": "час"},
+            {"id": pid_modifier, "name": "Экстра сыр", "type": "MODIFIER", "mainUnit": "порц"},
+        ]
+
+        with patch.object(service, '_fetch_assembly_charts_strategies', return_value=strategies):
+            with patch('httpx.Client.get') as mock_get:
+                class MockResponse:
+                    status_code = 200
+                    def json(self):
+                        return raw_items
+                mock_get.return_value = MockResponse()
+                self.org.iiko_server_url = "https://iiko.example.com"
+                with patch('apps.loyalty.services.IikoServerAuthService.get_access_token', return_value="fake_token"):
+                    filtered = service._fetch_products_from_iiko()
+
+        filtered_ids = [p['id'] for p in filtered]
+        self.assertIn(pid_goods, filtered_ids)
+        self.assertIn(pid_dish_direct, filtered_ids)
+        self.assertNotIn(pid_dish_assemble, filtered_ids)
+        self.assertNotIn(pid_service, filtered_ids)
+        self.assertNotIn(pid_modifier, filtered_ids)
+
+
+class VectorizationTest(TestCase):
+    def setUp(self):
+        self.org = Organization.objects.create(
+            name="Vector Org",
+            slug="vector-org",
+            vision_llm_provider="gemini",
+            vision_llm_api_key="test-key",
+            is_invoices_enabled=True
+        )
+
+    def test_vector_matching_with_pgvector_model(self):
+        prod_id = uuid.uuid4()
+        # Создаем тестовый вектор единичной длины
+        vec = [0.0] * 768
+        vec[0] = 1.0  # единичный вектор по первой оси
+
+        IikoProductEmbedding.objects.create(
+            organization=self.org,
+            iiko_product_id=prod_id,
+            name="Молоко пастеризованное 3.2% 1л",
+            code="MOL01",
+            unit="л",
+            product_type="GOODS",
+            embedding=vec
+        )
+
+        service = InvoiceMatchingService(self.org)
+        # При совпадении вектора запроса (тоже vec)
+        with patch.object(InvoiceMatchingService, 'get_cached_products', return_value=[]):
+            with patch.object(EmbeddingService, 'is_configured', return_value=True):
+                with patch.object(EmbeddingService, 'get_embedding', return_value=vec):
+                    match = service.match_item(
+                        raw_name="мол. паст 3.2%",
+                        clean_name="молоко пастеризованное",
+                        raw_amount=10.0,
+                        raw_price=450.0,
+                        raw_sum=4500.0
+                    )
+
+        self.assertIn(match["match_status"], [InvoiceItem.MATCH_STATUS_GREEN, InvoiceItem.MATCH_STATUS_YELLOW])
+        self.assertEqual(match["product_id"], str(prod_id))
+        self.assertEqual(match["product_name"], "Молоко пастеризованное 3.2% 1л")
+        self.assertIn("vector", match["match_source"])
+
+    def test_sync_and_vectorize_task(self):
+        mock_prods = [
+            {"id": str(uuid.uuid4()), "name": "Сахар белый 1кг", "code": "SAH01", "unit": "кг", "type": "GOODS"},
+            {"id": str(uuid.uuid4()), "name": "Соль поваренная 1кг", "code": "SOL01", "unit": "кг", "type": "GOODS"},
+        ]
+
+        dummy_vec = [0.01] * 768
+        with patch.object(InvoiceMatchingService, '_fetch_products_from_iiko', return_value=mock_prods):
+            with patch.object(EmbeddingService, 'is_configured', return_value=True):
+                with patch.object(EmbeddingService, 'get_embeddings_batch', return_value=[dummy_vec, dummy_vec]):
+                    sync_and_vectorize_organization_task(self.org.id)
+
+        embeddings = IikoProductEmbedding.objects.filter(organization=self.org)
+        self.assertEqual(embeddings.count(), 2)
+        first = embeddings.first()
+        self.assertIsNotNone(first.embedding)
+        self.assertEqual(len(first.embedding), 768)
+
 
 
 class IikoIncomingInvoiceServiceTest(TestCase):

@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth import get_user_model
+from pgvector.django import VectorField
 from apps.core.models import Organization, Employee
 
 User = get_user_model()
@@ -219,3 +220,34 @@ class SupplierProductAlias(models.Model):
 
     def __str__(self):
         return f"{self.raw_product_name} -> {self.iiko_product_name} ({self.supplier_name})"
+
+
+class IikoProductEmbedding(models.Model):
+    organization = models.ForeignKey(
+        Organization, 
+        on_delete=models.CASCADE, 
+        related_name='product_embeddings',
+        verbose_name="Организация"
+    )
+    iiko_product_id = models.UUIDField("UUID Товара в iiko", db_index=True)
+    name = models.CharField("Наименование товара в iiko", max_length=500)
+    clean_name = models.CharField("Очищенное / осмысленное имя", max_length=500, blank=True, default="")
+    code = models.CharField("Артикул / код товара", max_length=100, blank=True, default="")
+    unit = models.CharField("Единица измерения", max_length=50, blank=True, default="")
+    product_type = models.CharField("Тип номенклатуры (GOODS, DISH, PREPARED)", max_length=50, blank=True, default="GOODS")
+    containers = models.JSONField("Доступные фасовки", default=list, blank=True)
+
+    embedding = VectorField("Вектор эмбеддинга", dimensions=768, null=True, blank=True)
+    updated_at = models.DateTimeField("Дата обновления", auto_now=True)
+
+    class Meta:
+        verbose_name = "Векторный эмбеддинг товара iiko"
+        verbose_name_plural = "Векторные эмбеддинги товаров iiko"
+        unique_together = ('organization', 'iiko_product_id')
+        indexes = [
+            models.Index(fields=['organization', 'clean_name']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} [{self.organization.name}]"
+

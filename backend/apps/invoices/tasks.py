@@ -3,10 +3,12 @@ from datetime import datetime
 from celery import shared_task
 from django.utils import timezone
 
-from apps.invoices.models import Invoice, InvoiceItem
+from apps.invoices.models import Invoice, InvoiceItem, IikoProductEmbedding
 from apps.invoices.services.vision_service import VisionInvoiceService
 from apps.invoices.services.matching_service import InvoiceMatchingService
 from apps.invoices.services.supplier_service import IikoSupplierService
+from apps.invoices.services.embedding_service import EmbeddingService
+from apps.core.models import Organization
 
 logger = logging.getLogger(__name__)
 
@@ -134,3 +136,143 @@ def process_invoice_ocr_task(self, invoice_id: int):
         invoice.status = Invoice.STATUS_FAILED
         invoice.error_message = str(exc)
         invoice.save(update_fields=['status', 'error_message', 'updated_at'])
+
+
+@shared_task(name='apps.invoices.tasks.sync_and_vectorize_all_organizations_task')
+def sync_and_vectorize_all_organizations_task():
+    """
+    Ночная задача (01:00): синхронизирует и векторизует номенклатуру
+    для всех активных организаций с включенным модулем накладных.
+    """
+    orgs = Organization.objects.filter(is_active=True, is_invoices_enabled=True)
+    logger.info(f"Starting nightly sync & vectorization for {orgs.count()} organizations")
+    for org in orgs:
+        try:
+            sync_and_vectorize_organization_task.delay(org.id)
+        except Exception as e:
+            logger.error(f"Error queueing vectorization for org {org.id}: {e}")
+
+
+@shared_task(name='apps.invoices.tasks.sync_and_vectorize_organization_task', bind=True, max_retries=2)
+def sync_and_vectorize_organization_task(self, org_id: int):
+    """
+    Синхронизирует отфильтрованную номенклатуру iiko (товары + позиции со списанием DIRECT)
+    и генерирует векторные эмбеддинги для pgvector.
+    """
+    try:
+        org = Organization.objects.get(id=org_id)
+    except Organization.DoesNotExist:
+        logger.error(f"Organization {org_id} not found for vectorization")
+        return
+
+    logger.info(f"Starting product sync and vectorization for organization {org.name} ({org_id})")
+
+    matching_service = InvoiceMatchingService(org)
+    raw_products = matching_service._fetch_products_from_iiko()
+    if not raw_products:
+        logger.warning(f"No products fetched from iiko for org {org_id}")
+        return
+
+    logger.info(f"Fetched {len(raw_products)} filtered products for org {org_id}")
+
+    # 1. Синхронизируем записи номенклатуры в БД
+    existing_embeddings = {
+        str(e.iiko_product_id): e
+        for e in IikoProductEmbedding.objects.filter(organization=org)
+    }
+
+    to_create = []
+    to_update = []
+    need_vectorization = []
+
+    for p in raw_products:
+        pid = str(p['id'])
+        pname = p.get('name', '').strip()
+        pcode = p.get('code') or ''
+        punit = p.get('unit') or 'кг'
+        ptype = p.get('type') or 'GOODS'
+        containers = p.get('containers') or []
+
+        if pid in existing_embeddings:
+            obj = existing_embeddings[pid]
+            changed = False
+            if obj.name != pname:
+                obj.name = pname
+                obj.embedding = None  # Имя изменилось, нужен пересчет вектора
+                changed = True
+            if obj.code != pcode:
+                obj.code = pcode
+                changed = True
+            if obj.unit != punit:
+                obj.unit = punit
+                changed = True
+            if obj.product_type != ptype:
+                obj.product_type = ptype
+                changed = True
+            if changed:
+                to_update.append(obj)
+            if obj.embedding is None:
+                need_vectorization.append(obj)
+        else:
+            new_obj = IikoProductEmbedding(
+                organization=org,
+                iiko_product_id=pid,
+                name=pname,
+                code=pcode,
+                unit=punit,
+                product_type=ptype,
+                containers=containers,
+                embedding=None
+            )
+            to_create.append(new_obj)
+
+    if to_create:
+        IikoProductEmbedding.objects.bulk_create(to_create)
+        # Добавляем созданные объекты в очередь на векторизацию
+        need_vectorization.extend(to_create)
+
+    if to_update:
+        IikoProductEmbedding.objects.bulk_update(
+            to_update, ['name', 'code', 'unit', 'product_type', 'embedding', 'updated_at']
+        )
+
+    logger.info(
+        f"Products catalog synced for org {org_id}: created {len(to_create)}, updated {len(to_update)}, "
+        f"need embeddings: {len(need_vectorization)}"
+    )
+
+    # 2. Вычисляем векторные эмбеддинги батчами
+    emb_service = EmbeddingService(org)
+    if not emb_service.is_configured():
+        logger.warning(
+            f"Embedding service not configured for org {org_id} (missing API key). "
+            f"Catalog saved without vectors."
+        )
+        return
+
+    if not need_vectorization:
+        logger.info(f"All {len(raw_products)} products for org {org_id} already have embeddings.")
+        return
+
+    batch_size = 50
+    total_embedded = 0
+    for i in range(0, len(need_vectorization), batch_size):
+        chunk = need_vectorization[i : i + batch_size]
+        texts = [item.name for item in chunk]
+        vectors = emb_service.get_embeddings_batch(texts, batch_size=batch_size)
+
+        updated_chunk = []
+        for item, vec in zip(chunk, vectors):
+            if vec is not None:
+                item.embedding = vec
+                updated_chunk.append(item)
+
+        if updated_chunk:
+            IikoProductEmbedding.objects.bulk_update(updated_chunk, ['embedding', 'updated_at'])
+            total_embedded += len(updated_chunk)
+
+    logger.info(
+        f"Successfully generated embeddings for {total_embedded}/{len(need_vectorization)} "
+        f"products for org {org_id}"
+    )
+

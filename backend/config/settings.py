@@ -287,6 +287,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.loyalty.tasks.push_unpushed_customers_to_iiko_daily',
         'schedule': crontab(hour=2, minute=0),
     },
+    'sync-and-vectorize-iiko-products-daily-at-1am': {
+        'task': 'apps.invoices.tasks.sync_and_vectorize_all_organizations_task',
+        'schedule': crontab(hour=1, minute=0),
+    },
 }
 
 # Apple Wallet (PassKit & APNs Push)
