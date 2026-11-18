@@ -28,6 +28,13 @@
               📱 TMA: {{ invoice.uploaded_by_employee.first_name || 'Сотрудник' }}
             </span>
           </p>
+          <div v-if="invoice?.sent_to_iiko_at" class="mt-1 text-[11px] text-emerald-400/90 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-medium">
+            <span>✅ Выгружено в iiko:</span>
+            <span class="font-mono font-bold text-white">№ {{ invoice.iiko_document_number }}</span>
+            <span>• Склад: <strong class="text-white">{{ invoice.iiko_store_name || 'выбранный склад' }}</strong></span>
+            <span>• Учетная дата в iiko: <strong class="text-white">{{ formatDate(invoice.invoice_date) || 'текущая' }}</strong></span>
+            <span class="text-slate-400">(Черновик / Непроведенная)</span>
+          </div>
         </div>
       </div>
 
@@ -50,6 +57,16 @@
         >
           <span v-if="sendingToIiko" class="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
           <span>🚀 Создать накладную в iiko (Черновик)</span>
+        </button>
+        <button
+          v-else
+          @click="sendToIiko"
+          :disabled="sendingToIiko || invoice?.status === 'processing' || hasUnmatchedItems"
+          class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-emerald-400 border border-emerald-800/60 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer"
+          title="Обновить или повторно отправить накладную в iiko"
+        >
+          <span v-if="sendingToIiko" class="w-3.5 h-3.5 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin"></span>
+          <span>🔄 Обновить в iiko</span>
         </button>
       </div>
     </div>

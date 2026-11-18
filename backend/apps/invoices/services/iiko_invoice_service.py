@@ -19,22 +19,40 @@ class IikoIncomingInvoiceService:
 
     def build_invoice_xml(self, invoice: Invoice) -> str:
         """
-        Формирует XML-структуру incomingInvoiceDto со статусом NEW.
+        Формирует XML-структуру incomingInvoiceDto со статусом NEW (Черновик / Непроведенная).
         """
         doc_date = invoice.invoice_date or timezone.now().date()
-        date_str = doc_date.strftime("%d.%m.%Y")
+        date_iso = doc_date.strftime("%Y-%m-%d")
 
         doc_elem = ET.Element("document")
 
-        doc_num_elem = ET.SubElement(doc_elem, "documentNumber")
-        doc_num_elem.text = invoice.internal_number
+        # Если у накладной уже есть UUID в iiko (редактирование существующего документа)
+        if invoice.iiko_document_id:
+            id_elem = ET.SubElement(doc_elem, "id")
+            id_elem.text = str(invoice.iiko_document_id)
 
+        # Учетный номер документа в iiko:
+        # Если не передавать тег documentNumber (или оставить пустым),
+        # iiko автоматически присваивает следующий порядковый номер (например, 0787).
+        # Если у накладной уже есть присвоенный iiko числовой номер, сохраняем его.
+        if invoice.iiko_document_number and not invoice.iiko_document_number.startswith("НАКЛ-"):
+            doc_num_elem = ET.SubElement(doc_elem, "documentNumber")
+            doc_num_elem.text = invoice.iiko_document_number
+
+        # Входящий номер накладной от поставщика
         if invoice.invoice_number:
             inc_doc_num = ET.SubElement(doc_elem, "incomingDocumentNumber")
-            inc_doc_num.text = invoice.invoice_number
+            inc_doc_num.text = str(invoice.invoice_number)
+            inv_elem = ET.SubElement(doc_elem, "invoice")
+            inv_elem.text = str(invoice.invoice_number)
 
+        # Дата входящего документа поставщика (YYYY-MM-DD)
+        inc_date_elem = ET.SubElement(doc_elem, "incomingDate")
+        inc_date_elem.text = date_iso
+
+        # Учетная дата документа в iiko (ISO формат с временем)
         date_elem = ET.SubElement(doc_elem, "dateIncoming")
-        date_elem.text = date_str
+        date_elem.text = f"{date_iso}T09:00:00"
 
         status_elem = ET.SubElement(doc_elem, "status")
         status_elem.text = "NEW"  # Черновик / Непроведенная
@@ -49,7 +67,7 @@ class IikoIncomingInvoiceService:
         supplier_elem.text = str(invoice.iiko_supplier_id).upper() if invoice.iiko_supplier_id else ""
 
         comment_elem = ET.SubElement(doc_elem, "comment")
-        comment_elem.text = f"Импорт из AI-модуля накладных ({invoice.get_source_display()})"
+        comment_elem.text = f"[{invoice.internal_number}] Импорт из AI-модуля накладных ({invoice.get_source_display()})"
 
         items_elem = ET.SubElement(doc_elem, "items")
 
@@ -119,31 +137,48 @@ class IikoIncomingInvoiceService:
         try:
             with httpx.Client(timeout=45, verify=False) as client:
                 resp = client.post(url, content=xml_payload, params={"key": token}, headers=headers)
-                
-                if resp.status_code != 200:
-                    err_text = resp.text
-                    logger.error(f"iiko Server rejected incoming invoice {invoice.id}: {resp.status_code} - {err_text}")
-                    raise ValueError(f"iiko Server вернул ошибку ({resp.status_code}): {err_text}")
+                resp_text = resp.text
+                logger.info(f"iiko Server incomingInvoice import response: status={resp.status_code}, body={resp_text}")
 
-                # Разбор результата
-                resp_xml = resp.text
-                valid = "true"
-                doc_number_result = invoice.internal_number
-                
+                if resp.status_code != 200:
+                    logger.error(f"iiko Server rejected incoming invoice {invoice.id}: {resp.status_code} - {resp_text}")
+                    raise ValueError(f"iiko Server вернул ошибку ({resp.status_code}): {resp_text}")
+
+                # Разбор результата (documentValidationResult / response)
+                doc_number_result = ""
+                doc_id_result = ""
+
                 try:
-                    root = ET.fromstring(resp_xml)
-                    valid = root.findtext("valid") or "true"
-                    doc_number_result = root.findtext("documentNumber") or invoice.internal_number
-                    warning = root.findtext("warning") or "false"
-                    if valid == "false":
-                        error_desc = root.findtext("error") or "Ошибка валидации документа в iiko"
-                        raise ValueError(f"iiko не принял документ: {error_desc}")
+                    root = ET.fromstring(resp_text)
+                    valid = root.findtext("valid")
+                    doc_number_result = root.findtext("documentNumber") or ""
+                    doc_id_result = root.findtext("id") or ""
+                    err_msg = root.findtext("errorMessage") or root.findtext("error")
+                    add_info = root.findtext("additionalInfo")
+
+                    if valid is not None and valid.lower() == "false":
+                        full_err = err_msg or "Ошибка валидации документа в iiko"
+                        if add_info:
+                            full_err = f"{full_err}: {add_info}"
+                        raise ValueError(f"iiko не принял документ: {full_err}")
+
+                    if root.tag == "error" or (err_msg and valid is None):
+                        raise ValueError(f"iiko вернул ошибку: {err_msg}")
                 except ET.ParseError:
-                    pass
+                    if len(resp_text.strip()) == 36 and '-' in resp_text:
+                        doc_id_result = resp_text.strip()
+                    else:
+                        logger.warning(f"Could not parse XML response from iiko: {resp_text[:200]}")
+
+                # Если iiko не вернул номер в XML, берем существующий или внутренний
+                if not doc_number_result:
+                    doc_number_result = invoice.iiko_document_number or invoice.internal_number
 
                 # Обновляем накладную
                 invoice.status = Invoice.STATUS_SENT_TO_IIKO
                 invoice.iiko_document_number = doc_number_result
+                if doc_id_result:
+                    invoice.iiko_document_id = doc_id_result
                 invoice.sent_to_iiko_at = timezone.now()
                 invoice.error_message = ""
                 invoice.save()
@@ -151,10 +186,16 @@ class IikoIncomingInvoiceService:
                 # Непрерывное самообучение: сохраняем связки в SupplierProductAlias
                 self._save_knowledge_base_aliases(invoice, items)
 
+                date_str = invoice.invoice_date.strftime("%d.%m.%Y") if invoice.invoice_date else "сегодня"
+                store_display = invoice.iiko_store_name or "выбранный склад"
+
                 return {
                     "success": True,
                     "document_number": doc_number_result,
-                    "message": "Приходная накладная успешно создана в iiko Server со статусом 'Черновик / Непроведенная'"
+                    "document_id": doc_id_result,
+                    "store_name": store_display,
+                    "date": date_str,
+                    "message": f"Приходная накладная создана в iiko Server: № {doc_number_result} от {date_str} на склад '{store_display}' (Черновик / Непроведенная)"
                 }
         finally:
             # Обязательно освобождаем слот лицензии
