@@ -1,3 +1,4 @@
+from rest_framework.test import APIClient
 from decimal import Decimal
 import uuid
 from unittest.mock import patch
@@ -202,7 +203,8 @@ class IikoIncomingInvoiceServiceTest(TestCase):
         self.org = Organization.objects.create(
             name="Test Resto",
             slug="test-resto",
-            iiko_server_url="https://iiko.example.com"
+            iiko_server_url="https://iiko.example.com",
+            is_invoices_enabled=True
         )
         self.invoice = Invoice.objects.create(
             organization=self.org,
@@ -237,6 +239,51 @@ class IikoIncomingInvoiceServiceTest(TestCase):
         self.assertIn("<items>", xml_str)
         self.assertIn("<amount>10.000</amount>", xml_str)
         self.assertIn("<price>1500.00</price>", xml_str)
+        self.assertIn("<defaultStore>", xml_str)
+
+    def test_xml_generation_different_stores(self):
+        store_item = uuid.uuid4()
+        self.invoice.has_different_stores = True
+        self.invoice.save()
+        self.item.iiko_store_id = store_item
+        self.item.save()
+
+        service = IikoIncomingInvoiceService(self.org)
+        xml_str = service.build_invoice_xml(self.invoice)
+
+        # When has_different_stores is True, defaultStore should NOT be present in header
+        self.assertNotIn("<defaultStore>", xml_str)
+        # Store should be present inside item
+        self.assertIn(f"<store>{str(store_item).upper()}</store>", xml_str)
+
+    def test_update_item_skip_knowledge_base(self):
+        client = APIClient()
+        user = User.objects.create_user(username="testacc", email="testacc@test.com", password="password")
+        UserOrganization.objects.create(user=user, organization=self.org, role=UserOrganization.ROLE_ACCOUNTANT)
+        client.force_authenticate(user=user)
+
+        new_prod_id = uuid.uuid4()
+        url = f"/api/invoices/documents/{self.invoice.id}/items/{self.item.id}/?organization_id={self.org.id}"
+        resp = client.patch(url, {
+            "raw_name": "Исправленное название товара",
+            "iiko_product_id": str(new_prod_id),
+            "iiko_product_name": "Товар в iiko",
+            "skip_knowledge_base": True,
+            "is_imprecise_recognition": True
+        }, format='json')
+
+        self.assertEqual(resp.status_code, 200)
+        self.item.refresh_from_db()
+        self.assertEqual(self.item.raw_name, "Исправленное название товара")
+        self.assertTrue(self.item.skip_knowledge_base)
+        self.assertTrue(self.item.is_imprecise_recognition)
+
+        # Check knowledge base was NOT created
+        alias_exists = SupplierProductAlias.objects.filter(
+            organization=self.org,
+            raw_product_name="Исправленное название товара"
+        ).exists()
+        self.assertFalse(alias_exists)
 
 
 from rest_framework.test import APITestCase
@@ -314,7 +361,6 @@ class InvoiceApiTest(APITestCase):
 
     def test_filter_invoices_by_supplier_and_number_and_date(self):
         import datetime
-        from decimal import Decimal
         inv1 = Invoice.objects.create(
             organization=self.org,
             internal_number="INV-FILTER-001",

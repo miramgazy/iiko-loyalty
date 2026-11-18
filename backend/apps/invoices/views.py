@@ -310,6 +310,9 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if 'invoice_date' in data:
             invoice.invoice_date = data['invoice_date']
 
+        if 'has_different_stores' in data:
+            invoice.has_different_stores = bool(data['has_different_stores'])
+
         invoice.save()
         return Response(InvoiceDetailSerializer(invoice, context={'request': request}).data)
 
@@ -323,6 +326,23 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         item = get_object_or_404(InvoiceItem, invoice=invoice, id=item_id)
         data = request.data
 
+        if 'raw_name' in data and data['raw_name']:
+            item.raw_name = data['raw_name'].strip()
+            if 'clean_name' in data and data['clean_name']:
+                item.clean_name = data['clean_name'].strip()
+            else:
+                item.clean_name = item.raw_name
+
+        if 'is_imprecise_recognition' in data:
+            item.is_imprecise_recognition = bool(data['is_imprecise_recognition'])
+
+        if 'skip_knowledge_base' in data:
+            item.skip_knowledge_base = bool(data['skip_knowledge_base'])
+
+        if 'iiko_store_id' in data:
+            item.iiko_store_id = data['iiko_store_id'] or None
+            item.iiko_store_name = data.get('iiko_store_name', item.iiko_store_name)
+
         if 'iiko_product_id' in data:
             item.iiko_product_id = data['iiko_product_id']
             item.iiko_product_name = data.get('iiko_product_name', item.iiko_product_name)
@@ -331,8 +351,9 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             item.match_source = 'manual'
             item.confidence = Decimal('1.00')
 
-            # Мгновенное самообучение: сохраняем связку в базу знаний
-            if invoice.iiko_supplier_id and item.raw_name:
+            # Мгновенное самообучение: сохраняем связку в базу знаний ТОЛЬКО если не включен skip_knowledge_base
+            skip_kb = data.get('skip_knowledge_base', item.skip_knowledge_base)
+            if not skip_kb and invoice.iiko_supplier_id and item.raw_name:
                 try:
                     norm_raw = normalize_product_name(item.raw_name)
                     if norm_raw:

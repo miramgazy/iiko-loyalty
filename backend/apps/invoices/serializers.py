@@ -26,6 +26,8 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
             'iiko_product_id', 'iiko_product_name', 'iiko_product_code',
             'confidence', 'match_status', 'match_source', 'candidates',
             'packaging_coefficient', 'iiko_container_id', 'iiko_container_name',
+            'iiko_store_id', 'iiko_store_name',
+            'is_imprecise_recognition', 'skip_knowledge_base',
             'iiko_amount', 'iiko_price', 'iiko_sum', 'sum_diff'
         ]
 
@@ -42,7 +44,7 @@ class InvoiceListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'internal_number', 'invoice_number', 'invoice_date',
             'raw_supplier_name', 'raw_supplier_inn', 'iiko_supplier_id', 'iiko_supplier_name',
-            'iiko_store_id', 'iiko_store_name',
+            'iiko_store_id', 'iiko_store_name', 'has_different_stores',
             'total_sum', 'vat_sum', 'status', 'status_display', 'source', 'source_display',
             'author',
             'error_message', 'iiko_document_number', 'sent_to_iiko_at',
@@ -98,7 +100,7 @@ class InvoiceDetailSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'organization_id', 'internal_number', 'invoice_number', 'invoice_date',
             'raw_supplier_name', 'raw_supplier_inn', 'iiko_supplier_id', 'iiko_supplier_name',
-            'iiko_store_id', 'iiko_store_name',
+            'iiko_store_id', 'iiko_store_name', 'has_different_stores',
             'total_sum', 'vat_sum', 'status', 'status_display', 'source', 'source_display',
             'author',
             'error_message', 'iiko_document_id', 'iiko_document_number', 'sent_to_iiko_at',

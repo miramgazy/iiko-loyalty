@@ -170,10 +170,21 @@
             </div>
           </div>
           <div>
-            <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5 mb-1">
-              <span class="text-indigo-400">🏬</span>
-              Склад оприходования
-            </label>
+            <div class="flex items-center justify-between mb-1">
+              <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                <span class="text-indigo-400">🏬</span>
+                Склад оприходования
+              </label>
+              <label class="inline-flex items-center gap-1.5 cursor-pointer text-[11px] text-indigo-300 hover:text-white select-none">
+                <input 
+                  type="checkbox" 
+                  v-model="invoice.has_different_stores" 
+                  @change="onDifferentStoresToggle"
+                  class="rounded border-slate-700 bg-slate-950 text-indigo-600 focus:ring-indigo-500/30 w-3.5 h-3.5 cursor-pointer"
+                />
+                <span class="font-medium">Разные склады</span>
+              </label>
+            </div>
             <select 
               v-model="invoice.iiko_store_id" 
               @change="onStoreChange" 
@@ -182,6 +193,9 @@
               <option :value="null">-- Не выбран --</option>
               <option v-for="st in stores" :key="st.id" :value="st.id">{{ st.name }}</option>
             </select>
+            <p v-if="invoice?.has_different_stores" class="text-[10px] text-indigo-400/90 mt-1">
+              ℹ️ В таблице ниже можно указать свой склад для каждой позиции (по умолчанию подставляется выбранный выше).
+            </p>
           </div>
         </div>
       </div>
@@ -227,6 +241,7 @@
               <th class="px-3 py-2.5 w-10 text-center">#</th>
               <th class="px-4 py-2.5 min-w-[220px]">Из накладной (Фото)</th>
               <th class="px-4 py-2.5 min-w-[280px]">Товар в iiko (Номенклатура)</th>
+              <th v-if="invoice?.has_different_stores" class="px-3 py-2.5 min-w-[180px]">Склад</th>
               <th class="px-3 py-2.5 text-right w-24">Кол-во</th>
               <th class="px-4 py-2.5 text-center w-36">Фасовка (коэфф.)</th>
               <th class="px-3 py-2.5 text-right w-28">В iiko (баз.)</th>
@@ -290,6 +305,18 @@
                     <span class="opacity-75 font-mono text-[9px]">{{ Math.round(cand.score * 100) }}%</span>
                   </button>
                 </div>
+              </td>
+
+              <!-- Store per item (when different stores is enabled) -->
+              <td v-if="invoice?.has_different_stores" class="px-3 py-2">
+                <select 
+                  v-model="item.iiko_store_id"
+                  @change="onItemStoreChange(item)"
+                  class="form-input text-xs py-1.5 px-2.5 w-full bg-slate-950/90 border border-slate-700/80 hover:border-slate-500 focus:border-indigo-500 rounded-xl text-white truncate transition-all"
+                >
+                  <option :value="null">-- По умолчанию --</option>
+                  <option v-for="st in stores" :key="st.id" :value="st.id">{{ st.name }}</option>
+                </select>
               </td>
 
               <!-- Raw Amount -->
@@ -450,6 +477,62 @@
               <p v-if="activeSearchItem?.clean_name && activeSearchItem.clean_name !== activeSearchItem.raw_name" class="text-[11px] text-indigo-400 font-medium flex items-center gap-1">
                 <span>✨ Смысловое ядро (AI):</span> {{ activeSearchItem.clean_name }}
               </p>
+            </div>
+
+            <!-- Блок исправления неточного распознавания текста -->
+            <div class="mt-2.5 space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-amber-300 hover:text-amber-200 select-none">
+                  <input 
+                    type="checkbox" 
+                    v-model="isImpreciseRecognition" 
+                    @change="onImpreciseToggle"
+                    class="rounded border-amber-800 bg-slate-950 text-amber-500 focus:ring-amber-500/30 w-3.5 h-3.5 cursor-pointer"
+                  />
+                  <span>⚠️ Неточное распознавание текста (исправить вручную)</span>
+                </label>
+              </div>
+
+              <!-- Поле редактирования при активной галочке -->
+              <div v-if="isImpreciseRecognition" class="p-3 rounded-xl bg-amber-950/25 border border-amber-800/50 space-y-2">
+                <div>
+                  <label class="text-[11px] font-semibold text-amber-200 block mb-1">
+                    Исправленное название товара:
+                  </label>
+                  <div class="flex items-center gap-2">
+                    <input 
+                      v-model="editedRawName"
+                      @keyup.enter="applyEditedText"
+                      type="text" 
+                      class="form-input text-xs py-1.5 px-3 flex-1 bg-slate-950/90 border border-amber-700/80 hover:border-amber-500 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/25 rounded-xl text-white font-medium shadow-inner"
+                      placeholder="Введите правильное название из накладной..."
+                    />
+                    <button 
+                      type="button" 
+                      @click="applyEditedText"
+                      class="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 active:scale-95 text-white font-bold rounded-xl text-xs transition-all shadow-md shadow-amber-600/20 whitespace-nowrap cursor-pointer flex items-center gap-1 flex-shrink-0"
+                      title="Применить текст и найти в каталоге iiko"
+                    >
+                      <span>🔍</span>
+                      <span>Искать в iiko</span>
+                    </button>
+                  </div>
+                  <p class="text-[10px] text-slate-400 mt-1">
+                    Название в строке обновится, а каталог iiko сразу выдаст подходящие товары.
+                  </p>
+                </div>
+
+                <div class="pt-1.5 border-t border-amber-900/40">
+                  <label class="inline-flex items-center gap-2 cursor-pointer text-[11px] text-slate-300 hover:text-white select-none">
+                    <input 
+                      type="checkbox" 
+                      v-model="skipKnowledgeBase" 
+                      class="rounded border-slate-700 bg-slate-950 text-indigo-500 focus:ring-indigo-500/30 w-3.5 h-3.5 cursor-pointer"
+                    />
+                    <span>Не сохранять в базу знаний (разовое сопоставление)</span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -748,7 +831,8 @@ async function saveHeader() {
       invoice_number: invoice.value.invoice_number,
       invoice_date: invoice.value.invoice_date,
       iiko_supplier_id: invoice.value.iiko_supplier_id,
-      iiko_store_id: invoice.value.iiko_store_id
+      iiko_store_id: invoice.value.iiko_store_id,
+      has_different_stores: invoice.value.has_different_stores
     })
     toast.success('Параметры документа сохранены')
   } catch {
@@ -756,10 +840,31 @@ async function saveHeader() {
   }
 }
 
-function onStoreChange() {
+async function onStoreChange() {
   const st = stores.value.find(s => String(s.id) === String(invoice.value.iiko_store_id))
   if (st) invoice.value.iiko_store_name = st.name
-  saveHeader()
+  await saveHeader()
+}
+
+async function onDifferentStoresToggle() {
+  if (invoice.value?.has_different_stores) {
+    // If enabled, for any items without a store, pre-populate header store
+    for (const it of items.value) {
+      if (!it.iiko_store_id && invoice.value.iiko_store_id) {
+        it.iiko_store_id = invoice.value.iiko_store_id
+        it.iiko_store_name = invoice.value.iiko_store_name
+        await updateItemValues(it)
+      }
+    }
+  }
+  await saveHeader()
+}
+
+async function onItemStoreChange(item) {
+  const st = stores.value.find(s => String(s.id) === String(item.iiko_store_id))
+  item.iiko_store_name = st ? st.name : ''
+  await updateItemValues(item)
+  toast.success(`Склад позиции обновлен: ${item.iiko_store_name || 'По умолчанию'}`)
 }
 
 function setPackFactor(item, factor) {
@@ -771,12 +876,19 @@ async function updateItemValues(item) {
   try {
     const res = await api.patch(`/invoices/documents/${invoice.value.id}/items/${item.id}/`, {
       organization_id: auth.currentOrgId,
+      raw_name: item.raw_name,
+      clean_name: item.clean_name,
       packaging_coefficient: item.packaging_coefficient,
       raw_amount: item.raw_amount,
       raw_price: item.raw_price,
       raw_sum: item.raw_sum,
       iiko_product_id: item.iiko_product_id,
-      iiko_product_name: item.iiko_product_name
+      iiko_product_name: item.iiko_product_name,
+      iiko_product_code: item.iiko_product_code,
+      iiko_store_id: item.iiko_store_id,
+      iiko_store_name: item.iiko_store_name,
+      is_imprecise_recognition: item.is_imprecise_recognition,
+      skip_knowledge_base: item.skip_knowledge_base
     })
     Object.assign(item, res.data)
   } catch {
@@ -791,11 +903,35 @@ const catalogQuery = ref('')
 const catalogResults = ref([])
 let catalogSearchTimeout = null
 
+// Неточное распознавание текста
+const isImpreciseRecognition = ref(false)
+const editedRawName = ref('')
+const skipKnowledgeBase = ref(false)
+
 function openSearchFor(item) {
   activeSearchItem.value = item
+  isImpreciseRecognition.value = !!item.is_imprecise_recognition
+  editedRawName.value = item.raw_name || ''
+  skipKnowledgeBase.value = !!item.skip_knowledge_base
   catalogQuery.value = item.clean_name || item.raw_name || ''
   searchModalOpen.value = true
   searchCatalog()
+}
+
+function onImpreciseToggle() {
+  if (isImpreciseRecognition.value && !editedRawName.value) {
+    editedRawName.value = activeSearchItem.value?.raw_name || ''
+  }
+}
+
+function applyEditedText() {
+  if (!editedRawName.value.trim() || !activeSearchItem.value) return
+  activeSearchItem.value.raw_name = editedRawName.value.trim()
+  activeSearchItem.value.clean_name = editedRawName.value.trim()
+  activeSearchItem.value.is_imprecise_recognition = true
+  catalogQuery.value = editedRawName.value.trim()
+  searchCatalog()
+  toast.info('Поиск обновлен по исправленному тексту')
 }
 
 async function quickSelectCandidate(item, cand) {
@@ -823,6 +959,14 @@ async function searchCatalog() {
 
 async function selectProductForActiveItem(prod) {
   if (!activeSearchItem.value) return
+
+  if (isImpreciseRecognition.value && editedRawName.value.trim()) {
+    activeSearchItem.value.raw_name = editedRawName.value.trim()
+    activeSearchItem.value.clean_name = editedRawName.value.trim()
+  }
+  activeSearchItem.value.is_imprecise_recognition = isImpreciseRecognition.value
+  activeSearchItem.value.skip_knowledge_base = skipKnowledgeBase.value
+
   activeSearchItem.value.iiko_product_id = prod.id
   activeSearchItem.value.iiko_product_name = prod.name
   activeSearchItem.value.iiko_product_code = prod.code

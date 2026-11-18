@@ -60,8 +60,12 @@ class IikoIncomingInvoiceService:
         use_default_time = ET.SubElement(doc_elem, "useDefaultDocumentTime")
         use_default_time.text = "true"
 
-        store_elem = ET.SubElement(doc_elem, "defaultStore")
-        store_elem.text = str(invoice.iiko_store_id).upper() if invoice.iiko_store_id else ""
+        # Склад оприходования:
+        # Если включен режим разных складов (has_different_stores), defaultStore в шапке не передается,
+        # а склад указывается индивидуально для каждой позиции в блоке items.
+        if not invoice.has_different_stores and invoice.iiko_store_id:
+            store_elem = ET.SubElement(doc_elem, "defaultStore")
+            store_elem.text = str(invoice.iiko_store_id).upper()
 
         supplier_elem = ET.SubElement(doc_elem, "supplier")
         supplier_elem.text = str(invoice.iiko_supplier_id).upper() if invoice.iiko_supplier_id else ""
@@ -93,8 +97,11 @@ class IikoIncomingInvoiceService:
             sum_el = ET.SubElement(item_elem, "sum")
             sum_el.text = f"{float(item.iiko_sum):.2f}"
 
-            st_el = ET.SubElement(item_elem, "store")
-            st_el.text = str(invoice.iiko_store_id).upper() if invoice.iiko_store_id else ""
+            # Склад для позиции: при разных складах берем item.iiko_store_id, иначе invoice.iiko_store_id
+            target_store_id = item.iiko_store_id if invoice.has_different_stores and item.iiko_store_id else invoice.iiko_store_id
+            if target_store_id:
+                st_el = ET.SubElement(item_elem, "store")
+                st_el.text = str(target_store_id).upper()
 
             if item.iiko_container_id:
                 cont_el = ET.SubElement(item_elem, "containerId")
@@ -109,7 +116,7 @@ class IikoIncomingInvoiceService:
         if not self.org.iiko_server_url:
             raise ValueError("Не настроен адрес iiko Server (iiko_server_url) в настройках организации")
 
-        if not invoice.iiko_store_id:
+        if not invoice.has_different_stores and not invoice.iiko_store_id:
             raise ValueError("Для отправки в iiko необходимо выбрать склад оприходования")
 
         if not invoice.iiko_supplier_id:
@@ -118,6 +125,11 @@ class IikoIncomingInvoiceService:
         items = invoice.items.all().order_by('num', 'id')
         if not items.exists():
             raise ValueError("В накладной отсутствуют позиции для оприходования")
+
+        if invoice.has_different_stores:
+            for it in items:
+                if not it.iiko_store_id and not invoice.iiko_store_id:
+                    raise ValueError(f"Для позиции #{it.num} '{it.raw_name}' не выбран склад оприходования")
 
         # Проверка, что все строки имеют привязанный товар iiko
         unmatched_items = items.filter(iiko_product_id__isnull=True)
@@ -209,6 +221,10 @@ class IikoIncomingInvoiceService:
         Сохраняет или обновляет базу знаний (SupplierProductAlias) для самообучения.
         """
         for item in items:
+            # Пропускаем позиции с флагом не сохранять в базу знаний (неточное распознавание/разовое сопоставление)
+            if item.skip_knowledge_base:
+                continue
+
             if not item.iiko_product_id or not item.raw_name:
                 continue
 

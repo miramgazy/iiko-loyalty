@@ -60,6 +60,7 @@ class Invoice(models.Model):
     # Склад оприходования в iiko
     iiko_store_id = models.UUIDField("UUID Склада iiko", null=True, blank=True)
     iiko_store_name = models.CharField("Название склада iiko", max_length=255, blank=True, default="")
+    has_different_stores = models.BooleanField("Разные склады для позиций", default=False)
 
     # Метаданные из накладной (извлеченные AI)
     invoice_number = models.CharField("Номер накладной поставщика", max_length=100, blank=True, default="")
@@ -158,6 +159,14 @@ class InvoiceItem(models.Model):
     match_status = models.CharField("Цветовой статус", max_length=10, choices=MATCH_STATUS_CHOICES, default=MATCH_STATUS_RED)
     match_source = models.CharField("Источник совпадения", max_length=20, choices=MATCH_SOURCE_CHOICES, default='manual')
     candidates = models.JSONField("Топ похожих товаров iiko", default=list, blank=True)
+
+    # Индивидуальный склад для позиции (при включенном режиме разных складов)
+    iiko_store_id = models.UUIDField("UUID Склада позиции iiko", null=True, blank=True)
+    iiko_store_name = models.CharField("Название склада позиции iiko", max_length=255, blank=True, default="")
+
+    # Флаги качества распознавания и базы знаний
+    is_imprecise_recognition = models.BooleanField("Неточное распознавание текста", default=False)
+    skip_knowledge_base = models.BooleanField("Не обучать базу знаний", default=False)
 
     # Фасовка и пересчет для складского учета iiko
     packaging_coefficient = models.DecimalField(
