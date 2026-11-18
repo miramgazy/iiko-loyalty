@@ -81,7 +81,7 @@
     </div>
 
     <!-- DOCUMENT METADATA CARD (WITH MINI PHOTO THUMBNAIL) -->
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex-shrink-0 text-xs flex flex-col md:flex-row items-stretch md:items-center gap-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex-shrink-0 text-xs flex flex-col md:flex-row items-stretch md:items-center gap-4 relative z-20">
       <!-- Mini Photo Thumbnail Container -->
       <div 
         @click="openImageModal"
@@ -142,34 +142,91 @@
           </div>
         </div>
 
-        <!-- Right Column: Поставщик в iiko, затем Склад оприходования -->
+        <!-- Right Column: Поставщик в iiko, затем Склад оприходования (с живым поиском) -->
         <div class="flex flex-col gap-2.5">
-          <div>
-            <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5 mb-1">
-              <span class="text-indigo-400">🏢</span>
-              Поставщик в iiko
+          <!-- 1. Searchable Supplier Dropdown -->
+          <div class="relative" ref="supplierDropdownRef">
+            <label class="text-[11px] font-semibold text-slate-300 flex items-center justify-between mb-1">
+              <span class="flex items-center gap-1.5">
+                <span class="text-indigo-400">🏢</span>
+                Поставщик в iiko
+              </span>
+              <span v-if="invoice?.iiko_supplier_id" class="text-[10px] text-indigo-400 font-mono">Выбран</span>
             </label>
             <div class="flex items-center gap-2">
-              <select 
-                v-model="invoice.iiko_supplier_id" 
-                @change="saveHeader" 
-                class="form-input text-xs py-2 px-3 flex-1 bg-slate-950/90 border border-slate-700/90 hover:border-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 rounded-xl text-white shadow-inner transition-all truncate"
-              >
-                <option :value="null">-- Не выбран --</option>
-                <option v-for="sup in suppliers" :key="sup.id" :value="sup.id">{{ sup.name }}</option>
-              </select>
+              <div class="relative flex-1">
+                <input
+                  v-model="supplierSearchText"
+                  @focus="isSupplierDropdownOpen = true"
+                  @click="isSupplierDropdownOpen = true"
+                  @input="isSupplierDropdownOpen = true"
+                  type="text"
+                  placeholder="Поиск поставщика iiko..."
+                  class="form-input text-xs py-2 pl-3 pr-8 w-full bg-slate-950/90 border border-slate-700/90 hover:border-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 rounded-xl text-white shadow-inner transition-all truncate placeholder:text-slate-500"
+                />
+                <button
+                  v-if="supplierSearchText"
+                  type="button"
+                  @click="clearSupplier"
+                  class="absolute right-2.5 top-2 text-slate-500 hover:text-slate-300 text-xs cursor-pointer p-0.5"
+                  title="Очистить"
+                >
+                  ✕
+                </button>
+                <span v-else class="absolute right-3 top-2.5 text-slate-500 text-[10px] pointer-events-none">▼</span>
+
+                <!-- Dropdown List with matching suppliers -->
+                <Transition name="fade">
+                  <div
+                    v-if="isSupplierDropdownOpen"
+                    class="absolute left-0 right-0 top-full mt-1.5 max-h-60 overflow-y-auto bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl z-40 divide-y divide-slate-800/80"
+                  >
+                    <div
+                      v-if="filteredSuppliers.length === 0"
+                      class="p-3 text-center text-xs text-slate-500"
+                    >
+                      Поставщик не найден
+                    </div>
+                    <div v-else>
+                      <div
+                        @click="clearSupplier"
+                        class="px-3.5 py-2 text-xs text-indigo-300 hover:bg-slate-800 cursor-pointer flex items-center justify-between transition-colors"
+                      >
+                        <span class="font-medium text-slate-400">-- Не выбран --</span>
+                        <span v-if="!invoice?.iiko_supplier_id" class="text-indigo-400 font-bold">✓</span>
+                      </div>
+                      <div
+                        v-for="sup in filteredSuppliers"
+                        :key="sup.id"
+                        @click="selectSupplier(sup)"
+                        class="px-3.5 py-2 text-xs text-slate-200 hover:bg-slate-800 hover:text-white cursor-pointer flex items-center justify-between transition-colors"
+                        :class="invoice?.iiko_supplier_id === sup.id ? 'bg-indigo-950/50 text-indigo-200 font-bold' : ''"
+                      >
+                        <div class="truncate pr-2">
+                          <p class="truncate">{{ sup.name }}</p>
+                          <p v-if="sup.inn" class="text-[10px] text-slate-500 font-mono">ИНН: {{ sup.inn }}</p>
+                        </div>
+                        <span v-if="invoice?.iiko_supplier_id === sup.id" class="text-indigo-400 font-bold">✓</span>
+                      </div>
+                    </div>
+                  </div>
+                </Transition>
+              </div>
+
               <button 
                 @click="openSupplierModal" 
                 type="button"
                 title="Создать нового контрагента в iiko"
-                class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/30 border border-indigo-400/40 cursor-pointer transition-all flex-shrink-0"
+                class="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-md shadow-indigo-600/30 border border-indigo-400/40 cursor-pointer transition-all flex-shrink-0"
               >
                 <span class="text-base font-extrabold leading-none">+</span>
                 <span class="font-semibold text-xs">Новый</span>
               </button>
             </div>
           </div>
-          <div>
+
+          <!-- 2. Searchable Store Dropdown -->
+          <div class="relative" ref="storeDropdownRef">
             <div class="flex items-center justify-between mb-1">
               <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
                 <span class="text-indigo-400">🏬</span>
@@ -185,14 +242,63 @@
                 <span class="font-medium">Разные склады</span>
               </label>
             </div>
-            <select 
-              v-model="invoice.iiko_store_id" 
-              @change="onStoreChange" 
-              class="form-input text-xs py-2 px-3 w-full bg-slate-950/90 border border-slate-700/90 hover:border-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 rounded-xl text-white shadow-inner transition-all truncate"
-            >
-              <option :value="null">-- Не выбран --</option>
-              <option v-for="st in stores" :key="st.id" :value="st.id">{{ st.name }}</option>
-            </select>
+
+            <div class="relative">
+              <input
+                v-model="storeSearchText"
+                @focus="isStoreDropdownOpen = true"
+                @click="isStoreDropdownOpen = true"
+                @input="isStoreDropdownOpen = true"
+                type="text"
+                placeholder="Поиск склада iiko..."
+                class="form-input text-xs py-2 pl-3 pr-8 w-full bg-slate-950/90 border border-slate-700/90 hover:border-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/25 rounded-xl text-white shadow-inner transition-all truncate placeholder:text-slate-500"
+              />
+              <button
+                v-if="storeSearchText"
+                type="button"
+                @click="clearStore"
+                class="absolute right-2.5 top-2 text-slate-500 hover:text-slate-300 text-xs cursor-pointer p-0.5"
+                title="Очистить"
+              >
+                ✕
+              </button>
+              <span v-else class="absolute right-3 top-2.5 text-slate-500 text-[10px] pointer-events-none">▼</span>
+
+              <!-- Dropdown List with matching stores -->
+              <Transition name="fade">
+                <div
+                  v-if="isStoreDropdownOpen"
+                  class="absolute left-0 right-0 top-full mt-1.5 max-h-60 overflow-y-auto bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl z-40 divide-y divide-slate-800/80"
+                >
+                  <div
+                    v-if="filteredStores.length === 0"
+                    class="p-3 text-center text-xs text-slate-500"
+                  >
+                    Склад не найден
+                  </div>
+                  <div v-else>
+                    <div
+                      @click="clearStore"
+                      class="px-3.5 py-2 text-xs text-indigo-300 hover:bg-slate-800 cursor-pointer flex items-center justify-between transition-colors"
+                    >
+                      <span class="font-medium text-slate-400">-- Не выбран --</span>
+                      <span v-if="!invoice?.iiko_store_id" class="text-indigo-400 font-bold">✓</span>
+                    </div>
+                    <div
+                      v-for="st in filteredStores"
+                      :key="st.id"
+                      @click="selectStore(st)"
+                      class="px-3.5 py-2 text-xs text-slate-200 hover:bg-slate-800 hover:text-white cursor-pointer flex items-center justify-between transition-colors"
+                      :class="invoice?.iiko_store_id === st.id ? 'bg-indigo-950/50 text-indigo-200 font-bold' : ''"
+                    >
+                      <span class="truncate">{{ st.name }}</span>
+                      <span v-if="invoice?.iiko_store_id === st.id" class="text-indigo-400 font-bold">✓</span>
+                    </div>
+                  </div>
+                </div>
+              </Transition>
+            </div>
+
             <p v-if="invoice?.has_different_stores" class="text-[10px] text-indigo-400/90 mt-1">
               ℹ️ В таблице ниже можно указать свой склад для каждой позиции (по умолчанию подставляется выбранный выше).
             </p>
@@ -1063,6 +1169,7 @@ async function loadInvoice() {
       newSupplierForm.value.name = res.data.raw_supplier_name
       newSupplierForm.value.inn = res.data.raw_supplier_inn || ''
     }
+    syncDropdownTexts()
   } catch (e) {
     toast.error('Не удалось загрузить накладную')
   }
@@ -1076,8 +1183,113 @@ async function loadAuxData() {
     ])
     stores.value = stRes.data || []
     suppliers.value = supRes.data || []
+    syncDropdownTexts()
   } catch (e) {
     console.warn(e)
+  }
+}
+
+// Searchable Comboboxes for Supplier and Store
+const supplierSearchText = ref('')
+const isSupplierDropdownOpen = ref(false)
+const supplierDropdownRef = ref(null)
+
+const storeSearchText = ref('')
+const isStoreDropdownOpen = ref(false)
+const storeDropdownRef = ref(null)
+
+const filteredSuppliers = computed(() => {
+  const q = supplierSearchText.value.trim().toLowerCase()
+  if (!q) return suppliers.value
+  return suppliers.value.filter(s => {
+    const nameMatch = s.name?.toLowerCase().includes(q)
+    const innMatch = s.inn?.toLowerCase().includes(q)
+    const codeMatch = s.code?.toLowerCase().includes(q)
+    return nameMatch || innMatch || codeMatch
+  })
+})
+
+const filteredStores = computed(() => {
+  const q = storeSearchText.value.trim().toLowerCase()
+  if (!q) return stores.value
+  return stores.value.filter(st => {
+    return st.name?.toLowerCase().includes(q)
+  })
+})
+
+function syncDropdownTexts() {
+  if (invoice.value) {
+    if (invoice.value.iiko_supplier_id) {
+      const sup = suppliers.value.find(s => String(s.id).toLowerCase() === String(invoice.value.iiko_supplier_id).toLowerCase())
+      supplierSearchText.value = sup ? sup.name : (invoice.value.iiko_supplier_name || '')
+    } else {
+      supplierSearchText.value = ''
+    }
+
+    if (invoice.value.iiko_store_id) {
+      const st = stores.value.find(s => String(s.id).toLowerCase() === String(invoice.value.iiko_store_id).toLowerCase())
+      storeSearchText.value = st ? st.name : (invoice.value.iiko_store_name || '')
+    } else {
+      storeSearchText.value = ''
+    }
+  }
+}
+
+function selectSupplier(sup) {
+  if (sup) {
+    invoice.value.iiko_supplier_id = sup.id
+    invoice.value.iiko_supplier_name = sup.name
+    supplierSearchText.value = sup.name
+  } else {
+    invoice.value.iiko_supplier_id = null
+    invoice.value.iiko_supplier_name = ''
+    supplierSearchText.value = ''
+  }
+  isSupplierDropdownOpen.value = false
+  saveHeader()
+}
+
+function clearSupplier() {
+  selectSupplier(null)
+}
+
+function selectStore(st) {
+  if (st) {
+    invoice.value.iiko_store_id = st.id
+    invoice.value.iiko_store_name = st.name
+    storeSearchText.value = st.name
+  } else {
+    invoice.value.iiko_store_id = null
+    invoice.value.iiko_store_name = ''
+    storeSearchText.value = ''
+  }
+  isStoreDropdownOpen.value = false
+  onStoreChange()
+}
+
+function clearStore() {
+  selectStore(null)
+}
+
+function onDocClick(e) {
+  if (supplierDropdownRef.value && !supplierDropdownRef.value.contains(e.target)) {
+    isSupplierDropdownOpen.value = false
+    if (invoice.value?.iiko_supplier_id) {
+      const sup = suppliers.value.find(s => String(s.id).toLowerCase() === String(invoice.value.iiko_supplier_id).toLowerCase())
+      supplierSearchText.value = sup ? sup.name : (invoice.value.iiko_supplier_name || '')
+    } else {
+      supplierSearchText.value = ''
+    }
+  }
+
+  if (storeDropdownRef.value && !storeDropdownRef.value.contains(e.target)) {
+    isStoreDropdownOpen.value = false
+    if (invoice.value?.iiko_store_id) {
+      const st = stores.value.find(s => String(s.id).toLowerCase() === String(invoice.value.iiko_store_id).toLowerCase())
+      storeSearchText.value = st ? st.name : (invoice.value.iiko_store_name || '')
+    } else {
+      storeSearchText.value = ''
+    }
   }
 }
 
@@ -1099,7 +1311,10 @@ async function saveHeader() {
 
 async function onStoreChange() {
   const st = stores.value.find(s => String(s.id) === String(invoice.value.iiko_store_id))
-  if (st) invoice.value.iiko_store_name = st.name
+  if (st) {
+    invoice.value.iiko_store_name = st.name
+    storeSearchText.value = st.name
+  }
   await saveHeader()
 }
 
@@ -1422,6 +1637,7 @@ async function createSupplierInIiko() {
     suppliers.value.unshift(res.data)
     invoice.value.iiko_supplier_id = res.data.id
     invoice.value.iiko_supplier_name = res.data.name
+    supplierSearchText.value = res.data.name
     await saveHeader()
     toast.success(`Поставщик '${res.data.name}' создан в iiko и привязан!`)
     showSupplierModal.value = false
@@ -1491,11 +1707,14 @@ function statusBadgeClass(st) {
 
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyDown)
+  document.addEventListener('click', onDocClick)
   await Promise.all([loadInvoice(), loadAuxData()])
+  syncDropdownTexts()
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
+  document.removeEventListener('click', onDocClick)
 })
 </script>
 
