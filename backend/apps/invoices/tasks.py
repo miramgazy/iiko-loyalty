@@ -117,6 +117,7 @@ def process_invoice_ocr_task(self, invoice_id: int):
                     packaging_coefficient=match_res['packaging_coefficient'],
                     iiko_container_id=match_res.get('container_id'),
                     iiko_container_name=match_res.get('container_name') or "",
+                    iiko_product_unit=match_res.get('product_unit') or "",
                     iiko_amount=match_res['iiko_amount'],
                     iiko_price=match_res['iiko_price'],
                     iiko_sum=match_res['iiko_sum'],

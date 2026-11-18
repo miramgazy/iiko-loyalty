@@ -177,6 +177,7 @@ class InvoiceItem(models.Model):
     )
     iiko_container_id = models.UUIDField("UUID Фасовки iiko", null=True, blank=True)
     iiko_container_name = models.CharField("Название фасовки iiko", max_length=100, blank=True, default="")
+    iiko_product_unit = models.CharField("Единица измерения в iiko", max_length=50, blank=True, default="")
 
     iiko_amount = models.DecimalField("Количество в базовых единицах iiko", max_digits=12, decimal_places=3, default=0.0)
     iiko_price = models.DecimalField("Цена за 1 базовую единицу iiko", max_digits=12, decimal_places=2, default=0.0)

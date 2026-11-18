@@ -343,6 +343,9 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             item.iiko_store_id = data['iiko_store_id'] or None
             item.iiko_store_name = data.get('iiko_store_name', item.iiko_store_name)
 
+        if 'iiko_product_unit' in data:
+            item.iiko_product_unit = data['iiko_product_unit'] or ""
+
         if 'iiko_product_id' in data:
             item.iiko_product_id = data['iiko_product_id']
             item.iiko_product_name = data.get('iiko_product_name', item.iiko_product_name)
@@ -351,33 +354,11 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             item.match_source = 'manual'
             item.confidence = Decimal('1.00')
 
-            # Мгновенное самообучение: сохраняем связку в базу знаний ТОЛЬКО если не включен skip_knowledge_base
-            skip_kb = data.get('skip_knowledge_base', item.skip_knowledge_base)
-            if not skip_kb and invoice.iiko_supplier_id and item.raw_name:
-                try:
-                    norm_raw = normalize_product_name(item.raw_name)
-                    if norm_raw:
-                        SupplierProductAlias.objects.update_or_create(
-                            organization=invoice.organization,
-                            supplier_id=invoice.iiko_supplier_id,
-                            normalized_raw_name=norm_raw,
-                            defaults={
-                                'supplier_name': invoice.iiko_supplier_name or invoice.raw_supplier_name,
-                                'raw_product_name': item.raw_name,
-                                'iiko_product_id': item.iiko_product_id,
-                                'iiko_product_name': item.iiko_product_name,
-                                'default_packaging_coefficient': item.packaging_coefficient,
-                                'default_container_id': item.iiko_container_id,
-                                'default_container_name': item.iiko_container_name,
-                            }
-                        )
-                except Exception as e:
-                    logger.warning(f"Could not auto-save alias in update_item: {e}")
-
         if 'iiko_container_id' in data:
-            item.iiko_container_id = data['iiko_container_id']
+            item.iiko_container_id = data['iiko_container_id'] or None
             item.iiko_container_name = data.get('iiko_container_name', '')
 
+        target_iiko_amount = data.get('target_iiko_amount')
         packaging_coeff = Decimal(str(data.get('packaging_coefficient') or item.packaging_coefficient or 1.0))
         raw_amount = Decimal(str(data.get('raw_amount', item.raw_amount)))
         raw_price = Decimal(str(data.get('raw_price', item.raw_price)))
@@ -388,7 +369,8 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             raw_amount=raw_amount,
             raw_price=raw_price,
             raw_sum=raw_sum,
-            packaging_coefficient=packaging_coeff
+            packaging_coefficient=packaging_coeff,
+            target_iiko_amount=target_iiko_amount
         )
 
         item.packaging_coefficient = calc['packaging_coefficient']
@@ -400,6 +382,30 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         item.iiko_sum = calc['iiko_sum']
         item.sum_diff = calc['sum_diff']
         item.save()
+
+        # Мгновенное самообучение: сохраняем связку и фасовку в базу знаний
+        # ТОЛЬКО если товар привязан к iiko и не включен skip_knowledge_base
+        skip_kb = data.get('skip_knowledge_base', item.skip_knowledge_base)
+        if not skip_kb and item.iiko_product_id and invoice.iiko_supplier_id and item.raw_name:
+            try:
+                norm_raw = normalize_product_name(item.raw_name)
+                if norm_raw:
+                    SupplierProductAlias.objects.update_or_create(
+                        organization=invoice.organization,
+                        supplier_id=invoice.iiko_supplier_id,
+                        normalized_raw_name=norm_raw,
+                        defaults={
+                            'supplier_name': invoice.iiko_supplier_name or invoice.raw_supplier_name,
+                            'raw_product_name': item.raw_name,
+                            'iiko_product_id': item.iiko_product_id,
+                            'iiko_product_name': item.iiko_product_name,
+                            'default_packaging_coefficient': item.packaging_coefficient,
+                            'default_container_id': item.iiko_container_id,
+                            'default_container_name': item.iiko_container_name,
+                        }
+                    )
+            except Exception as e:
+                logger.warning(f"Could not auto-save alias in update_item: {e}")
 
         return Response(InvoiceItemSerializer(item).data)
 

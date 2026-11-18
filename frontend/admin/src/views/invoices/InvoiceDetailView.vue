@@ -326,25 +326,46 @@
 
               <!-- Packaging Coefficient Adjuster -->
               <td class="px-4 py-2 text-center">
-                <div class="inline-flex items-center gap-1.5">
+                <div class="inline-flex items-center justify-center gap-1.5">
                   <input
                     v-model.number="item.packaging_coefficient"
                     @change="updateItemValues(item)"
                     type="number"
                     step="0.001"
                     min="0.001"
-                    class="form-input text-xs py-1 px-1.5 w-18 text-center font-mono font-bold"
+                    title="Коэффициент фасовки (базовых единиц в 1 ед. накладной)"
+                    class="form-input text-xs py-1 px-1.5 w-18 text-center font-mono font-bold bg-slate-900 border-slate-700 focus:border-indigo-500 rounded"
                   />
-                  <div class="flex flex-col gap-0.5">
-                    <button @click="setPackFactor(item, 1.0)" class="text-[9px] px-1 py-0.2 rounded bg-slate-800 hover:bg-slate-700 text-slate-400">×1</button>
-                    <button @click="setPackFactor(item, 2.0)" class="text-[9px] px-1 py-0.2 rounded bg-slate-800 hover:bg-slate-700 text-slate-400">×2</button>
-                  </div>
+                  <button
+                    type="button"
+                    @click="openPackagingModal(item)"
+                    class="p-1 rounded-lg bg-indigo-950/70 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-800/80 transition-colors shadow-xs"
+                    title="Калькулятор единиц и фасовки (штуки, вес, тара)"
+                  >
+                    ⚖️
+                  </button>
+                </div>
+                <div v-if="item.iiko_container_name" class="text-[9px] text-indigo-400 truncate max-w-[130px] mx-auto mt-0.5" :title="item.iiko_container_name">
+                  📦 {{ item.iiko_container_name }}
                 </div>
               </td>
 
-              <!-- Computed Base Amount in iiko -->
-              <td class="px-3 py-2 text-right font-mono text-xs">
-                <span class="font-bold text-white">{{ item.iiko_amount }}</span>
+              <!-- Computed Base Amount in iiko (Editable for direct piece entry) -->
+              <td class="px-3 py-2 text-right">
+                <div class="inline-flex items-center justify-end gap-1">
+                  <input
+                    v-model.number="item.iiko_amount"
+                    @change="onIikoAmountChange(item)"
+                    type="number"
+                    step="0.001"
+                    min="0.001"
+                    title="Количество в базовых единицах iiko (измените число для пересчета штучности)"
+                    class="form-input text-xs py-1 px-1.5 w-20 text-right font-mono font-bold bg-slate-900 border-slate-700 focus:border-indigo-500 rounded text-white"
+                  />
+                  <span class="text-[10px] text-slate-400 font-mono flex-shrink-0" :title="`Единица в iiko: ${item.iiko_product_unit || 'кг'}`">
+                    {{ item.iiko_product_unit || item.raw_unit || 'кг' }}
+                  </span>
+                </div>
               </td>
 
               <!-- Computed Price per Base Unit -->
@@ -591,6 +612,242 @@
             <div v-if="!catalogResults.length" class="p-4 text-center text-xs text-slate-500">
               Товары не найдены
             </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Packaging & Unit Conversion Modal -->
+    <Transition name="fade">
+      <div 
+        v-if="packagingModalOpen && activePackItem" 
+        class="fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6" 
+        @click.self="packagingModalOpen = false"
+      >
+        <div class="bg-slate-900 border border-slate-700/80 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
+          <!-- Modal Header -->
+          <div class="px-6 py-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-lg flex-shrink-0 shadow-inner">
+                ⚖️
+              </div>
+              <div>
+                <h3 class="text-sm font-bold text-white">Пересчет единиц измерения и фасовки</h3>
+                <p class="text-[11px] text-slate-400 mt-0.5">Пересчет между накладной поставщика и складом iiko</p>
+              </div>
+            </div>
+            <button 
+              type="button"
+              @click="packagingModalOpen = false" 
+              class="text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div class="p-6 space-y-5 overflow-y-auto max-h-[80vh]">
+            <!-- Item Info Banner -->
+            <div class="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800/80 space-y-2">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <span class="text-[10px] text-slate-500 font-mono uppercase tracking-wider block">Из накладной:</span>
+                  <p class="text-xs font-semibold text-white">{{ activePackItem.raw_name }}</p>
+                </div>
+                <div class="text-right flex-shrink-0">
+                  <span class="text-xs font-mono font-bold text-slate-200">
+                    {{ activePackItem.raw_amount }} {{ activePackItem.raw_unit }}
+                  </span>
+                  <span class="text-[11px] text-slate-400 font-mono block">
+                    {{ Number(activePackItem.raw_sum).toLocaleString('ru-RU') }} ₸
+                  </span>
+                </div>
+              </div>
+              <div class="pt-2 border-t border-slate-800/60 flex items-center justify-between gap-2">
+                <div>
+                  <span class="text-[10px] text-indigo-400 font-mono uppercase tracking-wider block">Товар в iiko:</span>
+                  <p class="text-xs font-semibold text-indigo-200">{{ activePackItem.iiko_product_name || 'Не сопоставлен' }}</p>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[11px] text-slate-400">Ед. в iiko:</span>
+                  <input
+                    v-model="packItemUnit"
+                    placeholder="шт, кг..."
+                    class="form-input text-xs py-0.5 px-2 w-16 text-center font-bold bg-slate-900 border-slate-700 text-white rounded"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Conversion Mode Selector Tabs -->
+            <div>
+              <label class="text-[11px] font-semibold text-slate-300 block mb-2">Способ пересчета:</label>
+              <div class="grid grid-cols-3 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800 text-[11px] font-medium text-slate-400">
+                <button
+                  type="button"
+                  @click="packMode = 'direct'"
+                  class="py-1.5 px-2 rounded-lg transition-all text-center cursor-pointer"
+                  :class="packMode === 'direct' ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'hover:text-slate-200'"
+                >
+                  🔢 В штуках
+                </button>
+                <button
+                  type="button"
+                  @click="packMode = 'piece_weight'"
+                  class="py-1.5 px-2 rounded-lg transition-all text-center cursor-pointer"
+                  :class="packMode === 'piece_weight' ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'hover:text-slate-200'"
+                >
+                  ⚖️ По весу 1 шт.
+                </button>
+                <button
+                  type="button"
+                  @click="packMode = 'coefficient'"
+                  class="py-1.5 px-2 rounded-lg transition-all text-center cursor-pointer"
+                  :class="packMode === 'coefficient' ? 'bg-indigo-600 text-white font-bold shadow-xs' : 'hover:text-slate-200'"
+                >
+                  ✖️ Коэффициент
+                </button>
+              </div>
+            </div>
+
+            <!-- Mode 1: Direct Piece / Base Amount Entry -->
+            <div v-if="packMode === 'direct'" class="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-800/40 space-y-3">
+              <label class="text-xs font-semibold text-indigo-200 block">
+                Сколько штук (или {{ packItemUnit || 'базовых единиц' }}) оприходовать в iiko:
+              </label>
+              <div class="flex items-center gap-3">
+                <input
+                  v-model.number="directAmount"
+                  type="number"
+                  step="0.001"
+                  min="0.001"
+                  placeholder="Например, 6"
+                  class="form-input text-sm py-2 px-3 w-36 font-mono font-bold text-white bg-slate-950 border-slate-700 focus:border-indigo-500 rounded-xl text-center"
+                />
+                <span class="text-xs text-slate-300 font-semibold">{{ packItemUnit || 'шт' }}</span>
+              </div>
+              <p class="text-[11px] text-slate-400 leading-relaxed">
+                💡 Например: в накладной указано {{ activePackItem.raw_amount }} {{ activePackItem.raw_unit }} рыбы, а фактически это {{ directAmount || '?' }} штук.
+              </p>
+            </div>
+
+            <!-- Mode 2: By Piece Weight -->
+            <div v-if="packMode === 'piece_weight'" class="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-800/40 space-y-3">
+              <label class="text-xs font-semibold text-indigo-200 block">
+                Средний вес одной рыбы / штуки (в {{ activePackItem.raw_unit || 'кг' }}):
+              </label>
+              <div class="flex items-center gap-3">
+                <input
+                  v-model.number="pieceWeight"
+                  type="number"
+                  step="0.001"
+                  min="0.001"
+                  placeholder="Например, 2.5"
+                  class="form-input text-sm py-2 px-3 w-36 font-mono font-bold text-white bg-slate-950 border-slate-700 focus:border-indigo-500 rounded-xl text-center"
+                />
+                <span class="text-xs text-slate-300 font-semibold">{{ activePackItem.raw_unit || 'кг' }} / 1 {{ packItemUnit || 'шт' }}</span>
+              </div>
+              <p class="text-[11px] text-slate-400 leading-relaxed">
+                💡 При общем весе {{ activePackItem.raw_amount }} {{ activePackItem.raw_unit }} и среднем весе {{ pieceWeight || '?' }} {{ activePackItem.raw_unit }}, получится 
+                <strong class="text-emerald-400">{{ calculatedDirectAmount }} {{ packItemUnit || 'шт' }}</strong>.
+              </p>
+            </div>
+
+            <!-- Mode 3: Direct Packaging Coefficient -->
+            <div v-if="packMode === 'coefficient'" class="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-800/40 space-y-3">
+              <label class="text-xs font-semibold text-indigo-200 block">
+                Коэффициент фасовки (базовых единиц iiko в 1 единице накладной):
+              </label>
+              <div class="flex items-center gap-3">
+                <input
+                  v-model.number="customCoefficient"
+                  type="number"
+                  step="0.001"
+                  min="0.001"
+                  placeholder="1.000"
+                  class="form-input text-sm py-2 px-3 w-36 font-mono font-bold text-white bg-slate-950 border-slate-700 focus:border-indigo-500 rounded-xl text-center"
+                />
+                <div class="flex items-center gap-1">
+                  <button type="button" @click="customCoefficient = 1.0" class="text-[10px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">×1</button>
+                  <button type="button" @click="customCoefficient = 0.4" class="text-[10px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">0.4</button>
+                  <button type="button" @click="customCoefficient = 2.5" class="text-[10px] px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">2.5</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Predefined iiko Containers (if available for this product) -->
+            <div v-if="availableContainers && availableContainers.length > 0" class="space-y-2">
+              <label class="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                <span>📦</span> Фасовки и тара из карточки товара iiko:
+              </label>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  v-for="c in availableContainers"
+                  :key="c.id"
+                  type="button"
+                  @click="selectContainer(c)"
+                  class="p-2.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between"
+                  :class="selectedContainerId === c.id ? 'bg-indigo-600/30 border-indigo-500 text-white' : 'bg-slate-950/70 border-slate-800 hover:border-slate-700 text-slate-300'"
+                >
+                  <span class="text-xs font-semibold truncate">{{ c.name }}</span>
+                  <span class="text-[10px] text-slate-400 font-mono mt-1">Коэфф: {{ c.count }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Live Calculation Preview -->
+            <div class="p-4 rounded-2xl bg-emerald-950/20 border border-emerald-800/40 space-y-2">
+              <span class="text-[10px] text-emerald-400 font-mono uppercase tracking-wider block font-bold">Итог оприходования в iiko:</span>
+              <div class="grid grid-cols-3 gap-2 pt-1 text-center font-mono">
+                <div class="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60">
+                  <span class="text-[9px] text-slate-400 block">Количество</span>
+                  <span class="text-xs font-bold text-emerald-300">{{ calculatedDirectAmount }} {{ packItemUnit || 'шт' }}</span>
+                </div>
+                <div class="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60">
+                  <span class="text-[9px] text-slate-400 block">Цена за 1 {{ packItemUnit || 'шт' }}</span>
+                  <span class="text-xs font-bold text-white">{{ calculatedPrice }} ₸</span>
+                </div>
+                <div class="p-2 rounded-xl bg-slate-950/60 border border-slate-800/60">
+                  <span class="text-[9px] text-slate-400 block">Сумма в iiko</span>
+                  <span class="text-xs font-bold text-emerald-400">{{ Number(activePackItem.raw_sum).toLocaleString('ru-RU') }} ₸</span>
+                </div>
+              </div>
+              <p class="text-[10px] text-slate-400 pt-1 text-center font-mono">
+                Коэффициент фасовки: <strong>{{ calculatedCoeff }}</strong> • Баланс строки сохраняется точным до копейки
+              </p>
+            </div>
+
+            <!-- Knowledge Base Checkbox -->
+            <label class="flex items-start gap-2.5 p-3 rounded-xl bg-slate-950/70 border border-slate-800 cursor-pointer hover:bg-slate-950 transition-colors">
+              <input
+                v-model="savePackToKB"
+                type="checkbox"
+                class="rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 mt-0.5"
+              />
+              <span class="text-xs text-slate-300 leading-snug">
+                🧠 <strong>Запомнить фасовку в базе знаний</strong> для поставщика 
+                <span class="text-indigo-300">«{{ invoice.iiko_supplier_name || invoice.raw_supplier_name }}»</span>
+                (следующие накладные пересчитаются автоматически)
+              </span>
+            </label>
+          </div>
+
+          <!-- Modal Footer -->
+          <div class="px-6 py-4 bg-slate-950/80 border-t border-slate-800 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              @click="packagingModalOpen = false"
+              class="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              @click="applyPackagingModal"
+              class="px-5 py-2 rounded-xl text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-600/30 flex items-center gap-1.5 cursor-pointer"
+            >
+              <span>Применить пересчет</span>
+              <span>✓</span>
+            </button>
           </div>
         </div>
       </div>
@@ -872,9 +1129,19 @@ function setPackFactor(item, factor) {
   updateItemValues(item)
 }
 
-async function updateItemValues(item) {
+async function onIikoAmountChange(item) {
+  if (item.iiko_amount && Number(item.iiko_amount) > 0) {
+    await updateItemValues(item, {
+      target_iiko_amount: Number(item.iiko_amount),
+      iiko_product_unit: item.iiko_product_unit
+    })
+    toast.success(`Пересчитано: ${item.iiko_amount} ${item.iiko_product_unit || ''} (коэфф. ${item.packaging_coefficient})`)
+  }
+}
+
+async function updateItemValues(item, extra = {}) {
   try {
-    const res = await api.patch(`/invoices/documents/${invoice.value.id}/items/${item.id}/`, {
+    const payload = {
       organization_id: auth.currentOrgId,
       raw_name: item.raw_name,
       clean_name: item.clean_name,
@@ -885,15 +1152,145 @@ async function updateItemValues(item) {
       iiko_product_id: item.iiko_product_id,
       iiko_product_name: item.iiko_product_name,
       iiko_product_code: item.iiko_product_code,
+      iiko_product_unit: item.iiko_product_unit,
+      iiko_container_id: item.iiko_container_id,
+      iiko_container_name: item.iiko_container_name,
       iiko_store_id: item.iiko_store_id,
       iiko_store_name: item.iiko_store_name,
       is_imprecise_recognition: item.is_imprecise_recognition,
-      skip_knowledge_base: item.skip_knowledge_base
-    })
+      skip_knowledge_base: item.skip_knowledge_base,
+      ...extra
+    }
+    const res = await api.patch(`/invoices/documents/${invoice.value.id}/items/${item.id}/`, payload)
     Object.assign(item, res.data)
   } catch {
     toast.error('Ошибка пересчета строки')
   }
+}
+
+// Packaging & Unit Conversion Modal State & Logic
+const packagingModalOpen = ref(false)
+const activePackItem = ref(null)
+const packMode = ref('direct')
+const directAmount = ref(1)
+const pieceWeight = ref(1)
+const customCoefficient = ref(1)
+const selectedContainerId = ref('')
+const selectedContainerName = ref('')
+const availableContainers = ref([])
+const packItemUnit = ref('')
+const savePackToKB = ref(true)
+
+const calculatedDirectAmount = computed(() => {
+  if (!activePackItem.value) return 0
+  const rawAmt = Number(activePackItem.value.raw_amount) || 0
+  if (packMode.value === 'direct') {
+    return Number(directAmount.value) || 0
+  }
+  if (packMode.value === 'piece_weight') {
+    const pw = Number(pieceWeight.value)
+    if (pw > 0 && rawAmt > 0) {
+      return Number((rawAmt / pw).toFixed(3))
+    }
+    return 0
+  }
+  if (packMode.value === 'coefficient') {
+    const k = Number(customCoefficient.value) || 1.0
+    return Number((rawAmt * k).toFixed(3))
+  }
+  return 0
+})
+
+const calculatedCoeff = computed(() => {
+  if (!activePackItem.value) return 1.0
+  const rawAmt = Number(activePackItem.value.raw_amount) || 0
+  const directAmt = calculatedDirectAmount.value
+  if (rawAmt > 0 && directAmt > 0) {
+    return Number((directAmt / rawAmt).toFixed(3))
+  }
+  return 1.0
+})
+
+const calculatedPrice = computed(() => {
+  if (!activePackItem.value) return '0.00'
+  const rawSum = Number(activePackItem.value.raw_sum) || 0
+  const directAmt = calculatedDirectAmount.value
+  if (directAmt > 0) {
+    return (rawSum / directAmt).toFixed(2)
+  }
+  return Number(activePackItem.value.raw_price || 0).toFixed(2)
+})
+
+async function openPackagingModal(item) {
+  activePackItem.value = item
+  packMode.value = 'direct'
+  directAmount.value = Number(item.iiko_amount) || Number(item.raw_amount) || 1
+  pieceWeight.value = Number(item.raw_amount) && Number(item.iiko_amount) ? Number((Number(item.raw_amount) / Number(item.iiko_amount)).toFixed(3)) : 1.0
+  customCoefficient.value = Number(item.packaging_coefficient) || 1.0
+  selectedContainerId.value = item.iiko_container_id || ''
+  selectedContainerName.value = item.iiko_container_name || ''
+  packItemUnit.value = item.iiko_product_unit || (item.raw_unit === 'кг' ? 'шт' : item.raw_unit) || 'шт'
+  savePackToKB.value = !item.skip_knowledge_base
+  availableContainers.value = []
+
+  // Пытаемся получить список фасовок товара из iiko
+  if (item.iiko_product_id) {
+    try {
+      const res = await api.get('/invoices/products-catalog/', {
+        params: { organization_id: auth.currentOrgId, search: item.iiko_product_name || '' }
+      })
+      const found = (res.data || []).find(p => String(p.id).toLowerCase() === String(item.iiko_product_id).toLowerCase())
+      if (found) {
+        if (found.unit && !item.iiko_product_unit) {
+          packItemUnit.value = found.unit
+        }
+        if (found.containers && found.containers.length > 0) {
+          availableContainers.value = found.containers
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load containers:', e)
+    }
+  }
+
+  packagingModalOpen.value = true
+}
+
+function selectContainer(c) {
+  selectedContainerId.value = c.id
+  selectedContainerName.value = c.name
+  customCoefficient.value = Number(c.count) || 1.0
+  packMode.value = 'coefficient'
+}
+
+async function applyPackagingModal() {
+  if (!activePackItem.value) return
+  const unit = packItemUnit.value.trim() || 'шт'
+  const targetAmount = calculatedDirectAmount.value
+  const coeff = calculatedCoeff.value
+
+  activePackItem.value.iiko_product_unit = unit
+  activePackItem.value.packaging_coefficient = coeff
+  activePackItem.value.iiko_amount = targetAmount
+  activePackItem.value.skip_knowledge_base = !savePackToKB.value
+
+  const extra = {
+    target_iiko_amount: targetAmount,
+    packaging_coefficient: coeff,
+    iiko_product_unit: unit,
+    skip_knowledge_base: !savePackToKB.value
+  }
+
+  if (selectedContainerId.value) {
+    activePackItem.value.iiko_container_id = selectedContainerId.value
+    activePackItem.value.iiko_container_name = selectedContainerName.value
+    extra.iiko_container_id = selectedContainerId.value
+    extra.iiko_container_name = selectedContainerName.value
+  }
+
+  await updateItemValues(activePackItem.value, extra)
+  packagingModalOpen.value = false
+  toast.success('Пересчет фасовки успешно применен')
 }
 
 // Live Search Catalog Modal
@@ -938,6 +1335,7 @@ async function quickSelectCandidate(item, cand) {
   item.iiko_product_id = cand.id
   item.iiko_product_name = cand.name
   item.iiko_product_code = cand.code
+  item.iiko_product_unit = cand.unit || 'кг'
   item.match_status = 'green'
   await updateItemValues(item)
   toast.success(`Привязано: ${cand.name}`)
@@ -970,6 +1368,7 @@ async function selectProductForActiveItem(prod) {
   activeSearchItem.value.iiko_product_id = prod.id
   activeSearchItem.value.iiko_product_name = prod.name
   activeSearchItem.value.iiko_product_code = prod.code
+  activeSearchItem.value.iiko_product_unit = prod.unit || 'кг'
   activeSearchItem.value.match_status = 'green'
   await updateItemValues(activeSearchItem.value)
   searchModalOpen.value = false

@@ -40,6 +40,21 @@ class PackagingCalculationServiceTest(TestCase):
         self.assertEqual(res["iiko_sum"], Decimal("1000.00"))
         self.assertIsNotNone(res["sum_diff"])
 
+    def test_calculate_target_iiko_amount_fish_conversion(self):
+        # 15 кг сазана оприходуется как 6 штук, сумма 30 000 ₸
+        # K = 6 / 15 = 0.400, цена 30000 / 6 = 5000 ₸, итоговая сумма 30000 ₸
+        res = PackagingCalculationService.calculate_item_values(
+            raw_amount=Decimal("15"),
+            raw_price=Decimal("2000"),
+            raw_sum=Decimal("30000"),
+            target_iiko_amount=Decimal("6")
+        )
+        self.assertEqual(res["iiko_amount"], Decimal("6.000"))
+        self.assertEqual(res["packaging_coefficient"], Decimal("0.400"))
+        self.assertEqual(res["iiko_price"], Decimal("5000.00"))
+        self.assertEqual(res["iiko_sum"], Decimal("30000.00"))
+        self.assertEqual(res["sum_diff"], Decimal("0.00"))
+
 
 class MatchingServiceTest(TestCase):
     def setUp(self):
@@ -422,6 +437,56 @@ class InvoiceApiTest(APITestCase):
         self.assertEqual(res.status_code, 200)
         names = [s['name'] for s in res.data]
         self.assertIn("ТОО Экзотик Фрут", names)
+
+    def test_update_item_with_unit_and_target_amount(self):
+        invoice = Invoice.objects.create(
+            organization=self.org,
+            internal_number="INV-UNIT-001",
+            status=Invoice.STATUS_RECOGNIZED,
+            iiko_supplier_id=uuid.uuid4(),
+            iiko_supplier_name="ТОО Рыбный Мир"
+        )
+        item = InvoiceItem.objects.create(
+            invoice=invoice,
+            num=1,
+            raw_name="Сазан свежий",
+            clean_name="Сазан свежий",
+            raw_unit="кг",
+            raw_amount=Decimal("15.000"),
+            raw_price=Decimal("2000.00"),
+            raw_sum=Decimal("30000.00"),
+            iiko_amount=Decimal("15.000"),
+            iiko_price=Decimal("2000.00"),
+            iiko_sum=Decimal("30000.00")
+        )
+
+        self.client.force_authenticate(user=self.user)
+        prod_id = str(uuid.uuid4())
+        resp = self.client.patch(
+            f"/api/invoices/documents/{invoice.id}/items/{item.id}/",
+            {
+                "organization_id": str(self.org.id),
+                "iiko_product_id": prod_id,
+                "iiko_product_name": "Сазан штучный",
+                "iiko_product_unit": "шт",
+                "target_iiko_amount": "6"
+            },
+            format="json"
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data["iiko_amount"], "6.000")
+        self.assertEqual(resp.data["packaging_coefficient"], "0.400")
+        self.assertEqual(resp.data["iiko_price"], "5000.00")
+        self.assertEqual(resp.data["iiko_sum"], "30000.00")
+        self.assertEqual(resp.data["iiko_product_unit"], "шт")
+
+        # Проверяем, что в базу знаний сохранился коэффициент 0.400
+        alias = SupplierProductAlias.objects.filter(
+            organization=self.org,
+            supplier_id=invoice.iiko_supplier_id
+        ).first()
+        self.assertIsNotNone(alias)
+        self.assertEqual(alias.default_packaging_coefficient, Decimal("0.400"))
 
 
 

@@ -91,13 +91,19 @@ class InvoiceMatchingService:
         Каждый элемент: {'id': 'uuid', 'name': 'Название', 'code': '123', 'unit': 'кг', 'containers': [...]}
         """
         cache_key = f"iiko_products_catalog_{self.org.id}"
-        cached = cache.get(cache_key)
-        if cached:
-            return cached
+        try:
+            cached = cache.get(cache_key)
+            if cached:
+                return cached
+        except Exception:
+            pass
 
         products = self._fetch_products_from_iiko()
         if products:
-            cache.set(cache_key, products, timeout=3600)
+            try:
+                cache.set(cache_key, products, timeout=3600)
+            except Exception:
+                pass
         return products
 
     def _fetch_assembly_charts_strategies(self, base_url: str, token: str) -> Dict[str, str]:
@@ -205,12 +211,24 @@ class InvoiceMatchingService:
                                 if strategy != "DIRECT" and ptype == "DISH":
                                     continue
 
+                            containers = []
+                            for c_elem in prod_elem.findall('.//container'):
+                                cid = c_elem.findtext('id')
+                                cname = c_elem.findtext('name')
+                                ccount = c_elem.findtext('count')
+                                if cid and cname:
+                                    try:
+                                        cnt = float(ccount) if ccount else 1.0
+                                    except ValueError:
+                                        cnt = 1.0
+                                    containers.append({'id': cid, 'name': cname, 'count': cnt})
+
                             products.append({
                                 "id": pid,
                                 "name": name,
                                 "code": code,
                                 "unit": main_unit,
-                                "containers": [],
+                                "containers": containers,
                                 "type": ptype
                             })
                         if products:
@@ -373,10 +391,18 @@ class InvoiceMatchingService:
             (alias_query.filter(normalized_raw_name=norm_clean).first() if norm_clean else None)
         )
 
+        catalog = self.get_cached_products() or []
+
         if alias:
             calc = PackagingCalculationService.calculate_item_values(
                 raw_amount, raw_price, raw_sum, alias.default_packaging_coefficient
             )
+            alias_unit = "кг"
+            for p in catalog:
+                if str(p['id']).lower() == str(alias.iiko_product_id).lower():
+                    alias_unit = p.get('unit') or 'кг'
+                    break
+
             return {
                 'match_status': InvoiceItem.MATCH_STATUS_GREEN,
                 'match_source': 'knowledge_base',
@@ -384,6 +410,7 @@ class InvoiceMatchingService:
                 'product_id': str(alias.iiko_product_id),
                 'product_name': alias.iiko_product_name,
                 'product_code': '',
+                'product_unit': alias_unit,
                 'packaging_coefficient': float(alias.default_packaging_coefficient),
                 'container_id': str(alias.default_container_id) if alias.default_container_id else None,
                 'container_name': alias.default_container_name,
@@ -411,8 +438,6 @@ class InvoiceMatchingService:
         )
 
         # 2-й Уровень: Умный поиск по каталогу iiko (RapidFuzz WRatio + token_set_ratio)
-        catalog = self.get_cached_products() or []
-
         scored_candidates = []
         for prod in catalog:
             score = score_catalog_item(
@@ -428,6 +453,7 @@ class InvoiceMatchingService:
                     'name': prod['name'],
                     'code': prod.get('code') or '',
                     'unit': prod.get('unit') or 'кг',
+                    'containers': prod.get('containers') or [],
                     'score': score,
                     'source': 'fuzzy'
                 })
@@ -461,6 +487,7 @@ class InvoiceMatchingService:
         best_candidate = candidates[0] if candidates else None
         best_score = best_candidate['score'] if best_candidate else 0.0
         best_source = best_candidate.get('source', 'fuzzy') if best_candidate else 'fuzzy'
+        best_unit = best_candidate.get('unit') or 'кг' if best_candidate else 'кг'
 
         # Градация уверенности:
         # Score >= 0.85 -> ЗЕЛЕНЫЙ (Точное / уверенное совпадение)
@@ -474,6 +501,7 @@ class InvoiceMatchingService:
                 'product_id': best_candidate['id'],
                 'product_name': best_candidate['name'],
                 'product_code': best_candidate['code'],
+                'product_unit': best_unit,
                 'packaging_coefficient': float(packaging_coeff),
                 'container_id': container_id,
                 'container_name': container_name,
@@ -488,6 +516,7 @@ class InvoiceMatchingService:
                 'product_id': best_candidate['id'],
                 'product_name': best_candidate['name'],
                 'product_code': best_candidate['code'],
+                'product_unit': best_unit,
                 'packaging_coefficient': float(packaging_coeff),
                 'container_id': container_id,
                 'container_name': container_name,
@@ -502,6 +531,7 @@ class InvoiceMatchingService:
                 'product_id': None,
                 'product_name': '',
                 'product_code': '',
+                'product_unit': '',
                 'packaging_coefficient': float(packaging_coeff),
                 'container_id': container_id,
                 'container_name': container_name,
