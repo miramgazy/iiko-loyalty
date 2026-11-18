@@ -31,6 +31,14 @@ class InvoiceItemSerializer(serializers.ModelSerializer):
             'iiko_amount', 'iiko_price', 'iiko_sum', 'sum_diff'
         ]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        unit = data.get('iiko_product_unit')
+        if unit:
+            from apps.invoices.services.matching_service import resolve_measure_unit_name
+            data['iiko_product_unit'] = resolve_measure_unit_name(unit)
+        return data
+
 
 class InvoiceListSerializer(serializers.ModelSerializer):
     images_count = serializers.SerializerMethodField()

@@ -17,6 +17,39 @@ from apps.invoices.services.embedding_service import EmbeddingService
 
 logger = logging.getLogger(__name__)
 
+# Базовые единицы измерения iiko RMS (UUID -> Человекочитаемое название)
+STANDARD_IIKO_MEASURE_UNITS = {
+    '7ba81c3a-8de5-8f9d-fb9f-e39efcbc57cc': 'кг',
+    'cd19b5ea-1b32-a6e5-1df7-5d2784a0549a': 'шт',
+    '6040d92d-e286-f4f9-a613-ed0e6fd241e1': 'порц',
+    '69859c74-db72-b006-cba5-326cf6f4fc6e': 'л',
+    'b003f902-de36-c128-019f-7e1d6ef2280b': 'услуга',
+    'b003f902-de36-c128-019f-7e1d6ef228b2': 'м',
+    'b003f902-de36-c128-019f-7e1d6ef22a4a': 'пара',
+}
+
+def resolve_measure_unit_name(raw_unit: Optional[str], custom_map: Optional[Dict[str, str]] = None) -> str:
+    """
+    Преобразует ID единицы измерения (UUID) в человекочитаемое наименование (например: 'кг', 'шт', 'л').
+    Если raw_unit уже является названием, возвращает его без изменений.
+    """
+    if not raw_unit:
+        return "кг"
+    val = str(raw_unit).strip()
+    val_lower = val.lower()
+
+    if custom_map and val_lower in custom_map:
+        return custom_map[val_lower]
+
+    if val_lower in STANDARD_IIKO_MEASURE_UNITS:
+        return STANDARD_IIKO_MEASURE_UNITS[val_lower]
+
+    # Если значение является UUID (36 символов с 4 дефисами), но не найдено в словаре:
+    if len(val) == 36 and val.count('-') == 4:
+        return "шт"
+
+    return val
+
 
 def normalize_product_name(s: str) -> str:
     if not s:
@@ -94,7 +127,10 @@ class InvoiceMatchingService:
         try:
             cached = cache.get(cache_key)
             if cached:
-                return cached
+                # Проверяем, нет ли в кэше старых UUID вместо названий единиц
+                has_uuid_unit = any(len(p.get("unit", "")) == 36 and "-" in p.get("unit", "") for p in cached[:20])
+                if not has_uuid_unit:
+                    return cached
         except Exception:
             pass
 
@@ -105,6 +141,28 @@ class InvoiceMatchingService:
             except Exception:
                 pass
         return products
+
+    def _fetch_measure_units(self, base_url: str, token: str) -> Dict[str, str]:
+        """
+        Запрашивает актуальный справочник единиц измерения (/resto/api/v2/entities/list?rootType=MeasureUnit)
+        и возвращает словарь {unit_uuid: unit_name} (например, {"cd19b5ea-...": "шт", "7ba81c3a-...": "кг"}).
+        """
+        units_map = dict(STANDARD_IIKO_MEASURE_UNITS)
+        try:
+            url = f"{base_url}/resto/api/v2/entities/list"
+            with httpx.Client(timeout=15, verify=False) as client:
+                resp = client.get(url, params={"key": token, "rootType": "MeasureUnit"})
+                if resp.status_code == 200:
+                    data = resp.json()
+                    items = data if isinstance(data, list) else []
+                    for u in items:
+                        uid = str(u.get("id")).lower()
+                        uname = u.get("name")
+                        if uid and uname:
+                            units_map[uid] = uname
+        except Exception as e:
+            logger.warning(f"Failed to fetch measure units for org {self.org.id}: {e}")
+        return units_map
 
     def _fetch_assembly_charts_strategies(self, base_url: str, token: str) -> Dict[str, str]:
         """
@@ -144,6 +202,9 @@ class InvoiceMatchingService:
                 # Получаем стратегии списания из активных ТТК
                 strategies = self._fetch_assembly_charts_strategies(base_url, token)
 
+                # Получаем справочник единиц измерения (UUID -> 'кг', 'шт', 'л')
+                measure_units = self._fetch_measure_units(base_url, token)
+
                 # Попытка v2 JSON
                 v2_url = f"{base_url}/resto/api/v2/entities/products/list"
                 with httpx.Client(timeout=30, verify=False) as client:
@@ -172,11 +233,14 @@ class InvoiceMatchingService:
                                 if strategy != "DIRECT" and ptype == "DISH":
                                     continue
 
+                            unit_raw = item.get("mainUnit") or item.get("unit") or "кг"
+                            unit_name = resolve_measure_unit_name(unit_raw, measure_units)
+
                             products.append({
                                 "id": str(item.get("id")),
                                 "name": item.get("name", ""),
                                 "code": item.get("code") or item.get("article") or "",
-                                "unit": item.get("mainUnit") or item.get("unit") or "кг",
+                                "unit": unit_name,
                                 "containers": item.get("containers", []),
                                 "type": ptype
                             })
@@ -194,6 +258,7 @@ class InvoiceMatchingService:
                             name = prod_elem.findtext('name')
                             code = prod_elem.findtext('num') or prod_elem.findtext('code') or ""
                             main_unit = prod_elem.findtext('mainUnit') or "кг"
+                            main_unit = resolve_measure_unit_name(main_unit, measure_units)
                             deleted = prod_elem.findtext('deleted') == 'true'
                             ptype = (prod_elem.findtext('productType') or prod_elem.findtext('type') or 'GOODS').upper()
 
@@ -261,7 +326,7 @@ class InvoiceMatchingService:
                                 "id": str(p.get("id")),
                                 "name": p.get("name", ""),
                                 "code": p.get("code") or "",
-                                "unit": p.get("unit") or "кг",
+                                "unit": resolve_measure_unit_name(p.get("unit") or "кг"),
                                 "containers": [],
                                 "type": ptype
                             })
@@ -313,7 +378,7 @@ class InvoiceMatchingService:
                             'id': str(item.iiko_product_id),
                             'name': item.name,
                             'code': item.code or '',
-                            'unit': item.unit or 'кг',
+                            'unit': resolve_measure_unit_name(item.unit or 'кг'),
                             'score': sim,
                             'source': 'vector'
                         })
@@ -341,7 +406,7 @@ class InvoiceMatchingService:
                                         'id': str(item.iiko_product_id),
                                         'name': item.name,
                                         'code': item.code or '',
-                                        'unit': item.unit or 'кг',
+                                        'unit': resolve_measure_unit_name(item.unit or 'кг'),
                                         'score': round(sim, 3),
                                         'source': 'vector'
                                     })
@@ -400,8 +465,9 @@ class InvoiceMatchingService:
             alias_unit = "кг"
             for p in catalog:
                 if str(p['id']).lower() == str(alias.iiko_product_id).lower():
-                    alias_unit = p.get('unit') or 'кг'
+                    alias_unit = resolve_measure_unit_name(p.get('unit') or 'кг')
                     break
+            alias_unit = resolve_measure_unit_name(alias_unit)
 
             return {
                 'match_status': InvoiceItem.MATCH_STATUS_GREEN,
@@ -452,7 +518,7 @@ class InvoiceMatchingService:
                     'id': str(prod['id']),
                     'name': prod['name'],
                     'code': prod.get('code') or '',
-                    'unit': prod.get('unit') or 'кг',
+                    'unit': resolve_measure_unit_name(prod.get('unit') or 'кг'),
                     'containers': prod.get('containers') or [],
                     'score': score,
                     'source': 'fuzzy'
@@ -487,7 +553,7 @@ class InvoiceMatchingService:
         best_candidate = candidates[0] if candidates else None
         best_score = best_candidate['score'] if best_candidate else 0.0
         best_source = best_candidate.get('source', 'fuzzy') if best_candidate else 'fuzzy'
-        best_unit = best_candidate.get('unit') or 'кг' if best_candidate else 'кг'
+        best_unit = resolve_measure_unit_name(best_candidate.get('unit') or 'кг') if best_candidate else 'кг'
 
         # Градация уверенности:
         # Score >= 0.85 -> ЗЕЛЕНЫЙ (Точное / уверенное совпадение)

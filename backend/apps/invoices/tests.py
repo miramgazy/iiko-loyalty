@@ -488,5 +488,24 @@ class InvoiceApiTest(APITestCase):
         self.assertIsNotNone(alias)
         self.assertEqual(alias.default_packaging_coefficient, Decimal("0.400"))
 
+    def test_unit_uuid_resolution(self):
+        from apps.invoices.services.matching_service import resolve_measure_unit_name
+        self.assertEqual(resolve_measure_unit_name("cd19b5ea-1b32-a6e5-1df7-5d2784a0549a"), "шт")
+        self.assertEqual(resolve_measure_unit_name("7ba81c3a-8de5-8f9d-fb9f-e39efcbc57cc"), "кг")
+        self.assertEqual(resolve_measure_unit_name("69859c74-db72-b006-cba5-326cf6f4fc6e"), "л")
+        self.assertEqual(resolve_measure_unit_name("кг"), "кг")
+
+        # Serializer should resolve UUID automatically
+        invoice = Invoice.objects.create(organization=self.org, internal_number="INV-UUID-001")
+        item = InvoiceItem.objects.create(
+            invoice=invoice,
+            num=1,
+            raw_name="Толкушка",
+            iiko_product_unit="cd19b5ea-1b32-a6e5-1df7-5d2784a0549a"
+        )
+        from apps.invoices.serializers import InvoiceItemSerializer
+        ser = InvoiceItemSerializer(item)
+        self.assertEqual(ser.data["iiko_product_unit"], "шт")
+
 
 

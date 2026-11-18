@@ -21,7 +21,7 @@ from apps.invoices.serializers import (
 from apps.invoices.tasks import process_invoice_ocr_task
 from apps.invoices.services.calculation_service import PackagingCalculationService
 from apps.invoices.services.supplier_service import IikoSupplierService
-from apps.invoices.services.matching_service import InvoiceMatchingService, normalize_product_name
+from apps.invoices.services.matching_service import InvoiceMatchingService, normalize_product_name, resolve_measure_unit_name
 from apps.invoices.services.iiko_invoice_service import IikoIncomingInvoiceService
 from apps.invoices.services.vision_service import GeminiVisionAdapter, OpenAIVisionAdapter, AnthropicVisionAdapter
 
@@ -344,7 +344,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             item.iiko_store_name = data.get('iiko_store_name', item.iiko_store_name)
 
         if 'iiko_product_unit' in data:
-            item.iiko_product_unit = data['iiko_product_unit'] or ""
+            item.iiko_product_unit = resolve_measure_unit_name(data['iiko_product_unit'] or "")
 
         if 'iiko_product_id' in data:
             item.iiko_product_id = data['iiko_product_id']

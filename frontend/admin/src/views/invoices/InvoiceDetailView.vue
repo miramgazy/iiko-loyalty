@@ -362,8 +362,8 @@
                     title="Количество в базовых единицах iiko (измените число для пересчета штучности)"
                     class="form-input text-xs py-1 px-1.5 w-20 text-right font-mono font-bold bg-slate-900 border-slate-700 focus:border-indigo-500 rounded text-white"
                   />
-                  <span class="text-[10px] text-slate-400 font-mono flex-shrink-0" :title="`Единица в iiko: ${item.iiko_product_unit || 'кг'}`">
-                    {{ item.iiko_product_unit || item.raw_unit || 'кг' }}
+                  <span class="text-[10px] text-slate-400 font-mono flex-shrink-0" :title="`Единица в iiko: ${formatUnitName(item.iiko_product_unit || item.raw_unit)}`">
+                    {{ formatUnitName(item.iiko_product_unit || item.raw_unit || 'кг') }}
                   </span>
                 </div>
               </td>
@@ -571,7 +571,7 @@
               >
                 <div>
                   <p class="font-medium text-white">{{ cand.name }}</p>
-                  <p class="text-[10px] text-slate-400 font-mono">{{ cand.code ? `Арт: ${cand.code}` : '' }} • Ед: {{ cand.unit || 'кг' }}</p>
+                  <p class="text-[10px] text-slate-400 font-mono">{{ cand.code ? `Арт: ${cand.code}` : '' }} • Ед: {{ formatUnitName(cand.unit || 'кг') }}</p>
                 </div>
                 <div class="flex items-center gap-2">
                   <span class="text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-indigo-900/60 text-indigo-300">
@@ -605,7 +605,7 @@
             >
               <div>
                 <p class="font-medium text-white">{{ prod.name }}</p>
-                <p class="text-[10px] text-slate-500 font-mono">{{ prod.code ? `Арт: ${prod.code}` : '' }} • Ед: {{ prod.unit || 'кг' }}</p>
+                <p class="text-[10px] text-slate-500 font-mono">{{ prod.code ? `Арт: ${prod.code}` : '' }} • Ед: {{ formatUnitName(prod.unit || 'кг') }}</p>
               </div>
               <span class="text-xs text-indigo-400">Выбрать ➔</span>
             </div>
@@ -1117,6 +1117,30 @@ async function onDifferentStoresToggle() {
   await saveHeader()
 }
 
+// Справочник единиц измерения iiko (UUID -> Название)
+const STANDARD_UNITS = {
+  '7ba81c3a-8de5-8f9d-fb9f-e39efcbc57cc': 'кг',
+  'cd19b5ea-1b32-a6e5-1df7-5d2784a0549a': 'шт',
+  '6040d92d-e286-f4f9-a613-ed0e6fd241e1': 'порц',
+  '69859c74-db72-b006-cba5-326cf6f4fc6e': 'л',
+  'b003f902-de36-c128-019f-7e1d6ef2280b': 'услуга',
+  'b003f902-de36-c128-019f-7e1d6ef228b2': 'м',
+  'b003f902-de36-c128-019f-7e1d6ef22a4a': 'пара',
+}
+
+function formatUnitName(unit) {
+  if (!unit) return 'кг'
+  const str = String(unit).trim().toLowerCase()
+  if (STANDARD_UNITS[str]) {
+    return STANDARD_UNITS[str]
+  }
+  // Если значение является UUID (36 символов с 4 дефисами)
+  if (str.length === 36 && str.split('-').length === 5) {
+    return 'шт'
+  }
+  return unit
+}
+
 async function onItemStoreChange(item) {
   const st = stores.value.find(s => String(s.id) === String(item.iiko_store_id))
   item.iiko_store_name = st ? st.name : ''
@@ -1229,7 +1253,7 @@ async function openPackagingModal(item) {
   customCoefficient.value = Number(item.packaging_coefficient) || 1.0
   selectedContainerId.value = item.iiko_container_id || ''
   selectedContainerName.value = item.iiko_container_name || ''
-  packItemUnit.value = item.iiko_product_unit || (item.raw_unit === 'кг' ? 'шт' : item.raw_unit) || 'шт'
+  packItemUnit.value = formatUnitName(item.iiko_product_unit || (item.raw_unit === 'кг' ? 'шт' : item.raw_unit) || 'шт')
   savePackToKB.value = !item.skip_knowledge_base
   availableContainers.value = []
 
@@ -1242,7 +1266,7 @@ async function openPackagingModal(item) {
       const found = (res.data || []).find(p => String(p.id).toLowerCase() === String(item.iiko_product_id).toLowerCase())
       if (found) {
         if (found.unit && !item.iiko_product_unit) {
-          packItemUnit.value = found.unit
+          packItemUnit.value = formatUnitName(found.unit)
         }
         if (found.containers && found.containers.length > 0) {
           availableContainers.value = found.containers
@@ -1335,7 +1359,7 @@ async function quickSelectCandidate(item, cand) {
   item.iiko_product_id = cand.id
   item.iiko_product_name = cand.name
   item.iiko_product_code = cand.code
-  item.iiko_product_unit = cand.unit || 'кг'
+  item.iiko_product_unit = formatUnitName(cand.unit || 'кг')
   item.match_status = 'green'
   await updateItemValues(item)
   toast.success(`Привязано: ${cand.name}`)
@@ -1368,7 +1392,7 @@ async function selectProductForActiveItem(prod) {
   activeSearchItem.value.iiko_product_id = prod.id
   activeSearchItem.value.iiko_product_name = prod.name
   activeSearchItem.value.iiko_product_code = prod.code
-  activeSearchItem.value.iiko_product_unit = prod.unit || 'кг'
+  activeSearchItem.value.iiko_product_unit = formatUnitName(prod.unit || 'кг')
   activeSearchItem.value.match_status = 'green'
   await updateItemValues(activeSearchItem.value)
   searchModalOpen.value = false
